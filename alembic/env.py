@@ -25,6 +25,32 @@ from ixforge.models.base import Base  # noqa: E402
 
 target_metadata = Base.metadata
 
+# Tablas y tipos manejados por procrastinate (schema aplicado por su CLI)
+PROCRASTINATE_TABLES = {
+    "procrastinate_jobs",
+    "procrastinate_events",
+    "procrastinate_periodic_defers",
+    "procrastinate_workers",
+}
+PROCRASTINATE_TYPES = {
+    "procrastinate_job_status",
+    "procrastinate_job_event_type",
+    "procrastinate_job_to_defer_v1",
+}
+
+
+def include_object(
+    object: object,  # noqa: A002
+    name: str | None,
+    type_: str,
+    reflected: bool,
+    compare_to: object | None,
+) -> bool:
+    """Excluir objetos de procrastinate del autogenerate"""
+    if type_ == "table" and name in PROCRASTINATE_TABLES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
@@ -36,13 +62,18 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection):  # type: ignore[no-untyped-def]
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
