@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 401fc1001837
+Revision ID: d84b991715d6
 Revises: 
-Create Date: 2026-02-12 02:08:38.900274
+Create Date: 2026-02-12 13:57:56.008628
 
 """
 from typing import Sequence, Union
@@ -11,8 +11,10 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+import ixforge.models.types
+
 # revision identifiers, used by Alembic.
-revision: str = '401fc1001837'
+revision: str = 'd84b991715d6'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,10 +38,10 @@ def upgrade() -> None:
     sa.UniqueConstraint('short_name')
     )
     op.create_table('custom_field_definitions',
-    sa.Column('entity_type', sa.String(length=20), nullable=False, comment='member, connection, port, switch, vlan'),
+    sa.Column('entity_type', sa.Enum('member', 'connection', 'port', 'switch', 'vlan', name='custom_field_entity_type'), nullable=False),
     sa.Column('field_name', sa.String(length=100), nullable=False),
-    sa.Column('field_type', sa.String(length=20), nullable=False, comment='string, integer, boolean, url, email'),
-    sa.Column('is_required', sa.Boolean(), nullable=False),
+    sa.Column('field_type', sa.Enum('string', 'integer', 'boolean', 'url', 'email', name='custom_field_type'), nullable=False),
+    sa.Column('is_required', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('default_value', sa.Text(), nullable=True),
     sa.Column('display_order', sa.Integer(), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
@@ -56,8 +58,8 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('short_name', sa.String(length=50), nullable=False),
     sa.Column('asn', sa.Integer(), nullable=False),
-    sa.Column('state', sa.String(length=20), nullable=False, comment='prospect, provisioning, active, suspended, terminated'),
-    sa.Column('peering_policy', sa.String(length=20), nullable=False, comment='open, selective, restrictive, no'),
+    sa.Column('state', sa.Enum('prospect', 'provisioning', 'active', 'suspended', 'terminated', name='member_state'), nullable=False),
+    sa.Column('peering_policy', sa.Enum('open', 'selective', 'restrictive', 'no', name='peering_policy'), nullable=False),
     sa.Column('peering_policy_details', sa.Text(), nullable=True),
     sa.Column('website', sa.String(length=512), nullable=True),
     sa.Column('peeringdb_id', sa.Integer(), nullable=True),
@@ -74,11 +76,11 @@ def upgrade() -> None:
     op.create_table('route_servers',
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('hostname', sa.String(length=255), nullable=False),
-    sa.Column('ip_v4', sa.String(length=45), nullable=True),
-    sa.Column('ip_v6', sa.String(length=45), nullable=True),
+    sa.Column('ip_v4', ixforge.models.types.INET(), nullable=True),
+    sa.Column('ip_v6', ixforge.models.types.INET(), nullable=True),
     sa.Column('asn', sa.Integer(), nullable=False),
     sa.Column('software', sa.String(length=50), nullable=False),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('last_heartbeat_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('agent_version', sa.String(length=50), nullable=True),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
@@ -94,22 +96,23 @@ def upgrade() -> None:
     sa.Column('hostname', sa.String(length=255), nullable=False),
     sa.Column('vendor', sa.String(length=100), nullable=True),
     sa.Column('model', sa.String(length=100), nullable=True),
-    sa.Column('management_ip', sa.String(length=45), nullable=True),
+    sa.Column('management_ip', ixforge.models.types.INET(), nullable=True),
     sa.Column('snmp_community_encrypted', sa.Text(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('ixp_id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('extra_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.ForeignKeyConstraint(['ixp_id'], ['ixps.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('ixp_id', 'hostname', name='uq_switches_ixp_id_hostname')
     )
     op.create_index(op.f('ix_switches_ixp_id'), 'switches', ['ixp_id'], unique=False)
     op.create_table('vlans',
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('vid', sa.Integer(), nullable=False, comment='VLAN ID'),
-    sa.Column('type', sa.String(length=20), nullable=False, comment='production, quarantine, management, other'),
+    sa.Column('type', sa.Enum('production', 'quarantine', 'management', 'other', name='vlan_type'), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('ixp_id', sa.Uuid(), nullable=False),
@@ -117,7 +120,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('extra_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.ForeignKeyConstraint(['ixp_id'], ['ixps.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('ixp_id', 'vid', name='uq_vlans_ixp_id_vid')
     )
     op.create_index(op.f('ix_vlans_ixp_id'), 'vlans', ['ixp_id'], unique=False)
     op.create_table('contacts',
@@ -125,7 +129,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('phone', sa.String(length=50), nullable=True),
-    sa.Column('role', sa.String(length=20), nullable=False, comment='noc, admin, technical, billing'),
+    sa.Column('role', sa.Enum('noc', 'admin', 'technical', 'billing', name='contact_role'), nullable=False),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -135,8 +139,8 @@ def upgrade() -> None:
     op.create_index(op.f('ix_contacts_member_id'), 'contacts', ['member_id'], unique=False)
     op.create_table('ip_pools',
     sa.Column('vlan_id', sa.Uuid(), nullable=False),
-    sa.Column('network', sa.String(length=50), nullable=False, comment='CIDR notation'),
-    sa.Column('gateway', sa.String(length=45), nullable=False, comment='Gateway address'),
+    sa.Column('network', ixforge.models.types.CIDR(), nullable=False, comment='CIDR notation'),
+    sa.Column('gateway', ixforge.models.types.INET(), nullable=False, comment='Gateway address'),
     sa.Column('af', sa.Integer(), nullable=False, comment='Address family: 4 or 6'),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -149,16 +153,17 @@ def upgrade() -> None:
     sa.Column('switch_id', sa.Uuid(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('speed', sa.Integer(), nullable=False, comment='Speed in Mbps'),
-    sa.Column('type', sa.String(length=20), nullable=False, comment='member, infra, unused'),
+    sa.Column('type', sa.Enum('member', 'infra', 'unused', name='port_type'), nullable=False),
     sa.Column('member_id', sa.Uuid(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('extra_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.ForeignKeyConstraint(['member_id'], ['members.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['switch_id'], ['switches.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('switch_id', 'name', name='uq_ports_switch_id_name')
     )
     op.create_index(op.f('ix_ports_member_id'), 'ports', ['member_id'], unique=False)
     op.create_index(op.f('ix_ports_switch_id'), 'ports', ['switch_id'], unique=False)
@@ -168,7 +173,7 @@ def upgrade() -> None:
     sa.Column('full_name', sa.String(length=255), nullable=False),
     sa.Column('role', sa.Enum('admin', 'member', name='user_role'), nullable=False),
     sa.Column('member_id', sa.Uuid(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -183,7 +188,7 @@ def upgrade() -> None:
     sa.Column('scopes', sa.ARRAY(sa.String()), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=True),
     sa.Column('route_server_id', sa.Uuid(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('last_used_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -210,9 +215,9 @@ def upgrade() -> None:
     op.create_table('connections',
     sa.Column('member_id', sa.Uuid(), nullable=False),
     sa.Column('port_id', sa.Uuid(), nullable=True),
-    sa.Column('type', sa.String(length=20), nullable=False, comment='physical, virtual'),
-    sa.Column('state', sa.String(length=20), nullable=False, comment='draft, provisioning, active, disabled, decommissioned'),
-    sa.Column('mac_address', sa.String(length=17), nullable=True),
+    sa.Column('type', sa.Enum('physical', 'virtual', name='connection_type'), nullable=False),
+    sa.Column('state', sa.Enum('draft', 'provisioning', 'active', 'disabled', 'decommissioned', name='connection_state'), nullable=False),
+    sa.Column('mac_address', ixforge.models.types.MACADDR(), nullable=True),
     sa.Column('speed', sa.Integer(), nullable=True, comment='Speed in Mbps'),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -238,14 +243,17 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_events_actor_id'), 'events', ['actor_id'], unique=False)
+    op.create_index(op.f('ix_events_created_at'), 'events', ['created_at'], unique=False)
     op.create_index(op.f('ix_events_ixp_id'), 'events', ['ixp_id'], unique=False)
+    op.create_index(op.f('ix_events_resource_id'), 'events', ['resource_id'], unique=False)
+    op.create_index(op.f('ix_events_resource_type'), 'events', ['resource_type'], unique=False)
     op.create_table('bgp_sessions',
     sa.Column('route_server_id', sa.Uuid(), nullable=False),
     sa.Column('connection_id', sa.Uuid(), nullable=False),
-    sa.Column('peer_ip', sa.String(length=45), nullable=False),
+    sa.Column('peer_ip', ixforge.models.types.INET(), nullable=False),
     sa.Column('peer_asn', sa.Integer(), nullable=False),
-    sa.Column('admin_state', sa.String(length=10), nullable=False, comment='up, down'),
-    sa.Column('oper_state', sa.String(length=10), nullable=False, comment='up, down, unknown'),
+    sa.Column('admin_state', sa.Enum('up', 'down', name='bgp_admin_state'), nullable=False),
+    sa.Column('oper_state', sa.Enum('up', 'down', 'unknown', name='bgp_oper_state'), nullable=False),
     sa.Column('af', sa.Integer(), nullable=False, comment='Address family: 4 or 6'),
     sa.Column('max_prefixes', sa.Integer(), nullable=True),
     sa.Column('import_limit', sa.Integer(), nullable=True),
@@ -268,14 +276,15 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['connection_id'], ['connections.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['vlan_id'], ['vlans.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('connection_id', 'vlan_id', name='uq_connection_vlans_conn_vlan')
     )
     op.create_index(op.f('ix_connection_vlans_connection_id'), 'connection_vlans', ['connection_id'], unique=False)
     op.create_index(op.f('ix_connection_vlans_vlan_id'), 'connection_vlans', ['vlan_id'], unique=False)
     op.create_table('ip_assignments',
     sa.Column('pool_id', sa.Uuid(), nullable=False),
     sa.Column('connection_id', sa.Uuid(), nullable=False),
-    sa.Column('address', sa.String(length=45), nullable=False, comment='IP address'),
+    sa.Column('address', ixforge.models.types.INET(), nullable=False, comment='IP address'),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -300,7 +309,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_bgp_sessions_route_server_id'), table_name='bgp_sessions')
     op.drop_index(op.f('ix_bgp_sessions_connection_id'), table_name='bgp_sessions')
     op.drop_table('bgp_sessions')
+    op.drop_index(op.f('ix_events_resource_type'), table_name='events')
+    op.drop_index(op.f('ix_events_resource_id'), table_name='events')
     op.drop_index(op.f('ix_events_ixp_id'), table_name='events')
+    op.drop_index(op.f('ix_events_created_at'), table_name='events')
     op.drop_index(op.f('ix_events_actor_id'), table_name='events')
     op.drop_table('events')
     op.drop_index(op.f('ix_connections_port_id'), table_name='connections')

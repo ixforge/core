@@ -9,12 +9,74 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ixforge import __version__
 from ixforge.config import get_settings
 from ixforge.exceptions import IXForgeError
 from ixforge.logging import setup_logging
 from ixforge.metrics import http_request_duration_seconds, http_requests_total
+
+
+class RequestIDMiddleware:
+    """Pure ASGI middleware that injects a request ID into structlog context."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        request_id = headers.get(b"x-request-id", b"").decode() or str(uuid.uuid4())
+
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        async def send_with_request_id(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", request_id.encode()))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_request_id)
+
+
+class MetricsMiddleware:
+    """Pure ASGI middleware that records request duration and count."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        start = time.perf_counter()
+        status_code = 500
+
+        async def send_with_metrics(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_metrics)
+        finally:
+            duration = time.perf_counter() - start
+            path = scope.get("path", "")
+            method = scope.get("method", "")
+            http_requests_total.labels(
+                method=method, path=path, status=status_code
+            ).inc()
+            http_request_duration_seconds.labels(
+                method=method, path=path
+            ).observe(duration)
 
 
 @asynccontextmanager
@@ -27,7 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log.info("ixforge.shutdown")
 
 
-def create_app() -> FastAPI:
+def create_app(*, enable_rate_limit: bool = True) -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
@@ -50,39 +112,22 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
-    # Rate limiting
-    from slowapi import _rate_limit_exceeded_handler
-    from slowapi.errors import RateLimitExceeded
-    from slowapi.middleware import SlowAPIMiddleware
+    # Rate limiting (SlowAPIMiddleware uses BaseHTTPMiddleware internally,
+    # which breaks asyncpg in tests; disable via enable_rate_limit=False)
+    if enable_rate_limit:
+        from slowapi import _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
+        from slowapi.middleware import SlowAPIMiddleware
 
-    from ixforge.rate_limit import limiter
+        from ixforge.rate_limit import limiter
 
-    app.state.limiter = limiter
-    app.add_middleware(SlowAPIMiddleware)
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+        app.state.limiter = limiter
+        app.add_middleware(SlowAPIMiddleware)
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
-    # Request ID middleware
-    @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-        structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(request_id=request_id)
-        response: Response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
-
-    # Metrics middleware
-    @app.middleware("http")
-    async def metrics_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
-        start = time.perf_counter()
-        response: Response = await call_next(request)
-        duration = time.perf_counter() - start
-        path = request.url.path
-        http_requests_total.labels(
-            method=request.method, path=path, status=response.status_code
-        ).inc()
-        http_request_duration_seconds.labels(method=request.method, path=path).observe(duration)
-        return response
+    # Pure ASGI middlewares (no BaseHTTPMiddleware, safe with asyncpg)
+    app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(MetricsMiddleware)
 
     # Exception handlers
     @app.exception_handler(IXForgeError)
