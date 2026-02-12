@@ -4,6 +4,7 @@ import ipaddress
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
@@ -133,7 +134,9 @@ async def allocate_sequential(
     connection_id: uuid.UUID,
 ) -> IPAssignment:
     """Allocate the next available IP address in a pool."""
-    pool = await get_pool(session, pool_id)
+    pool = await session.get(IPPool, pool_id, with_for_update=True)
+    if pool is None:
+        raise NotFoundError("IPPool", str(pool_id))
     network = ipaddress.ip_network(pool.network, strict=False)
     gateway = ipaddress.ip_address(pool.gateway)
     reserved = _reserved_addresses(network, gateway)
@@ -155,7 +158,10 @@ async def allocate_sequential(
             address=address_str,
         )
         session.add(assignment)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError:
+            raise ConflictError(f"Address {address_str} was allocated concurrently") from None
         return assignment
 
     raise ConflictError(f"No available addresses in pool {pool.network}")
@@ -168,7 +174,9 @@ async def allocate_manual(
     address: str,
 ) -> IPAssignment:
     """Allocate a specific IP address from a pool."""
-    pool = await get_pool(session, pool_id)
+    pool = await session.get(IPPool, pool_id, with_for_update=True)
+    if pool is None:
+        raise NotFoundError("IPPool", str(pool_id))
     network = ipaddress.ip_network(pool.network, strict=False)
     gateway = ipaddress.ip_address(pool.gateway)
 
@@ -186,7 +194,10 @@ async def allocate_manual(
         address=address,
     )
     session.add(assignment)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        raise ConflictError(f"Address {address} was allocated concurrently") from None
     return assignment
 
 

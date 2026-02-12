@@ -1,17 +1,12 @@
 """User model."""
 
-import enum
 import uuid
 
 from sqlalchemy import Boolean, Enum, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import UserRole as UserRole
 from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
-
-
-class UserRole(enum.StrEnum):
-    admin = "admin"
-    member = "member"
 
 
 class User(UUIDPrimaryKey, TimestampMixin, Base):

@@ -4,6 +4,9 @@ import os
 import uuid
 from collections.abc import AsyncGenerator
 
+# Configurar secret key para tests antes de importar modulos de ixforge
+os.environ.setdefault("IXFORGE_SECRET_KEY", "test-secret-key-not-for-production-at-least-32-chars")
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event

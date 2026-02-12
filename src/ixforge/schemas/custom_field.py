@@ -2,25 +2,10 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-
-class CustomFieldEntityType(StrEnum):
-    member = "member"
-    connection = "connection"
-    port = "port"
-    switch = "switch"
-    vlan = "vlan"
-
-
-class CustomFieldType(StrEnum):
-    string = "string"
-    integer = "integer"
-    boolean = "boolean"
-    url = "url"
-    email = "email"
+from ixforge.enums import CustomFieldEntityType as CustomFieldEntityType, CustomFieldType as CustomFieldType
 
 
 class CustomFieldDefinitionCreate(BaseModel):

@@ -20,6 +20,7 @@ DEFAULT_EVENT_RETENTION_DAYS = 90
 DEFAULT_CONFIG_VERSIONS_KEEP = 100
 
 
+@app.periodic(cron="0 3 * * *")  # type: ignore[untyped-decorator]
 @app.task(name="cleanup_old_events", queue="maintenance")
 async def cleanup_old_events(retention_days: int = DEFAULT_EVENT_RETENTION_DAYS) -> dict[str, int]:
     """Delete events older than the configured retention period.
@@ -54,6 +55,7 @@ async def cleanup_old_events(retention_days: int = DEFAULT_EVENT_RETENTION_DAYS)
             raise
 
 
+@app.periodic(cron="0 4 * * 0")  # type: ignore[untyped-decorator]
 @app.task(name="cleanup_config_versions", queue="maintenance")
 async def cleanup_config_versions(
     keep_last: int = DEFAULT_CONFIG_VERSIONS_KEEP,

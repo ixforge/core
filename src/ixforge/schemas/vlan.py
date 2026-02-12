@@ -2,17 +2,11 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-class VLANType(StrEnum):
-    production = "production"
-    quarantine = "quarantine"
-    management = "management"
-    other = "other"
+from ixforge.enums import VLANType
 
 
 class VLANCreate(BaseModel):

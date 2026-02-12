@@ -3,6 +3,7 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import ConflictError, NotFoundError
@@ -75,11 +76,16 @@ async def assign(
     member_id: uuid.UUID,
 ) -> Port:
     """Assign a port to a member. Fails if already assigned."""
-    port = await get(session, port_id)
+    port = await session.get(Port, port_id, with_for_update=True)
+    if port is None:
+        raise NotFoundError("Port", str(port_id))
     if port.member_id is not None:
         raise ConflictError(f"Port {port_id} is already assigned to member {port.member_id}")
     port.member_id = member_id
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        raise ConflictError(f"Port {port_id} was assigned concurrently") from None
     return port
 
 
