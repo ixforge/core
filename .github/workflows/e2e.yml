@@ -1,0 +1,82 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ixforge
+          POSTGRES_PASSWORD: ixforge
+          POSTGRES_DB: ixforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ixforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      IXFORGE_DATABASE_URL: postgresql+asyncpg://ixforge:ixforge@localhost:5432/ixforge
+      IXFORGE_SECRET_KEY: ci-e2e-secret-key-at-least-32-chars-long
+      IXFORGE_ADMIN_EMAIL: admin@demo-ixp.net
+      IXFORGE_ADMIN_PASSWORD: adminpass123
+      E2E_BASE_URL: http://127.0.0.1:8000/api/v1
+      E2E_ADMIN_EMAIL: admin@demo-ixp.net
+      E2E_ADMIN_PASSWORD: adminpass123
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run database migrations
+        run: uv run ixforge upgrade
+
+      - name: Create admin user
+        run: uv run ixforge createsuperuser
+
+      - name: Seed demo data
+        run: uv run ixforge seed
+
+      - name: Start API server
+        run: |
+          uv run uvicorn ixforge.main:app --host 127.0.0.1 --port 8000 &
+          echo "Waiting for server to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/api/v1/health > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Server failed to start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run E2E tests
+        run: python tests/e2e_test.py
