@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Query
 
 from ixforge.api.deps import CurrentUser, DBSession, IXPId
+from ixforge.exceptions import ForbiddenError
 from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.event import EventRead
@@ -35,6 +36,8 @@ async def list_events(
     effective_resource_id = resource_id
 
     if user.role != UserRole.admin:
+        if user.member_id is None:
+            raise ForbiddenError("Member user without assigned member cannot access events")
         effective_resource_type = "member"
         effective_resource_id = user.member_id
 

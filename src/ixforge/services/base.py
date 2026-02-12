@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import Select, asc, literal, tuple_
+from sqlalchemy import Select, asc, literal, nulls_last, tuple_
 
 from ixforge.schemas.common import CursorPage, CursorParams, decode_cursor, encode_cursor
 
@@ -29,7 +29,7 @@ async def paginate[T: BaseModel](
     deterministic forward pagination without OFFSET.  Rows are ordered by
     (sort_column ASC, id_column ASC).
     """
-    stmt = stmt.order_by(asc(sort_column), asc(id_column))
+    stmt = stmt.order_by(nulls_last(asc(sort_column)), asc(id_column))
 
     if params.cursor is not None:
         cursor_value, cursor_id = decode_cursor(params.cursor)

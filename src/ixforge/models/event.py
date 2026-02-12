@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,6 +13,7 @@ from ixforge.models.base import Base, TenantMixin, UUIDPrimaryKey
 
 class Event(UUIDPrimaryKey, TenantMixin, Base):
     __tablename__ = "events"
+    __table_args__ = (Index("ix_events_type_ixp", "type", "ixp_id"),)
 
     type: Mapped[str] = mapped_column(
         String(100),
