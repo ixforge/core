@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Uuid
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import ConnectionState, ConnectionType
@@ -44,6 +44,9 @@ class Connection(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
 
 class ConnectionVLAN(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "connection_vlans"
+    __table_args__ = (
+        UniqueConstraint("connection_id", "vlan_id", name="uq_connection_vlans_conn_vlan"),
+    )
 
     connection_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.database import get_db
+from ixforge.database import get_db, tenant_context
 from ixforge.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from ixforge.models.api_key import APIKey
 from ixforge.models.ixp import IXP
@@ -95,12 +95,17 @@ MemberOrAdminUser = Annotated[User, Depends(require_member_or_admin)]
 
 
 async def get_ixp_id(db: DBSession) -> uuid.UUID:
-    """Resolve the default IXP id (MVP: first IXP in the database)."""
+    """Resolve the default IXP id (MVP: first IXP in the database).
+
+    Also sets the tenant context so that all subsequent queries in this
+    request are automatically filtered by ixp_id (defense-in-depth).
+    """
     stmt = select(IXP.id).limit(1)
     result = await db.execute(stmt)
     ixp_id = result.scalar_one_or_none()
     if ixp_id is None:
         raise NotFoundError("IXP", "No IXP configured")
+    tenant_context.set(ixp_id)
     return ixp_id
 
 
@@ -126,12 +131,13 @@ async def require_monitoring_scope(
     if "monitoring:read" not in api_key.scopes:
         raise ForbiddenError("API key missing 'monitoring:read' scope")
 
-    # Resolve the IXP id from the default IXP.
+    # Resolve the IXP id and set tenant context
     ixp_stmt = select(IXP.id).limit(1)
     ixp_result = await db.execute(ixp_stmt)
     ixp_id = ixp_result.scalar_one_or_none()
     if ixp_id is None:
         raise NotFoundError("IXP", "No IXP configured")
+    tenant_context.set(ixp_id)
     return ixp_id
 
 

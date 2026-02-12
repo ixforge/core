@@ -1,6 +1,8 @@
 """Database engine and session factory."""
 
+import uuid
 from collections.abc import AsyncGenerator
+from contextvars import ContextVar
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -13,6 +15,9 @@ from ixforge.config import get_settings
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
+
+# Holds the current tenant ID for automatic query filtering
+tenant_context: ContextVar[uuid.UUID | None] = ContextVar("tenant_context", default=None)
 
 
 def get_engine() -> AsyncEngine:

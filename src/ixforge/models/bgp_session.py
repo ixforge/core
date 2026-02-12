@@ -30,6 +30,7 @@ class BGPSession(UUIDPrimaryKey, TimestampMixin, Base):
     admin_state: Mapped[BGPAdminState] = mapped_column(
         Enum(BGPAdminState, name="bgp_admin_state"),
         nullable=False,
+        default=BGPAdminState.up,
     )
     oper_state: Mapped[BGPOperState] = mapped_column(
         Enum(BGPOperState, name="bgp_oper_state"),

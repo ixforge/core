@@ -106,7 +106,17 @@ def _build_rs_context(rs: RouteServer) -> RouteServerContext:
         # Derivar router ID de los ultimos 4 bytes de la IPv6
         v6 = ipaddress.ip_address(rs.ip_v6)
         v6_bytes = v6.packed[-4:]
-        router_id = str(ipaddress.IPv4Address(v6_bytes))
+        derived = ipaddress.IPv4Address(v6_bytes)
+
+        if derived in (
+            ipaddress.IPv4Address("0.0.0.0"),
+            ipaddress.IPv4Address("255.255.255.255"),
+        ) or derived.is_multicast:
+            raise ValidationError(
+                f"Cannot derive valid BIRD router ID from IPv6 {rs.ip_v6} "
+                f"(got {derived}). Assign an IPv4 address to this route server"
+            )
+        router_id = str(derived)
     else:
         router_id = "0.0.0.1"
 

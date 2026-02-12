@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Response
 from sqlalchemy import text
 
+from ixforge import __version__
 from ixforge.api.deps import DBSession
 
 health_router = APIRouter(tags=["system"])
@@ -30,6 +31,6 @@ async def health(response: Response, db: DBSession) -> dict[str, Any]:
 
     return {
         "status": "healthy" if overall_healthy else "degraded",
-        "version": "0.1.0",
+        "version": __version__,
         "checks": checks,
     }
