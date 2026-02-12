@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Enum, ForeignKey, Integer, Uuid
+from sqlalchemy import Enum, ForeignKey, Index, Integer, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import BGPAdminState, BGPOperState
@@ -12,6 +12,7 @@ from ixforge.models.types import INET
 
 class BGPSession(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "bgp_sessions"
+    __table_args__ = (Index("ix_bgp_sessions_rs_conn", "route_server_id", "connection_id"),)
 
     route_server_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

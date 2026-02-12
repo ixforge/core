@@ -34,6 +34,13 @@ def decrypt_snmp(ciphertext: str) -> str:
     try:
         return _get_fernet().decrypt(ciphertext.encode()).decode()
     except InvalidToken as exc:
+        import structlog
+
+        structlog.get_logger().warning(
+            "snmp_community.decrypt_failed",
+            hint="This may indicate a SECRET_KEY change. "
+            "Encrypted values from the old key cannot be decrypted",
+        )
         raise ValidationError("Failed to decrypt SNMP community") from exc
 
 

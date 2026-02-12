@@ -49,6 +49,15 @@ class Settings(BaseSettings):
             )
         if not self.debug and len(self.secret_key) < 32:
             raise ValueError("IXFORGE_SECRET_KEY must be at least 32 characters")
+        if self.debug and self.secret_key == default:
+            import warnings
+
+            warnings.warn(
+                "Using default SECRET_KEY in debug mode. "
+                "This is insecure and must not be used in production",
+                UserWarning,
+                stacklevel=2,
+            )
         if self.debug and not self.cors_origins:
             self.cors_origins = ["*"]
         return self

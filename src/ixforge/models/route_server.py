@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, text
+from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
@@ -11,6 +11,9 @@ from ixforge.models.types import INET
 
 class RouteServer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "route_servers"
+    __table_args__ = (
+        UniqueConstraint("ixp_id", "hostname", name="uq_route_servers_ixp_id_hostname"),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     hostname: Mapped[str] = mapped_column(String(255), nullable=False)

@@ -103,6 +103,10 @@ async def update(
     member = await get(session, member_id)
     update_fields = data.model_dump(exclude_unset=True)
 
+    # Defensive: state changes must go through transition()
+    if "state" in update_fields:
+        raise ValidationError("Cannot modify state directly, use the transition endpoint")
+
     if "extra_data" in update_fields and update_fields["extra_data"] is not None:
         await custom_fields.validate_extra_data(
             session, member.ixp_id, "member", update_fields["extra_data"]

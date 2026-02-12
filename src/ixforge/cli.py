@@ -45,14 +45,29 @@ def _run_worker(queues: list[str] | None = None) -> None:
 
 
 def _run_upgrade() -> None:
-    """Run Alembic database migrations (``alembic upgrade head``)."""
+    """Run Alembic database migrations and apply procrastinate schema."""
     from alembic.config import Config as AlembicConfig
 
     from alembic import command as alembic_command
 
+    # Apply procrastinate schema first (idempotent)
+    _apply_procrastinate_schema()
+
     cfg = AlembicConfig("alembic.ini")
     alembic_command.upgrade(cfg, "head")
     print("Database migrations applied successfully.")
+
+
+def _apply_procrastinate_schema() -> None:
+    """Apply the procrastinate job queue schema (idempotent)."""
+    try:
+        from ixforge.tasks import app as procrastinate_app
+
+        asyncio.run(procrastinate_app.schema_manager.apply_schema_async())
+        print("Procrastinate schema applied successfully.")
+    except Exception as exc:
+        print(f"Warning: could not apply procrastinate schema: {exc}")
+        print("The worker may not start correctly without the procrastinate tables.")
 
 
 def _run_createsuperuser() -> None:

@@ -98,6 +98,10 @@ async def update(
     connection = await get(session, connection_id)
     update_fields = data.model_dump(exclude_unset=True)
 
+    # Defensive: state changes must go through transition()
+    if "state" in update_fields:
+        raise ValidationError("Cannot modify state directly, use the transition endpoint")
+
     if "extra_data" in update_fields and update_fields["extra_data"] is not None:
         from ixforge.models.member import Member
 

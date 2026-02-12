@@ -5,9 +5,11 @@ import uuid
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 
-from ixforge.api.deps import AdminUser, DBSession, IXPId
+from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
+from ixforge.exceptions import ForbiddenError
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment
+from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.connection import (
     ConnectionCreate,
@@ -43,12 +45,22 @@ class ConnectionIPRequest(BaseModel):
 @connections_router.get("", response_model=CursorPage[ConnectionRead])
 async def list_connections(
     db: DBSession,
-    _admin: AdminUser,
+    user: CurrentUser,
     member_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ConnectionRead]:
-    """List connections for a member."""
+    """List connections for a member.
+
+    Admins can list any member's connections; member users can only list
+    their own.
+    """
+    if user.role == UserRole.member:
+        if user.member_id is None:
+            raise ForbiddenError("Member user without assigned member cannot access connections")
+        if member_id != user.member_id:
+            raise ForbiddenError("You can only view your own connections")
+
     params = CursorParams(cursor=cursor, limit=limit)
     return await conn_svc.list_connections(db, member_id, params)
 
@@ -68,10 +80,21 @@ async def create_connection(
 async def get_connection(
     connection_id: uuid.UUID,
     db: DBSession,
-    _admin: AdminUser,
+    user: CurrentUser,
 ) -> Connection:
-    """Get connection details."""
-    return await conn_svc.get(db, connection_id)
+    """Get connection details.
+
+    Admins can view any connection; member users can only view their own.
+    """
+    connection = await conn_svc.get(db, connection_id)
+
+    if user.role == UserRole.member:
+        if user.member_id is None:
+            raise ForbiddenError("Member user without assigned member cannot access connections")
+        if connection.member_id != user.member_id:
+            raise ForbiddenError("You do not have access to this connection")
+
+    return connection
 
 
 @connections_router.patch("/{connection_id}", response_model=ConnectionRead)
