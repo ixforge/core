@@ -80,3 +80,7 @@ jobs:
 
       - name: Run E2E tests
         run: python tests/e2e_runner.py
+
+      - name: Stop API server
+        if: always()
+        run: pkill -f uvicorn || true
