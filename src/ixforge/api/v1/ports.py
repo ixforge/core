@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 
-from ixforge.api.deps import AdminUser, DBSession
+from ixforge.api.deps import AdminUser, DBSession, IXPId
 from ixforge.models.port import Port
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.port import PortCreate, PortRead, PortUpdate
@@ -35,10 +35,11 @@ async def list_ports(
 async def create_port(
     body: PortCreate,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Port:
     """Create a port."""
-    return await port_svc.create(db, body)
+    return await port_svc.create(db, ixp_id, body)
 
 
 @ports_router.get("/{port_id}", response_model=PortRead)

@@ -1,13 +1,24 @@
 """Connection schemas."""
 
+import re
 import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ixforge.enums import ConnectionState as ConnectionState
 from ixforge.enums import ConnectionType as ConnectionType
+
+_MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
+
+
+def _validate_mac(v: str | None) -> str | None:
+    if v is None:
+        return None
+    if not _MAC_RE.match(v):
+        raise ValueError("Invalid MAC address format, expected XX:XX:XX:XX:XX:XX")
+    return v.lower()
 
 
 class ConnectionCreate(BaseModel):
@@ -18,6 +29,11 @@ class ConnectionCreate(BaseModel):
     speed: int | None = Field(default=None, gt=0)
     extra_data: dict[str, Any] | None = None
 
+    @field_validator("mac_address")
+    @classmethod
+    def validate_mac(cls, v: str | None) -> str | None:
+        return _validate_mac(v)
+
 
 class ConnectionUpdate(BaseModel):
     port_id: uuid.UUID | None = None
@@ -25,6 +41,11 @@ class ConnectionUpdate(BaseModel):
     mac_address: str | None = Field(default=None, max_length=17)
     speed: int | None = Field(default=None, gt=0)
     extra_data: dict[str, Any] | None = None
+
+    @field_validator("mac_address")
+    @classmethod
+    def validate_mac(cls, v: str | None) -> str | None:
+        return _validate_mac(v)
 
 
 class ConnectionRead(BaseModel):

@@ -5,6 +5,13 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ixforge.enums import (
+    ConnectionState,
+    ConnectionType,
+    MemberState,
+    PeeringPolicy,
+    VLANType,
+)
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPPool
 from ixforge.models.ixp import IXP
@@ -25,7 +32,7 @@ async def _setup_vlan_and_member(
         ixp_id=ixp.id,
         name="IPAM Test VLAN",
         vid=200,
-        type="production",
+        type=VLANType.production,
     )
     db_session.add(vlan)
 
@@ -35,17 +42,18 @@ async def _setup_vlan_and_member(
         name="IPAM Test Member",
         short_name="IPM",
         asn=65100,
-        state="provisioning",
-        peering_policy="open",
+        state=MemberState.provisioning,
+        peering_policy=PeeringPolicy.open,
     )
     db_session.add(member)
     await db_session.flush()
 
     conn = Connection(
         id=uuid.uuid4(),
+        ixp_id=ixp.id,
         member_id=member.id,
-        type="physical",
-        state="draft",
+        type=ConnectionType.physical,
+        state=ConnectionState.draft,
         speed=10000,
     )
     db_session.add(conn)
@@ -72,7 +80,7 @@ class TestIPPoolCreation:
             ixp_id=ixp.id,
             name="Pool Create VLAN",
             vid=300,
-            type="production",
+            type=VLANType.production,
         )
         db_session.add(vlan)
         await db_session.flush()
@@ -105,7 +113,7 @@ class TestIPPoolCreation:
             ixp_id=ixp.id,
             name="IPv6 Pool VLAN",
             vid=301,
-            type="production",
+            type=VLANType.production,
         )
         db_session.add(vlan)
         await db_session.flush()
@@ -132,7 +140,7 @@ class TestIPPoolCreation:
             ixp_id=ixp.id,
             name="Bad CIDR VLAN",
             vid=302,
-            type="production",
+            type=VLANType.production,
         )
         db_session.add(vlan)
         await db_session.flush()
@@ -157,7 +165,7 @@ class TestIPPoolCreation:
             ixp_id=ixp.id,
             name="Bad GW VLAN",
             vid=303,
-            type="production",
+            type=VLANType.production,
         )
         db_session.add(vlan)
         await db_session.flush()
@@ -182,7 +190,7 @@ class TestIPPoolCreation:
             ixp_id=ixp.id,
             name="AF Mismatch VLAN",
             vid=304,
-            type="production",
+            type=VLANType.production,
         )
         db_session.add(vlan)
         await db_session.flush()
@@ -217,6 +225,7 @@ class TestSequentialAllocation:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="192.0.2.0/24",
             gateway="192.0.2.1",
@@ -247,6 +256,7 @@ class TestSequentialAllocation:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="203.0.113.0/29",
             gateway="203.0.113.1",
@@ -257,9 +267,10 @@ class TestSequentialAllocation:
 
         conn2 = Connection(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             member_id=member.id,
-            type="physical",
-            state="draft",
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
             speed=10000,
         )
         db_session.add(conn2)
@@ -301,6 +312,7 @@ class TestManualAllocation:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
             gateway="198.51.100.1",
@@ -328,6 +340,7 @@ class TestManualAllocation:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
             gateway="198.51.100.1",
@@ -361,6 +374,7 @@ class TestReservedIPRejection:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
             gateway="198.51.100.1",
@@ -387,6 +401,7 @@ class TestReservedIPRejection:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
             gateway="198.51.100.1",
@@ -413,6 +428,7 @@ class TestReservedIPRejection:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
             gateway="198.51.100.1",
@@ -427,3 +443,159 @@ class TestReservedIPRejection:
             json={"connection_id": str(conn.id), "address": "198.51.100.255"},
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Pool exhaustion
+# ---------------------------------------------------------------------------
+
+
+class TestPoolExhaustion:
+    async def test_pool_exhausted_returns_conflict(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """A /30 pool has only 2 usable IPs (.1 is gateway, .0 is network, .3 is broadcast)"""
+        vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="203.0.113.0/30",
+            gateway="203.0.113.1",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp1 = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn1.id)},
+        )
+        assert resp1.status_code == 201
+        assert resp1.json()["address"] == "203.0.113.2"
+
+        conn2 = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
+            speed=10000,
+        )
+        db_session.add(conn2)
+        await db_session.flush()
+
+        resp2 = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn2.id)},
+        )
+        assert resp2.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Sequential skips reserved
+# ---------------------------------------------------------------------------
+
+
+class TestSequentialSkipsReserved:
+    async def test_sequential_skips_network_and_broadcast(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """In a /29 pool, sequential allocation should skip .0 (network), .1 (gw), and .7 (broadcast)"""
+        vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="203.0.113.0/29",
+            gateway="203.0.113.1",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        allocated: list[str] = []
+        connections = [conn1]
+        for _i in range(4):
+            c = Connection(
+                id=uuid.uuid4(),
+                ixp_id=ixp.id,
+                member_id=member.id,
+                type=ConnectionType.physical,
+                state=ConnectionState.draft,
+                speed=10000,
+            )
+            db_session.add(c)
+            connections.append(c)
+        await db_session.flush()
+
+        for conn in connections:
+            resp = await client.post(
+                f"/api/v1/ip-pools/{pool.id}/assign",
+                headers=auth_headers,
+                json={"connection_id": str(conn.id)},
+            )
+            assert resp.status_code == 201
+            allocated.append(resp.json()["address"])
+
+        assert "203.0.113.0" not in allocated
+        assert "203.0.113.1" not in allocated
+        assert "203.0.113.7" not in allocated
+        assert allocated == [
+            "203.0.113.2",
+            "203.0.113.3",
+            "203.0.113.4",
+            "203.0.113.5",
+            "203.0.113.6",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# IPv6 allocation
+# ---------------------------------------------------------------------------
+
+
+class TestIPv6Allocation:
+    async def test_ipv6_sequential_allocation(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="2001:db8::/126",
+            gateway="2001:db8::1",
+            af=6,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn.id)},
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        # IPv6 has no reserved network/broadcast, only gateway (::1) is skipped
+        # So first available in 2001:db8::/126 is 2001:db8:: (::0)
+        assert body["address"] == "2001:db8::"
+        assert body["pool_id"] == str(pool.id)

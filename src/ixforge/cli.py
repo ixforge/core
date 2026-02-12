@@ -233,6 +233,16 @@ async def _seed_data() -> None:
     from sqlalchemy import select
 
     from ixforge.database import get_session_factory
+    from ixforge.enums import (
+        BGPAdminState,
+        BGPOperState,
+        ConnectionState,
+        ConnectionType,
+        MemberState,
+        PeeringPolicy,
+        PortType,
+        VLANType,
+    )
     from ixforge.models.bgp_session import BGPSession
     from ixforge.models.connection import Connection, ConnectionVLAN
     from ixforge.models.ip import IPAssignment, IPPool
@@ -266,11 +276,11 @@ async def _seed_data() -> None:
 
         # -- Members in various states --
         members_data = [
-            ("Acme Networks", "ACME", 64512, "active", "open"),
-            ("Beta Corp", "BETA", 64513, "provisioning", "selective"),
-            ("Gamma Telecom", "GAMMA", 64514, "prospect", "open"),
-            ("Delta ISP", "DELTA", 64515, "suspended", "restrictive"),
-            ("Epsilon Cloud", "EPSILON", 64516, "active", "open"),
+            ("Acme Networks", "ACME", 64512, MemberState.active, PeeringPolicy.open),
+            ("Beta Corp", "BETA", 64513, MemberState.provisioning, PeeringPolicy.selective),
+            ("Gamma Telecom", "GAMMA", 64514, MemberState.prospect, PeeringPolicy.open),
+            ("Delta ISP", "DELTA", 64515, MemberState.suspended, PeeringPolicy.restrictive),
+            ("Epsilon Cloud", "EPSILON", 64516, MemberState.active, PeeringPolicy.open),
         ]
         members: list[Member] = []
         for name, short, asn, state, policy in members_data:
@@ -310,10 +320,11 @@ async def _seed_data() -> None:
         for sw in switches:
             for p in range(4):
                 port = Port(
+                    ixp_id=ixp.id,
                     switch_id=sw.id,
                     name=f"Ethernet{p + 1}",
                     speed=10000,
-                    type="member",
+                    type=PortType.member,
                     is_active=True,
                 )
                 session.add(port)
@@ -326,14 +337,14 @@ async def _seed_data() -> None:
             ixp_id=ixp.id,
             name="Production Peering",
             vid=100,
-            type="production",
+            type=VLANType.production,
             description="Main peering VLAN",
         )
         vlan_quar = VLAN(
             ixp_id=ixp.id,
             name="Quarantine",
             vid=999,
-            type="quarantine",
+            type=VLANType.quarantine,
             description="Quarantine VLAN for new members",
         )
         session.add(vlan_prod)
@@ -343,12 +354,14 @@ async def _seed_data() -> None:
 
         # -- IP Pools --
         pool_v4 = IPPool(
+            ixp_id=ixp.id,
             vlan_id=vlan_prod.id,
             network="192.0.2.0/24",
             gateway="192.0.2.1",
             af=4,
         )
         pool_v6 = IPPool(
+            ixp_id=ixp.id,
             vlan_id=vlan_prod.id,
             network="2001:db8::/64",
             gateway="2001:db8::1",
@@ -360,17 +373,18 @@ async def _seed_data() -> None:
         print("Created 2 IP pools (IPv4 + IPv6)")
 
         # -- Connections for active members with ports, VLANs, IPs --
-        active_members = [m for m in members if m.state == "active"]
+        active_members = [m for m in members if m.state == MemberState.active]
         connections: list[Connection] = []
         ip_offset = 2  # Start from .2 (skip network .0 and gateway .1)
         for port_idx, m in enumerate(active_members):
             if port_idx >= len(ports):
                 break
             conn = Connection(
+                ixp_id=ixp.id,
                 member_id=m.id,
                 port_id=ports[port_idx].id,
-                type="physical",
-                state="active",
+                type=ConnectionType.physical,
+                state=ConnectionState.active,
                 speed=10000,
                 mac_address=f"00:11:22:33:44:{port_idx:02x}",
             )
@@ -382,6 +396,7 @@ async def _seed_data() -> None:
         # Attach VLANs and IPs to connections
         for i, conn in enumerate(connections):
             cv = ConnectionVLAN(
+                ixp_id=ixp.id,
                 connection_id=conn.id,
                 vlan_id=vlan_prod.id,
                 tagged=False,
@@ -389,6 +404,7 @@ async def _seed_data() -> None:
             session.add(cv)
 
             ip4 = IPAssignment(
+                ixp_id=ixp.id,
                 pool_id=pool_v4.id,
                 connection_id=conn.id,
                 address=f"192.0.2.{ip_offset + i}",
@@ -396,6 +412,7 @@ async def _seed_data() -> None:
             session.add(ip4)
 
             ip6 = IPAssignment(
+                ixp_id=ixp.id,
                 pool_id=pool_v6.id,
                 connection_id=conn.id,
                 address=f"2001:db8::{ip_offset + i}",
@@ -427,12 +444,13 @@ async def _seed_data() -> None:
             member_obj = next(m for m in members if m.id == conn_obj.member_id)
             for rs in route_servers:
                 bgp = BGPSession(
+                    ixp_id=ixp.id,
                     route_server_id=rs.id,
                     connection_id=conn_obj.id,
                     peer_ip=f"192.0.2.{ip_offset + connections.index(conn_obj)}",
                     peer_asn=member_obj.asn,
-                    admin_state="up",
-                    oper_state="up",
+                    admin_state=BGPAdminState.up,
+                    oper_state=BGPOperState.up,
                     af=4,
                     max_prefixes=100,
                 )
@@ -483,8 +501,8 @@ def main() -> None:
         if "--queues" in sys.argv:
             idx = sys.argv.index("--queues")
             queues = sys.argv[idx + 1 :]
-            if not queues:
-                print("Error: --queues requires at least one queue name")
+            if not queues or any(q.startswith("-") for q in queues):
+                print("Error: --queues requires at least one valid queue name")
                 sys.exit(1)
         _run_worker(queues=queues)
     elif command == "upgrade":

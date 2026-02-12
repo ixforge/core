@@ -6,10 +6,10 @@ from sqlalchemy import Enum, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import ContactRole
-from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
 
 
-class Contact(UUIDPrimaryKey, TimestampMixin, Base):
+class Contact(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "contacts"
 
     member_id: Mapped[uuid.UUID] = mapped_column(

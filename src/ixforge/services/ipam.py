@@ -19,6 +19,7 @@ from ixforge.services.base import paginate
 
 async def create_pool(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     data: IPPoolCreate,
 ) -> IPPool:
     """Create an IP pool."""
@@ -43,6 +44,7 @@ async def create_pool(
         )
 
     pool = IPPool(
+        ixp_id=ixp_id,
         vlan_id=data.vlan_id,
         network=data.network,
         gateway=data.gateway,
@@ -169,6 +171,7 @@ async def _check_global_uniqueness(
 
 async def allocate_sequential(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     pool_id: uuid.UUID,
     connection_id: uuid.UUID,
 ) -> IPAssignment:
@@ -195,6 +198,7 @@ async def allocate_sequential(
         await _check_global_uniqueness(session, address_str)
 
         assignment = IPAssignment(
+            ixp_id=ixp_id,
             pool_id=pool_id,
             connection_id=connection_id,
             address=address_str,
@@ -211,6 +215,7 @@ async def allocate_sequential(
 
 async def allocate_manual(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     pool_id: uuid.UUID,
     connection_id: uuid.UUID,
     address: str,
@@ -233,6 +238,7 @@ async def allocate_manual(
     await _check_global_uniqueness(session, address)
 
     assignment = IPAssignment(
+        ixp_id=ixp_id,
         pool_id=pool_id,
         connection_id=connection_id,
         address=address,

@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Query, Response
 
-from ixforge.api.deps import CurrentUser, DBSession
+from ixforge.api.deps import CurrentUser, DBSession, IXPId
 from ixforge.exceptions import ForbiddenError
 from ixforge.models.contact import Contact
 from ixforge.models.user import User, UserRole
@@ -49,11 +49,12 @@ async def create_contact(
     member_id: uuid.UUID,
     body: ContactCreate,
     db: DBSession,
+    ixp_id: IXPId,
     user: CurrentUser,
 ) -> Contact:
     """Create a contact for a member."""
     _check_member_access(user, member_id)
-    return await contact_svc.create(db, member_id, body)
+    return await contact_svc.create(db, ixp_id, member_id, body)
 
 
 @contacts_router.patch("/contacts/{contact_id}", response_model=ContactRead)

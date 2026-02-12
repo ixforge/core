@@ -87,6 +87,7 @@ class ContactFactory(_NoDBFactory):
         model = Contact
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     member_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"Contact Person {n}")
     email = factory.LazyAttribute(
@@ -118,6 +119,7 @@ class PortFactory(_NoDBFactory):
         model = Port
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     switch_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"Ethernet{n + 1}")
     speed = fuzzy.FuzzyChoice([1000, 10000, 100000])
@@ -145,6 +147,7 @@ class IPPoolFactory(_NoDBFactory):
         model = IPPool
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     vlan_id = factory.LazyFunction(uuid.uuid4)
     network = "192.0.2.0/24"
     gateway = "192.0.2.1"
@@ -156,6 +159,7 @@ class IPAssignmentFactory(_NoDBFactory):
         model = IPAssignment
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     pool_id = factory.LazyFunction(uuid.uuid4)
     connection_id = factory.LazyFunction(uuid.uuid4)
     address = factory.Sequence(lambda n: f"192.0.2.{n + 2}")
@@ -166,6 +170,7 @@ class ConnectionFactory(_NoDBFactory):
         model = Connection
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     member_id = factory.LazyFunction(uuid.uuid4)
     port_id = None
     type = ConnectionType.physical
@@ -180,6 +185,7 @@ class ConnectionVLANFactory(_NoDBFactory):
         model = ConnectionVLAN
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     connection_id = factory.LazyFunction(uuid.uuid4)
     vlan_id = factory.LazyFunction(uuid.uuid4)
     tagged = False
@@ -207,6 +213,7 @@ class BGPSessionFactory(_NoDBFactory):
         model = BGPSession
 
     id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
     route_server_id = factory.LazyFunction(uuid.uuid4)
     connection_id = factory.LazyFunction(uuid.uuid4)
     peer_ip = factory.Sequence(lambda n: f"192.0.2.{n + 2}")

@@ -41,6 +41,7 @@ async def create(
         await custom_fields.validate_extra_data(session, ixp_id, "connection", data.extra_data)
 
     connection = Connection(
+        ixp_id=ixp_id,
         member_id=data.member_id,
         port_id=data.port_id,
         type=data.type,
@@ -197,6 +198,7 @@ async def transition(
 
 async def assign_vlan(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     connection_id: uuid.UUID,
     data: ConnectionVLANCreate,
 ) -> ConnectionVLAN:
@@ -219,6 +221,7 @@ async def assign_vlan(
         )
 
     cv = ConnectionVLAN(
+        ixp_id=ixp_id,
         connection_id=connection_id,
         vlan_id=data.vlan_id,
         tagged=data.tagged,
@@ -248,6 +251,7 @@ async def unassign_vlan(
 
 async def assign_ip(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     connection_id: uuid.UUID,
     pool_id: uuid.UUID,
     *,
@@ -262,8 +266,8 @@ async def assign_ip(
     await get(session, connection_id)
 
     if address is not None:
-        return await ipam.allocate_manual(session, pool_id, connection_id, address)
-    return await ipam.allocate_sequential(session, pool_id, connection_id)
+        return await ipam.allocate_manual(session, ixp_id, pool_id, connection_id, address)
+    return await ipam.allocate_sequential(session, ixp_id, pool_id, connection_id)
 
 
 async def release_ip(session: AsyncSession, assignment_id: uuid.UUID) -> None:

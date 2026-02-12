@@ -83,6 +83,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log.info("ixforge.startup", version=__version__, debug=settings.debug)
     yield
     log.info("ixforge.shutdown")
+    from ixforge.database import dispose_engine
+
+    await dispose_engine()
 
 
 def create_app(*, enable_rate_limit: bool = True) -> FastAPI:

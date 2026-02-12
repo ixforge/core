@@ -58,3 +58,9 @@ class AgentHeartbeatResponse(BaseModel):
 
     acknowledged: bool = True
     config_hash_match: bool
+
+
+class AgentConfigApplied(BaseModel):
+    """Agent confirmation that a config was applied."""
+
+    config_hash: str = Field(pattern=r"^[a-f0-9]{64}$")

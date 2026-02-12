@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import Integer, String
+from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,6 +11,7 @@ from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 class IXP(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "ixps"
+    __table_args__ = (CheckConstraint("asn > 0", name="ck_ixps_asn_positive"),)
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     short_name: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
