@@ -71,12 +71,8 @@ class MetricsMiddleware:
             duration = time.perf_counter() - start
             path = scope.get("path", "")
             method = scope.get("method", "")
-            http_requests_total.labels(
-                method=method, path=path, status=status_code
-            ).inc()
-            http_request_duration_seconds.labels(
-                method=method, path=path
-            ).observe(duration)
+            http_requests_total.labels(method=method, path=path, status=status_code).inc()
+            http_request_duration_seconds.labels(method=method, path=path).observe(duration)
 
 
 @asynccontextmanager

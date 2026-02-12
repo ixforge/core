@@ -7,8 +7,8 @@ Runs against a live server with a real database.  Expects:
 - Seed data loaded via ``ixforge seed``
 
 Usage:
-    python tests/e2e_test.py                   # run with defaults
-    E2E_BASE_URL=http://host/api/v1 python tests/e2e_test.py
+    python tests/e2e_runner.py                   # run with defaults
+    E2E_BASE_URL=http://host/api/v1 python tests/e2e_runner.py
 """
 
 import json
