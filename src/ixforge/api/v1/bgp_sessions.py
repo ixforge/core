@@ -6,10 +6,10 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession
-from ixforge.enums import UserRole
 from ixforge.exceptions import ForbiddenError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
+from ixforge.models.user import UserRole
 from ixforge.schemas.bgp_session import BGPSessionRead
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.services import bgp_sessions as bgp_svc

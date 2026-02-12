@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Uuid
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import UserRole as UserRole
@@ -25,4 +25,6 @@ class User(UUIDPrimaryKey, TimestampMixin, Base):
         ForeignKey("members.id", ondelete="SET NULL"),
         nullable=True,
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )

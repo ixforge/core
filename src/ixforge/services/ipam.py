@@ -144,7 +144,7 @@ async def allocate_sequential(
     reserved = _reserved_addresses(network, gateway)
     used = await _get_used_addresses(session, pool_id)
 
-    for host in network.hosts():
+    for host in network:
         if host in reserved:
             continue
         address_str = str(host)

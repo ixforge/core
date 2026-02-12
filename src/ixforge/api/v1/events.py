@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Query
 
 from ixforge.api.deps import CurrentUser, DBSession, IXPId
-from ixforge.enums import UserRole
+from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.event import EventRead
 from ixforge.services import events as event_svc

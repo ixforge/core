@@ -70,6 +70,13 @@ async def update(
     return port
 
 
+async def delete(session: AsyncSession, port_id: uuid.UUID) -> None:
+    """Delete a port."""
+    port = await get(session, port_id)
+    await session.delete(port)
+    await session.flush()
+
+
 async def assign(
     session: AsyncSession,
     port_id: uuid.UUID,

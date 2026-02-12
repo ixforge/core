@@ -22,7 +22,6 @@ class ConnectionCreate(BaseModel):
 class ConnectionUpdate(BaseModel):
     port_id: uuid.UUID | None = None
     type: ConnectionType | None = None
-    state: ConnectionState | None = None
     mac_address: str | None = Field(default=None, max_length=17)
     speed: int | None = Field(default=None, gt=0)
     extra_data: dict[str, Any] | None = None
