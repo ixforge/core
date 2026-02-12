@@ -1,6 +1,7 @@
 """Alembic environment configuration for async SQLAlchemy."""
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -10,6 +11,13 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Setear secret key por defecto para que get_settings() no falle al
+# importar modelos durante migraciones manuales
+os.environ.setdefault(
+    "IXFORGE_SECRET_KEY",
+    "alembic-migrations-default-key-at-least-32-chars",
+)
 
 # Import all models so Alembic can detect them
 import ixforge.models  # noqa: E402, F401

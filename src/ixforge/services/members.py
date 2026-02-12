@@ -20,7 +20,7 @@ from ixforge.services.events import create_event
 _MEMBER_TRANSITIONS: dict[str, set[str]] = {
     MemberState.prospect: {MemberState.provisioning},
     MemberState.provisioning: {MemberState.active, MemberState.terminated},
-    MemberState.active: {MemberState.suspended},
+    MemberState.active: {MemberState.suspended, MemberState.terminated},
     MemberState.suspended: {MemberState.active, MemberState.terminated},
 }
 

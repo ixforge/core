@@ -11,7 +11,7 @@ class RouteServerCreate(BaseModel):
     hostname: str = Field(min_length=1, max_length=255)
     ip_v4: str | None = None
     ip_v6: str | None = None
-    asn: int = Field(gt=0)
+    asn: int = Field(gt=0, le=4294967295)
     software: str = "bird"
     is_active: bool = True
 
@@ -21,7 +21,7 @@ class RouteServerUpdate(BaseModel):
     hostname: str | None = Field(default=None, min_length=1, max_length=255)
     ip_v4: str | None = None
     ip_v6: str | None = None
-    asn: int | None = Field(default=None, gt=0)
+    asn: int | None = Field(default=None, gt=0, le=4294967295)
     software: str | None = None
     is_active: bool | None = None
 

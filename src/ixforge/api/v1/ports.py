@@ -69,9 +69,7 @@ async def delete_port(
     _admin: AdminUser,
 ) -> Response:
     """Delete a port."""
-    port = await port_svc.get(db, port_id)
-    await db.delete(port)
-    await db.flush()
+    await port_svc.delete(db, port_id)
     return Response(status_code=204)
 
 

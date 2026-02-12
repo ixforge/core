@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, Boolean, DateTime, ForeignKey, String, Uuid
+from sqlalchemy import ARRAY, Boolean, DateTime, ForeignKey, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
@@ -28,7 +28,9 @@ class APIKey(UUIDPrimaryKey, TimestampMixin, Base):
         nullable=True,
     )
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
     last_used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

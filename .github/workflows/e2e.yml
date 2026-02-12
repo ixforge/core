@@ -79,4 +79,4 @@ jobs:
           done
 
       - name: Run E2E tests
-        run: python tests/e2e_test.py
+        run: python tests/e2e_runner.py

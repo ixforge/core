@@ -20,7 +20,7 @@ from ixforge.schemas.custom_field import (
 from ixforge.services.base import paginate
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_URL_RE = re.compile(r"^https?://\S+$")
+_URL_RE = re.compile(r"^https?://[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}(?:[/?#]\S*)?$")
 
 
 async def create(

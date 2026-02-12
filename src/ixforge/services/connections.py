@@ -97,8 +97,6 @@ async def update(
     """Update mutable fields on a connection (state changes use transition)."""
     connection = await get(session, connection_id)
     update_fields = data.model_dump(exclude_unset=True)
-    # State changes go through the transition method.
-    update_fields.pop("state", None)
 
     if "extra_data" in update_fields and update_fields["extra_data"] is not None:
         from ixforge.models.member import Member

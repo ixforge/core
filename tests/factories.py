@@ -11,6 +11,19 @@ from datetime import UTC, datetime
 import factory
 from factory import fuzzy
 
+from ixforge.enums import (
+    BGPAdminState,
+    BGPOperState,
+    ConnectionState,
+    ConnectionType,
+    ContactRole,
+    CustomFieldEntityType,
+    CustomFieldType,
+    MemberState,
+    PeeringPolicy,
+    PortType,
+    VLANType,
+)
 from ixforge.models.api_key import APIKey
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
@@ -61,8 +74,8 @@ class MemberFactory(_NoDBFactory):
     name = factory.Sequence(lambda n: f"Test Network {n}")
     short_name = factory.Sequence(lambda n: f"TN{n}")
     asn = factory.Sequence(lambda n: 64512 + n)
-    state = "prospect"
-    peering_policy = "open"
+    state = MemberState.prospect
+    peering_policy = PeeringPolicy.open
     peering_policy_details = None
     website = factory.LazyAttribute(lambda o: f"https://as{o.asn}.example.net")
     peeringdb_id = None
@@ -80,7 +93,9 @@ class ContactFactory(_NoDBFactory):
         lambda o: f"contact{o.name.replace(' ', '').lower()}@example.net"
     )
     phone = "+1-555-0100"
-    role = fuzzy.FuzzyChoice(["noc", "admin", "technical", "billing"])
+    role = fuzzy.FuzzyChoice(
+        [ContactRole.noc, ContactRole.admin, ContactRole.technical, ContactRole.billing]
+    )
 
 
 class SwitchFactory(_NoDBFactory):
@@ -106,7 +121,7 @@ class PortFactory(_NoDBFactory):
     switch_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"Ethernet{n + 1}")
     speed = fuzzy.FuzzyChoice([1000, 10000, 100000])
-    type = "member"
+    type = PortType.member
     member_id = None
     is_active = True
     extra_data = None
@@ -120,7 +135,7 @@ class VLANFactory(_NoDBFactory):
     ixp_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"Peering VLAN {n}")
     vid = factory.Sequence(lambda n: 100 + n)
-    type = "production"
+    type = VLANType.production
     description = "Production peering VLAN"
     extra_data = None
 
@@ -153,8 +168,8 @@ class ConnectionFactory(_NoDBFactory):
     id = factory.LazyFunction(uuid.uuid4)
     member_id = factory.LazyFunction(uuid.uuid4)
     port_id = None
-    type = "physical"
-    state = "draft"
+    type = ConnectionType.physical
+    state = ConnectionState.draft
     mac_address = factory.Sequence(lambda n: f"00:11:22:33:44:{n:02x}")
     speed = 10000
     extra_data = None
@@ -196,8 +211,8 @@ class BGPSessionFactory(_NoDBFactory):
     connection_id = factory.LazyFunction(uuid.uuid4)
     peer_ip = factory.Sequence(lambda n: f"192.0.2.{n + 2}")
     peer_asn = factory.Sequence(lambda n: 64512 + n)
-    admin_state = "up"
-    oper_state = "unknown"
+    admin_state = BGPAdminState.up
+    oper_state = BGPOperState.unknown
     af = 4
     max_prefixes = 100
     import_limit = None
@@ -265,9 +280,9 @@ class CustomFieldDefinitionFactory(_NoDBFactory):
 
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
-    entity_type = "member"
+    entity_type = CustomFieldEntityType.member
     field_name = factory.Sequence(lambda n: f"custom_field_{n}")
-    field_type = "string"
+    field_type = CustomFieldType.string
     is_required = False
     default_value = None
     display_order = factory.Sequence(lambda n: n)
