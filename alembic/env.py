@@ -46,8 +46,10 @@ def include_object(
     reflected: bool,
     compare_to: object | None,
 ) -> bool:
-    """Excluir objetos de procrastinate del autogenerate"""
+    """Excluir tablas y tipos de procrastinate del autogenerate"""
     if type_ == "table" and name in PROCRASTINATE_TABLES:
+        return False
+    if type_ == "type" and name in PROCRASTINATE_TYPES:
         return False
     return True
 

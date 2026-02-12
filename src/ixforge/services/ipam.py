@@ -8,7 +8,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
+from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
+from ixforge.models.member import Member
+from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.ip import IPAssignmentRead, IPPoolCreate, IPPoolRead
 from ixforge.services.base import paginate
@@ -97,11 +100,45 @@ def _reserved_addresses(
     return reserved
 
 
-async def _get_used_addresses(session: AsyncSession, pool_id: uuid.UUID) -> set[str]:
-    """Return all addresses currently assigned in a pool."""
+async def _get_used_addresses(
+    session: AsyncSession, pool_id: uuid.UUID, *, lock: bool = False
+) -> set[str]:
+    """Return all addresses currently assigned in a pool.
+
+    When lock=True, uses FOR UPDATE to prevent concurrent allocations
+    from seeing the same set of available addresses.
+    """
     stmt = select(IPAssignment.address).where(IPAssignment.pool_id == pool_id)
+    if lock:
+        stmt = stmt.with_for_update()
     result = await session.execute(stmt)
     return {row[0] for row in result.all()}
+
+
+async def _validate_pool_connection_same_tenant(
+    session: AsyncSession,
+    pool_id: uuid.UUID,
+    connection_id: uuid.UUID,
+) -> None:
+    """Validate that the pool and connection belong to the same IXP."""
+    pool = await session.get(IPPool, pool_id)
+    if pool is None:
+        raise NotFoundError("IPPool", str(pool_id))
+
+    vlan = await session.get(VLAN, pool.vlan_id)
+    if vlan is None:
+        raise NotFoundError("VLAN", str(pool.vlan_id))
+
+    connection = await session.get(Connection, connection_id)
+    if connection is None:
+        raise NotFoundError("Connection", str(connection_id))
+
+    member = await session.get(Member, connection.member_id)
+    if member is None:
+        raise NotFoundError("Member", str(connection.member_id))
+
+    if vlan.ixp_id != member.ixp_id:
+        raise ValidationError("IP pool and connection belong to different IXPs")
 
 
 def _validate_address_in_pool(
@@ -136,13 +173,16 @@ async def allocate_sequential(
     connection_id: uuid.UUID,
 ) -> IPAssignment:
     """Allocate the next available IP address in a pool."""
+    await _validate_pool_connection_same_tenant(session, pool_id, connection_id)
+
     pool = await session.get(IPPool, pool_id, with_for_update=True)
     if pool is None:
         raise NotFoundError("IPPool", str(pool_id))
     network = ipaddress.ip_network(pool.network, strict=False)
     gateway = ipaddress.ip_address(pool.gateway)
     reserved = _reserved_addresses(network, gateway)
-    used = await _get_used_addresses(session, pool_id)
+    # Lock existing assignments to prevent concurrent allocations
+    used = await _get_used_addresses(session, pool_id, lock=True)
 
     for host in network:
         if host in reserved:
@@ -176,6 +216,8 @@ async def allocate_manual(
     address: str,
 ) -> IPAssignment:
     """Allocate a specific IP address from a pool."""
+    await _validate_pool_connection_same_tenant(session, pool_id, connection_id)
+
     pool = await session.get(IPPool, pool_id, with_for_update=True)
     if pool is None:
         raise NotFoundError("IPPool", str(pool_id))

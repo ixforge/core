@@ -7,6 +7,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,8 @@ from ixforge.models.connection import Connection
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.services.templates.loader import get_template_env, get_template_snapshots
+
+logger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -91,7 +94,7 @@ async def _build_peers(
     return peers
 
 
-def _build_rs_context(rs: RouteServer) -> RouteServerContext:
+async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServerContext:
     """Build the route server template context from the model."""
     import ipaddress
 
@@ -124,6 +127,21 @@ def _build_rs_context(rs: RouteServer) -> RouteServerContext:
                 f"(got {derived}). Assign an IPv4 address to this route server"
             )
         router_id = str(derived)
+
+        # Validate uniqueness of derived router_id across route servers in the same IXP
+        stmt = select(RouteServer.id, RouteServer.name, RouteServer.ip_v4).where(
+            RouteServer.ixp_id == rs.ixp_id,
+            RouteServer.id != rs.id,
+            RouteServer.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        for _other_id, other_name, other_ip_v4 in result.all():
+            if other_ip_v4 == router_id:
+                raise ValidationError(
+                    f"Derived router_id {router_id} from IPv6 {rs.ip_v6} "
+                    f"collides with IPv4 of route server '{other_name}'. "
+                    f"Assign a unique IPv4 address to this route server"
+                )
     else:
         router_id = "0.0.0.1"
 
@@ -151,7 +169,7 @@ async def generate_config(
     if rs is None:
         raise NotFoundError("RouteServer", str(route_server_id))
 
-    rs_context = _build_rs_context(rs)
+    rs_context = await _build_rs_context(session, rs)
     generated_at = datetime.now(UTC)
     generated_at_str = generated_at.isoformat()
 
