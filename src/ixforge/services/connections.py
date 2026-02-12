@@ -173,6 +173,23 @@ async def transition(
         resource_id=connection.id,
         data={"old_state": old_state, "new_state": target_state},
     )
+
+    if target_state == ConnectionState.active or old_state == ConnectionState.active:
+        try:
+            from ixforge.tasks.config import regenerate_configs_for_connection
+
+            await regenerate_configs_for_connection.defer_async(
+                connection_id=str(connection_id),
+                triggered_by="connection.state_changed",
+            )
+        except Exception:
+            import structlog
+
+            structlog.get_logger().warning(
+                "config_regeneration.defer_failed",
+                connection_id=str(connection_id),
+            )
+
     return connection
 
 

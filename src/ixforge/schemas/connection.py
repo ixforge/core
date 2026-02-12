@@ -6,7 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ixforge.enums import ConnectionState as ConnectionState, ConnectionType as ConnectionType
+from ixforge.enums import ConnectionState as ConnectionState
+from ixforge.enums import ConnectionType as ConnectionType
 
 
 class ConnectionCreate(BaseModel):

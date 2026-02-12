@@ -41,12 +41,16 @@ class Settings(BaseSettings):
     modules: ModuleFlags = Field(default_factory=ModuleFlags)
 
     @model_validator(mode="after")
-    def _check_secret_key(self) -> "Settings":
+    def _validate_settings(self) -> "Settings":
         default = "change-me-to-a-random-string-at-least-32-chars"
         if not self.debug and self.secret_key == default:
             raise ValueError(
                 "IXFORGE_SECRET_KEY must be set to a secure random value in production"
             )
+        if not self.debug and len(self.secret_key) < 32:
+            raise ValueError("IXFORGE_SECRET_KEY must be at least 32 characters")
+        if self.debug and not self.cors_origins:
+            self.cors_origins = ["*"]
         return self
 
 

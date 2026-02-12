@@ -71,6 +71,7 @@ async def generate_ixf_member_export(
 
         member_entry: dict[str, Any] = {
             "asnum": member.asn,
+            "member_since": member.created_at.strftime("%Y-%m-%dT00:00:00Z"),
             "name": member.name,
             "url": member.website or "",
             "peering_policy": member.peering_policy,
@@ -238,7 +239,9 @@ async def _build_vlan_list(
 
     vlan_list: list[dict[str, Any]] = []
     for vlan_uuid in sorted(vlan_uuids, key=lambda v: vlan_vid_map.get(v, 0)):
-        vid = vlan_vid_map.get(vlan_uuid, 0)
+        vid = vlan_vid_map.get(vlan_uuid)
+        if vid is None:
+            continue  # Skip non-production VLANs
         entry: dict[str, Any] = {"vlan_id": vid}
 
         ips = vlan_ips.get(vlan_uuid, {})

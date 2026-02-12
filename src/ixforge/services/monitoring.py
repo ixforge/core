@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ixforge.enums import ConnectionState, MemberState
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.member import Member
@@ -78,8 +79,8 @@ async def build_targets(
         .join(IPPool, IPPool.id == IPAssignment.pool_id)
         .where(
             Member.ixp_id == ixp_id,
-            Member.state == "active",
-            Connection.state == "active",
+            Member.state == MemberState.active,
+            Connection.state == ConnectionState.active,
         )
     )
     member_ip_result = await session.execute(member_ip_stmt)

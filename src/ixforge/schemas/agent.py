@@ -25,7 +25,7 @@ class BGPSessionState(BaseModel):
 class AgentStatusReport(BaseModel):
     """Agent bulk BGP session status report."""
 
-    sessions: list[BGPSessionState]
+    sessions: list[BGPSessionState] = Field(max_length=10000)
 
 
 class AgentStatusResponse(BaseModel):
@@ -49,7 +49,7 @@ class AgentHeartbeat(BaseModel):
 
     version: str = Field(min_length=1, max_length=50)
     uptime_seconds: float = Field(ge=0)
-    current_config_hash: str
+    current_config_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     bird_instances: list[BirdInstanceStatus] = Field(default_factory=list)
 
 

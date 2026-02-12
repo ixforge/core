@@ -2,10 +2,11 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String, Uuid
+from sqlalchemy import ForeignKey, Integer, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.types import CIDR, INET
 
 
 class IPPool(UUIDPrimaryKey, TimestampMixin, Base):
@@ -17,8 +18,8 @@ class IPPool(UUIDPrimaryKey, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    network: Mapped[str] = mapped_column(String(50), nullable=False, comment="CIDR notation")
-    gateway: Mapped[str] = mapped_column(String(45), nullable=False, comment="Gateway address")
+    network: Mapped[str] = mapped_column(CIDR, nullable=False, comment="CIDR notation")
+    gateway: Mapped[str] = mapped_column(INET, nullable=False, comment="Gateway address")
     af: Mapped[int] = mapped_column(Integer, nullable=False, comment="Address family: 4 or 6")
 
 
@@ -38,7 +39,7 @@ class IPAssignment(UUIDPrimaryKey, TimestampMixin, Base):
         index=True,
     )
     address: Mapped[str] = mapped_column(
-        String(45),
+        INET,
         unique=True,
         nullable=False,
         comment="IP address",

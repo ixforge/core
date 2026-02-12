@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ixforge.enums import BGPAdminState
 from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
+from ixforge.models.connection import Connection
 from ixforge.schemas.bgp_session import BGPSessionRead
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.services.base import paginate
 
-_VALID_ADMIN_STATES = {BGPAdminState.up, BGPAdminState.down}
+_VALID_ADMIN_VALUES = {s.value for s in BGPAdminState}
 
 
 async def get(session: AsyncSession, session_id: uuid.UUID) -> BGPSession:
@@ -40,18 +41,43 @@ async def list_sessions(
     )
 
 
+async def list_sessions_for_member(
+    session: AsyncSession,
+    route_server_id: uuid.UUID,
+    member_id: uuid.UUID | None,
+    params: CursorParams,
+) -> CursorPage[BGPSessionRead]:
+    """List BGP sessions for a route server filtered by member's connections."""
+    stmt = (
+        select(BGPSession)
+        .join(Connection, BGPSession.connection_id == Connection.id)
+        .where(
+            BGPSession.route_server_id == route_server_id,
+            Connection.member_id == member_id,
+        )
+    )
+    return await paginate(
+        session,
+        stmt,
+        params,
+        sort_column=BGPSession.created_at,
+        id_column=BGPSession.id,
+        schema=BGPSessionRead,
+    )
+
+
 async def update_admin_state(
     session: AsyncSession,
     session_id: uuid.UUID,
     admin_state: str,
 ) -> BGPSession:
     """Update the admin_state of a BGP session (up or down)."""
-    if admin_state not in _VALID_ADMIN_STATES:
+    if admin_state not in _VALID_ADMIN_VALUES:
         raise ValidationError(
-            f"Invalid admin_state '{admin_state}': must be one of {_VALID_ADMIN_STATES}"
+            f"Invalid admin_state '{admin_state}': must be one of {sorted(_VALID_ADMIN_VALUES)}"
         )
 
     bgp_session = await get(session, session_id)
-    bgp_session.admin_state = admin_state
+    bgp_session.admin_state = BGPAdminState(admin_state)
     await session.flush()
     return bgp_session
