@@ -551,7 +551,7 @@ def run():
     )
     if ixf.get("version"):
         ixp_list = ixf.get("ixp_list", [])
-        members_list = ixp_list[0].get("member_list", []) if ixp_list else []
+        members_list = ixf.get("member_list", [])
         total += 1
         ok = len(members_list) >= 2
         if ok:
