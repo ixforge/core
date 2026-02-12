@@ -1,5 +1,6 @@
 """Test configuration and fixtures."""
 
+import os
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -13,7 +14,10 @@ from ixforge.models.ixp import IXP
 from ixforge.models.user import User, UserRole
 from ixforge.services.auth import create_access_token, hash_password
 
-TEST_DATABASE_URL = "postgresql+asyncpg://ixforge:ixforge@localhost:5433/ixforge_test"
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://ixforge:ixforge@localhost:5433/ixforge_test",
+)
 
 
 @pytest.fixture(scope="session")
