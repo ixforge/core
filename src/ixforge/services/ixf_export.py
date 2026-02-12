@@ -34,34 +34,47 @@ async def generate_ixf_member_export(
     Only includes active members with at least one active connection
     that has assigned IP addresses.
     """
-    # Fetch the IXP record.
     ixp = await session.get(IXP, ixp_id)
     if ixp is None:
         return _empty_export()
 
-    # Fetch all production VLANs for this IXP (used in vlan_list).
     vlans = await _get_vlans(session, ixp_id)
     vlan_list = [{"vlan_id": vlan.vid, "name": vlan.name} for vlan in vlans]
-
-    # Build a lookup from VLAN UUID -> vid for later use.
     vlan_vid_map: dict[uuid.UUID, int] = {v.id: v.vid for v in vlans}
 
-    # Fetch active members.
     members = await _get_active_members(session, ixp_id)
+    if not members:
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return {
+            "version": "1.0",
+            "timestamp": timestamp,
+            "ixp_list": [
+                {
+                    "ixp_id": ixp.peeringdb_id or 0,
+                    "shortname": ixp.short_name,
+                    "name": ixp.name,
+                    "vlan": vlan_list,
+                },
+            ],
+            "member_list": [],
+        }
+
+    member_ids = [m.id for m in members]
+    bulk_data = await _load_bulk_data(session, member_ids)
 
     member_list: list[dict[str, Any]] = []
     for member in members:
-        connections = await _get_active_connections(session, member.id)
+        connections = bulk_data.connections_by_member.get(member.id, [])
         if not connections:
             continue
 
         connection_list: list[dict[str, Any]] = []
         for conn in connections:
-            conn_entry = await _build_connection_entry(
-                session,
+            conn_entry = _build_connection_entry(
                 conn,
                 ixp,
                 vlan_vid_map,
+                bulk_data,
             )
             if conn_entry is not None:
                 connection_list.append(conn_entry)
@@ -129,36 +142,109 @@ async def _get_active_members(session: AsyncSession, ixp_id: uuid.UUID) -> list[
     return list(result.scalars().all())
 
 
-async def _get_active_connections(session: AsyncSession, member_id: uuid.UUID) -> list[Connection]:
-    """Fetch active connections for a member."""
+class _BulkData:
+    """Container for bulk-loaded data to avoid N+1 queries."""
+
+    def __init__(
+        self,
+        connections_by_member: dict[uuid.UUID, list[Connection]],
+        ports: dict[uuid.UUID, Port],
+        ip_assignments_by_connection: dict[uuid.UUID, list[IPAssignment]],
+        connection_vlans_by_connection: dict[uuid.UUID, list[ConnectionVLAN]],
+        pools: dict[uuid.UUID, IPPool],
+    ) -> None:
+        self.connections_by_member = connections_by_member
+        self.ports = ports
+        self.ip_assignments_by_connection = ip_assignments_by_connection
+        self.connection_vlans_by_connection = connection_vlans_by_connection
+        self.pools = pools
+
+
+async def _load_bulk_data(session: AsyncSession, member_ids: list[uuid.UUID]) -> _BulkData:
+    """Load all necessary data in bulk to avoid N+1 queries."""
     stmt = (
         select(Connection)
-        .where(Connection.member_id == member_id, Connection.state == ConnectionState.active)
-        .order_by(Connection.created_at)
+        .where(
+            Connection.member_id.in_(member_ids),
+            Connection.state == ConnectionState.active,
+        )
+        .order_by(Connection.member_id, Connection.created_at)
     )
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    connections = list(result.scalars().all())
+
+    connections_by_member: dict[uuid.UUID, list[Connection]] = {}
+    for conn in connections:
+        if conn.member_id not in connections_by_member:
+            connections_by_member[conn.member_id] = []
+        connections_by_member[conn.member_id].append(conn)
+
+    connection_ids = [conn.id for conn in connections]
+    if not connection_ids:
+        return _BulkData({}, {}, {}, {}, {})
+
+    port_ids = [conn.port_id for conn in connections if conn.port_id is not None]
+    ports: dict[uuid.UUID, Port] = {}
+    if port_ids:
+        port_result = await session.execute(select(Port).where(Port.id.in_(port_ids)))
+        ports = {p.id: p for p in port_result.scalars().all()}
+
+    ip_result = await session.execute(
+        select(IPAssignment)
+        .where(IPAssignment.connection_id.in_(connection_ids))
+        .order_by(IPAssignment.connection_id, IPAssignment.address)
+    )
+    all_ip_assignments = list(ip_result.scalars().all())
+
+    ip_assignments_by_connection: dict[uuid.UUID, list[IPAssignment]] = {}
+    for ip_assign in all_ip_assignments:
+        if ip_assign.connection_id not in ip_assignments_by_connection:
+            ip_assignments_by_connection[ip_assign.connection_id] = []
+        ip_assignments_by_connection[ip_assign.connection_id].append(ip_assign)
+
+    cv_result = await session.execute(
+        select(ConnectionVLAN).where(ConnectionVLAN.connection_id.in_(connection_ids))
+    )
+    all_conn_vlans = list(cv_result.scalars().all())
+
+    connection_vlans_by_connection: dict[uuid.UUID, list[ConnectionVLAN]] = {}
+    for cv in all_conn_vlans:
+        if cv.connection_id not in connection_vlans_by_connection:
+            connection_vlans_by_connection[cv.connection_id] = []
+        connection_vlans_by_connection[cv.connection_id].append(cv)
+
+    pool_ids = list({ip.pool_id for ip in all_ip_assignments})
+    pools: dict[uuid.UUID, IPPool] = {}
+    if pool_ids:
+        pool_result = await session.execute(select(IPPool).where(IPPool.id.in_(pool_ids)))
+        pools = {p.id: p for p in pool_result.scalars().all()}
+
+    return _BulkData(
+        connections_by_member=connections_by_member,
+        ports=ports,
+        ip_assignments_by_connection=ip_assignments_by_connection,
+        connection_vlans_by_connection=connection_vlans_by_connection,
+        pools=pools,
+    )
 
 
-async def _build_connection_entry(
-    session: AsyncSession,
+def _build_connection_entry(
     conn: Connection,
     ixp: IXP,
     vlan_vid_map: dict[uuid.UUID, int],
+    bulk_data: _BulkData,
 ) -> dict[str, Any] | None:
     """Build a single connection entry for the IX-F export.
 
     Returns None if the connection has no IP assignments (skip it).
     """
-    # Get IP assignments for this connection.
-    ip_assignments = await _get_ip_assignments(session, conn.id)
+    ip_assignments = bulk_data.ip_assignments_by_connection.get(conn.id, [])
     if not ip_assignments:
         return None
 
-    # Build if_list from the connection's port.
     if_list: list[dict[str, Any]] = []
     if conn.port_id is not None:
-        port = await session.get(Port, conn.port_id)
+        port = bulk_data.ports.get(conn.port_id)
         if port is not None:
             if_entry: dict[str, Any] = {
                 "switch_id": str(port.switch_id),
@@ -167,8 +253,7 @@ async def _build_connection_entry(
             }
             if_list.append(if_entry)
 
-    # Build vlan_list from connection's VLAN assignments and IP addresses.
-    vlan_list = await _build_vlan_list(session, conn.id, ip_assignments, vlan_vid_map)
+    vlan_list = _build_vlan_list(conn.id, ip_assignments, vlan_vid_map, bulk_data)
 
     return {
         "ixp_id": ixp.peeringdb_id or 0,
@@ -178,47 +263,22 @@ async def _build_connection_entry(
     }
 
 
-async def _get_ip_assignments(
-    session: AsyncSession, connection_id: uuid.UUID
-) -> list[IPAssignment]:
-    """Fetch IP assignments for a connection."""
-    stmt = (
-        select(IPAssignment)
-        .where(IPAssignment.connection_id == connection_id)
-        .order_by(IPAssignment.address)
-    )
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
-
-
-async def _build_vlan_list(
-    session: AsyncSession,
+def _build_vlan_list(
     connection_id: uuid.UUID,
     ip_assignments: list[IPAssignment],
     vlan_vid_map: dict[uuid.UUID, int],
+    bulk_data: _BulkData,
 ) -> list[dict[str, Any]]:
     """Build the vlan_list for a connection entry.
 
     Groups IP assignments by their VLAN (via the IP pool -> VLAN relationship)
     and the connection's VLAN assignments.
     """
-    # Get connection VLAN assignments.
-    stmt = select(ConnectionVLAN).where(ConnectionVLAN.connection_id == connection_id)
-    result = await session.execute(stmt)
-    conn_vlans = list(result.scalars().all())
+    conn_vlans = bulk_data.connection_vlans_by_connection.get(connection_id, [])
 
-    # Build a lookup: pool_id -> IPPool (to get the VLAN for each IP).
-    pool_ids = {ip_assign.pool_id for ip_assign in ip_assignments}
-    pools: dict[uuid.UUID, IPPool] = {}
-    for pool_id in pool_ids:
-        pool = await session.get(IPPool, pool_id)
-        if pool is not None:
-            pools[pool_id] = pool
-
-    # Group IPs by VLAN ID.
     vlan_ips: dict[uuid.UUID, dict[str, str]] = {}
     for ip_assign in ip_assignments:
-        pool = pools.get(ip_assign.pool_id)
+        pool = bulk_data.pools.get(ip_assign.pool_id)
         if pool is None:
             continue
 
@@ -231,7 +291,6 @@ async def _build_vlan_list(
         elif pool.af == 6:
             vlan_ips[vlan_uuid]["ipv6"] = ip_assign.address
 
-    # If there are no IPs grouped by VLANs, try to build from ConnectionVLAN entries.
     vlan_uuids = set(vlan_ips.keys())
     for cv in conn_vlans:
         if cv.vlan_id not in vlan_uuids:
@@ -241,7 +300,7 @@ async def _build_vlan_list(
     for vlan_uuid in sorted(vlan_uuids, key=lambda v: vlan_vid_map.get(v, 0)):
         vid = vlan_vid_map.get(vlan_uuid)
         if vid is None:
-            continue  # Skip non-production VLANs
+            continue
         entry: dict[str, Any] = {"vlan_id": vid}
 
         ips = vlan_ips.get(vlan_uuid, {})

@@ -168,4 +168,11 @@ async def validate_extra_data(
             raise ValidationError(
                 f"Unknown custom field '{field_name}' for entity type '{entity_type}'"
             )
+        # None is valid for optional fields (clears the value)
+        if value is None:
+            if defn.is_required:
+                raise ValidationError(
+                    f"Required custom field '{field_name}' cannot be null"
+                )
+            continue
         _validate_field_value(field_name, defn.field_type, value)

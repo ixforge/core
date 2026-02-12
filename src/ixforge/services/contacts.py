@@ -14,11 +14,13 @@ from ixforge.services.base import paginate
 
 async def create(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     member_id: uuid.UUID,
     data: ContactCreate,
 ) -> Contact:
     """Create a contact for a member."""
     contact = Contact(
+        ixp_id=ixp_id,
         member_id=member_id,
         name=data.name,
         email=data.email,

@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 
-from ixforge.api.deps import AdminUser, DBSession
+from ixforge.api.deps import AdminUser, DBSession, IXPId
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.ip import IPAssignmentRead, IPPoolCreate, IPPoolRead
@@ -36,10 +36,11 @@ async def list_ip_pools(
 async def create_ip_pool(
     body: IPPoolCreate,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> IPPool:
     """Create an IP pool."""
-    return await ipam.create_pool(db, body)
+    return await ipam.create_pool(db, ixp_id, body)
 
 
 @ip_pools_router.get("/ip-pools/{pool_id}", response_model=IPPoolRead)
@@ -88,6 +89,7 @@ async def allocate_ip(
     pool_id: uuid.UUID,
     body: IPAllocateRequest,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> IPAssignment:
     """Allocate an IP address from a pool.
@@ -96,8 +98,8 @@ async def allocate_ip(
     otherwise the next available address is assigned sequentially.
     """
     if body.address is not None:
-        return await ipam.allocate_manual(db, pool_id, body.connection_id, body.address)
-    return await ipam.allocate_sequential(db, pool_id, body.connection_id)
+        return await ipam.allocate_manual(db, ixp_id, pool_id, body.connection_id, body.address)
+    return await ipam.allocate_sequential(db, ixp_id, pool_id, body.connection_id)
 
 
 @ip_pools_router.delete("/ip-assignments/{assignment_id}", status_code=204)

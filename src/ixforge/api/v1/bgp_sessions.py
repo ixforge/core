@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession
+from ixforge.enums import BGPAdminState
 from ixforge.exceptions import ForbiddenError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
@@ -18,7 +19,7 @@ bgp_sessions_router = APIRouter(prefix="/bgp-sessions", tags=["bgp-sessions"])
 
 
 class BGPAdminStateUpdate(BaseModel):
-    admin_state: str
+    admin_state: BGPAdminState
 
 
 @bgp_sessions_router.get("", response_model=CursorPage[BGPSessionRead])
@@ -67,4 +68,4 @@ async def update_bgp_session(
     _admin: AdminUser,
 ) -> BGPSession:
     """Update BGP session admin state (up/down)."""
-    return await bgp_svc.update_admin_state(db, session_id, body.admin_state)
+    return await bgp_svc.update_admin_state(db, session_id, body.admin_state.value)

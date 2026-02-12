@@ -17,6 +17,7 @@ from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.route_server import RouteServer
 from ixforge.schemas.agent import (
+    AgentConfigApplied,
     AgentConfigResponse,
     AgentHeartbeat,
     AgentHeartbeatResponse,
@@ -270,3 +271,46 @@ async def report_agent_heartbeat(
         acknowledged=True,
         config_hash_match=config_hash_match,
     )
+
+
+@agent_router.post(
+    "/{route_server_id}/agent/config/applied",
+    status_code=204,
+)
+async def confirm_agent_config_applied(
+    route_server_id: uuid.UUID,
+    body: AgentConfigApplied,
+    db: DBSession,
+    _agent_key: AgentKey,
+) -> None:
+    """Agent confirms that a configuration was successfully applied.
+
+    Updates ``applied_at`` on the matching config version.
+    Returns 404 if no matching config version is found.
+
+    Requires an API key with the ``agent:route_server`` scope linked
+    to this route server.
+    """
+    rs = await db.get(RouteServer, route_server_id)
+    if rs is None:
+        raise NotFoundError("RouteServer", str(route_server_id))
+
+    stmt = (
+        select(ConfigVersion)
+        .where(
+            ConfigVersion.route_server_id == route_server_id,
+            ConfigVersion.config_hash == body.config_hash,
+        )
+        .order_by(ConfigVersion.generated_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    config = result.scalar_one_or_none()
+
+    if config is None:
+        raise NotFoundError("ConfigVersion", f"config_hash={body.config_hash}")
+
+    if config.applied_at is None:
+        config.applied_at = datetime.now(UTC)
+
+    await db.flush()

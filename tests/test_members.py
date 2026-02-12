@@ -5,6 +5,14 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ixforge.enums import (
+    ConnectionState,
+    ConnectionType,
+    MemberState,
+    PeeringPolicy,
+    PortType,
+    VLANType,
+)
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
@@ -52,8 +60,8 @@ class TestMemberCRUD:
             name="Fetch Me Inc",
             short_name="FMI",
             asn=64600,
-            state="prospect",
-            peering_policy="open",
+            state=MemberState.prospect,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -89,8 +97,8 @@ class TestMemberCRUD:
                 name=f"List Net {i}",
                 short_name=f"LN{i}",
                 asn=64700 + i,
-                state="prospect",
-                peering_policy="open",
+                state=MemberState.prospect,
+                peering_policy=PeeringPolicy.open,
             )
             db_session.add(m)
         await db_session.flush()
@@ -113,8 +121,8 @@ class TestMemberCRUD:
             name="Old Name",
             short_name="OLD",
             asn=64800,
-            state="prospect",
-            peering_policy="open",
+            state=MemberState.prospect,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -142,8 +150,8 @@ class TestMemberCRUD:
             name="Original",
             short_name="ORIG",
             asn=64999,
-            state="prospect",
-            peering_policy="open",
+            state=MemberState.prospect,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -158,6 +166,7 @@ class TestMemberCRUD:
             },
         )
         assert resp.status_code == 409
+
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +188,8 @@ class TestMemberStateMachine:
             name="Transition Net",
             short_name="TRN",
             asn=65001,
-            state="prospect",
-            peering_policy="open",
+            state=MemberState.prospect,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -207,8 +216,8 @@ class TestMemberStateMachine:
             name="Active Net",
             short_name="ACT",
             asn=65002,
-            state="provisioning",
-            peering_policy="open",
+            state=MemberState.provisioning,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -226,10 +235,11 @@ class TestMemberStateMachine:
 
         port = Port(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             switch_id=switch.id,
             name="Ethernet1",
             speed=10000,
-            type="member",
+            type=PortType.member,
             is_active=True,
         )
         db_session.add(port)
@@ -240,17 +250,18 @@ class TestMemberStateMachine:
             ixp_id=ixp.id,
             name="Peering VLAN",
             vid=100,
-            type="production",
+            type=VLANType.production,
         )
         db_session.add(vlan)
         await db_session.flush()
 
         conn = Connection(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             member_id=member.id,
             port_id=port.id,
-            type="physical",
-            state="active",
+            type=ConnectionType.physical,
+            state=ConnectionState.active,
             speed=10000,
         )
         db_session.add(conn)
@@ -258,6 +269,7 @@ class TestMemberStateMachine:
 
         conn_vlan = ConnectionVLAN(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
             tagged=False,
@@ -267,6 +279,7 @@ class TestMemberStateMachine:
 
         pool = IPPool(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="192.0.2.0/24",
             gateway="192.0.2.1",
@@ -277,6 +290,7 @@ class TestMemberStateMachine:
 
         ip_assignment = IPAssignment(
             id=uuid.uuid4(),
+            ixp_id=ixp.id,
             pool_id=pool.id,
             connection_id=conn.id,
             address="192.0.2.2",
@@ -307,8 +321,8 @@ class TestMemberStateMachine:
             name="Invalid Trans",
             short_name="INV",
             asn=65003,
-            state="prospect",
-            peering_policy="open",
+            state=MemberState.prospect,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -334,8 +348,8 @@ class TestMemberStateMachine:
             name="Active Back",
             short_name="ACTB",
             asn=65004,
-            state="active",
-            peering_policy="open",
+            state=MemberState.active,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -360,8 +374,8 @@ class TestMemberStateMachine:
             name="Terminated Net",
             short_name="TERM",
             asn=65005,
-            state="provisioning",
-            peering_policy="open",
+            state=MemberState.provisioning,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()
@@ -388,8 +402,8 @@ class TestMemberStateMachine:
             name="No Conn Net",
             short_name="NCON",
             asn=65006,
-            state="provisioning",
-            peering_policy="open",
+            state=MemberState.provisioning,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()

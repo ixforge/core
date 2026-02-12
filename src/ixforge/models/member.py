@@ -1,6 +1,6 @@
 """Member model."""
 
-from sqlalchemy import Enum, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Enum, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import MemberState, PeeringPolicy
@@ -15,7 +15,10 @@ from ixforge.models.base import (
 
 class Member(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     __tablename__ = "members"
-    __table_args__ = (UniqueConstraint("ixp_id", "asn", name="uq_members_ixp_id_asn"),)
+    __table_args__ = (
+        UniqueConstraint("ixp_id", "asn", name="uq_members_ixp_id_asn"),
+        CheckConstraint("asn > 0", name="ck_members_asn_positive"),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     short_name: Mapped[str] = mapped_column(String(50), nullable=False)

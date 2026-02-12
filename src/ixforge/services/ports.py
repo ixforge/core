@@ -15,10 +15,12 @@ from ixforge.services.base import paginate
 
 async def create(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     data: PortCreate,
 ) -> Port:
     """Create a port on a switch."""
     port = Port(
+        ixp_id=ixp_id,
         switch_id=data.switch_id,
         name=data.name,
         speed=data.speed,
