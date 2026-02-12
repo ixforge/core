@@ -75,7 +75,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     from ixforge.api.deps import get_db_session
     from ixforge.main import create_app
 
-    test_app = create_app()
+    test_app = create_app(enable_rate_limit=False)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
         yield db_session
