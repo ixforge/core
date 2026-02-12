@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, Boolean, DateTime, ForeignKey, String, Uuid, text
+from sqlalchemy import ARRAY, Boolean, CheckConstraint, DateTime, ForeignKey, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
@@ -11,11 +11,20 @@ from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 class APIKey(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "api_keys"
+    __table_args__ = (
+        CheckConstraint(
+            "(user_id IS NOT NULL AND route_server_id IS NULL) OR "
+            "(user_id IS NULL AND route_server_id IS NOT NULL)",
+            name="ck_api_keys_owner_xor",
+        ),
+    )
 
     key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     prefix: Mapped[str] = mapped_column(String(12), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    scopes: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    scopes: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list, server_default=text("'{}'")
+    )
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,

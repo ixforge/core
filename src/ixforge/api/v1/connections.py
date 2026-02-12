@@ -131,10 +131,11 @@ async def assign_vlan(
     connection_id: uuid.UUID,
     body: ConnectionVLANCreate,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> ConnectionVLAN:
     """Assign a VLAN to a connection."""
-    return await conn_svc.assign_vlan(db, connection_id, body)
+    return await conn_svc.assign_vlan(db, ixp_id, connection_id, body)
 
 
 @connections_router.delete("/{connection_id}/vlans/{vlan_id}", status_code=204)
@@ -158,10 +159,11 @@ async def assign_ip(
     connection_id: uuid.UUID,
     body: ConnectionIPRequest,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> IPAssignment:
     """Assign an IP to a connection from a pool."""
-    return await conn_svc.assign_ip(db, connection_id, body.pool_id, address=body.address)
+    return await conn_svc.assign_ip(db, ixp_id, connection_id, body.pool_id, address=body.address)
 
 
 @connections_router.delete("/{connection_id}/ips/{assignment_id}", status_code=204)

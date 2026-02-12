@@ -6,11 +6,11 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Integer, UniqueConstraint, Uui
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import ConnectionState, ConnectionType
-from ixforge.models.base import Base, ExtraDataMixin, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.base import Base, ExtraDataMixin, TenantMixin, TimestampMixin, UUIDPrimaryKey
 from ixforge.models.types import MACADDR
 
 
-class Connection(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
+class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     __tablename__ = "connections"
 
     member_id: Mapped[uuid.UUID] = mapped_column(
@@ -42,7 +42,7 @@ class Connection(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
     )
 
 
-class ConnectionVLAN(UUIDPrimaryKey, TimestampMixin, Base):
+class ConnectionVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "connection_vlans"
     __table_args__ = (
         UniqueConstraint("connection_id", "vlan_id", name="uq_connection_vlans_conn_vlan"),

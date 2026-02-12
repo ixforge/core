@@ -2,15 +2,16 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, Uuid
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
 from ixforge.models.types import CIDR, INET
 
 
-class IPPool(UUIDPrimaryKey, TimestampMixin, Base):
+class IPPool(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "ip_pools"
+    __table_args__ = (CheckConstraint("af IN (4, 6)", name="ck_ip_pools_af_valid"),)
 
     vlan_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
@@ -23,7 +24,7 @@ class IPPool(UUIDPrimaryKey, TimestampMixin, Base):
     af: Mapped[int] = mapped_column(Integer, nullable=False, comment="Address family: 4 or 6")
 
 
-class IPAssignment(UUIDPrimaryKey, TimestampMixin, Base):
+class IPAssignment(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "ip_assignments"
 
     pool_id: Mapped[uuid.UUID] = mapped_column(

@@ -6,6 +6,14 @@ from pydantic import BaseModel
 
 
 class MonitoringSwitchTarget(BaseModel):
+    """Switch target for the Collector agent.
+
+    ``snmp_community`` is intentionally exposed here in plaintext because the
+    Collector needs it to poll switches via SNMP.  This endpoint is protected
+    by the ``monitoring:read`` API-key scope, so only authorised Collector
+    keys can access these values
+    """
+
     id: uuid.UUID
     hostname: str
     management_ip: str | None

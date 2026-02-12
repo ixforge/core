@@ -142,8 +142,6 @@ async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServ
                     f"collides with IPv4 of route server '{other_name}'. "
                     f"Assign a unique IPv4 address to this route server"
                 )
-    else:
-        router_id = "0.0.0.1"
 
     return RouteServerContext(
         name=rs.name,

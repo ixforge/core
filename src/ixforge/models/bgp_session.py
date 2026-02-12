@@ -2,17 +2,20 @@
 
 import uuid
 
-from sqlalchemy import Enum, ForeignKey, Index, Integer, Uuid
+from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Integer, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import BGPAdminState, BGPOperState
-from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
 from ixforge.models.types import INET
 
 
-class BGPSession(UUIDPrimaryKey, TimestampMixin, Base):
+class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "bgp_sessions"
-    __table_args__ = (Index("ix_bgp_sessions_rs_conn", "route_server_id", "connection_id"),)
+    __table_args__ = (
+        Index("ix_bgp_sessions_rs_conn", "route_server_id", "connection_id"),
+        CheckConstraint("af IN (4, 6)", name="ck_bgp_sessions_af_valid"),
+    )
 
     route_server_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

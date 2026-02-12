@@ -13,7 +13,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen('http://localhost:8000/api/v1/health'); exit(0 if r.getcode()==200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,6 +32,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import subprocess; exit(0 if subprocess.run(['pgrep','-f','procrastinate'],capture_output=True).returncode==0 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - ixforge
 
