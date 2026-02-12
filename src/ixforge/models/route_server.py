@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.types import INET
 
 
 class RouteServer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
@@ -13,8 +14,8 @@ class RouteServer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     hostname: Mapped[str] = mapped_column(String(255), nullable=False)
-    ip_v4: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    ip_v6: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    ip_v4: Mapped[str | None] = mapped_column(INET, nullable=True)
+    ip_v6: Mapped[str | None] = mapped_column(INET, nullable=True)
     asn: Mapped[int] = mapped_column(Integer, nullable=False)
     software: Mapped[str] = mapped_column(String(50), nullable=False, default="bird")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

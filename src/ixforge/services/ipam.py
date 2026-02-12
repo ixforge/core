@@ -88,7 +88,9 @@ def _reserved_addresses(
 ) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     """Return the set of addresses that cannot be assigned (network, broadcast, gateway)."""
     reserved: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = {gateway}
-    # IPv4 networks have distinct network and broadcast addresses.
+    # IPv4: reservar network y broadcast solo para prefijos menores a /31
+    # /31 (RFC 3021): ambas IPs son usables, solo reservar gateway
+    # /32: single host, solo reservar gateway
     if isinstance(network, ipaddress.IPv4Network) and network.prefixlen < 31:
         reserved.add(network.network_address)
         reserved.add(network.broadcast_address)

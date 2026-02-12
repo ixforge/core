@@ -1,8 +1,9 @@
 """VLAN model."""
 
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import Enum, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import VLANType
 from ixforge.models.base import (
     Base,
     ExtraDataMixin,
@@ -17,9 +18,8 @@ class VLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     vid: Mapped[int] = mapped_column(Integer, nullable=False, comment="VLAN ID")
-    type: Mapped[str] = mapped_column(
-        String(20),
+    type: Mapped[VLANType] = mapped_column(
+        Enum(VLANType, name="vlan_type"),
         nullable=False,
-        comment="production, quarantine, management, other",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

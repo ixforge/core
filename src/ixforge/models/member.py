@@ -1,8 +1,9 @@
 """Member model."""
 
-from sqlalchemy import Integer, String, Text, UniqueConstraint
+from sqlalchemy import Enum, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import MemberState, PeeringPolicy
 from ixforge.models.base import (
     Base,
     ExtraDataMixin,
@@ -19,17 +20,15 @@ class Member(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     short_name: Mapped[str] = mapped_column(String(50), nullable=False)
     asn: Mapped[int] = mapped_column(Integer, nullable=False)
-    state: Mapped[str] = mapped_column(
-        String(20),
+    state: Mapped[MemberState] = mapped_column(
+        Enum(MemberState, name="member_state"),
         nullable=False,
-        default="prospect",
-        comment="prospect, provisioning, active, suspended, terminated",
+        default=MemberState.prospect,
     )
-    peering_policy: Mapped[str] = mapped_column(
-        String(20),
+    peering_policy: Mapped[PeeringPolicy] = mapped_column(
+        Enum(PeeringPolicy, name="peering_policy"),
         nullable=False,
-        default="open",
-        comment="open, selective, restrictive, no",
+        default=PeeringPolicy.open,
     )
     peering_policy_details: Mapped[str | None] = mapped_column(Text, nullable=True)
     website: Mapped[str | None] = mapped_column(String(512), nullable=True)

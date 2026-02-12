@@ -2,10 +2,12 @@
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import ConnectionState, ConnectionType
 from ixforge.models.base import Base, ExtraDataMixin, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.types import MACADDR
 
 
 class Connection(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
@@ -23,18 +25,16 @@ class Connection(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
         nullable=True,
         index=True,
     )
-    type: Mapped[str] = mapped_column(
-        String(20),
+    type: Mapped[ConnectionType] = mapped_column(
+        Enum(ConnectionType, name="connection_type"),
         nullable=False,
-        comment="physical, virtual",
     )
-    state: Mapped[str] = mapped_column(
-        String(20),
+    state: Mapped[ConnectionState] = mapped_column(
+        Enum(ConnectionState, name="connection_state"),
         nullable=False,
-        default="draft",
-        comment="draft, provisioning, active, disabled, decommissioned",
+        default=ConnectionState.draft,
     )
-    mac_address: Mapped[str | None] = mapped_column(String(17), nullable=True)
+    mac_address: Mapped[str | None] = mapped_column(MACADDR, nullable=True)
     speed: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

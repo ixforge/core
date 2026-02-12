@@ -6,7 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ixforge.enums import MemberState as MemberState, PeeringPolicy as PeeringPolicy
+from ixforge.enums import MemberState as MemberState
+from ixforge.enums import PeeringPolicy as PeeringPolicy
 
 
 class MemberCreate(BaseModel):
