@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
@@ -18,7 +18,9 @@ class RouteServer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     ip_v6: Mapped[str | None] = mapped_column(INET, nullable=True)
     asn: Mapped[int] = mapped_column(Integer, nullable=False)
     software: Mapped[str] = mapped_column(String(50), nullable=False, default="bird")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

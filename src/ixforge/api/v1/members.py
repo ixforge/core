@@ -60,6 +60,7 @@ async def create_member(
 async def get_member(
     member_id: uuid.UUID,
     db: DBSession,
+    ixp_id: IXPId,
     user: CurrentUser,
 ) -> Member:
     """Get member details."""

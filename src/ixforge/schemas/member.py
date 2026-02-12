@@ -13,7 +13,7 @@ from ixforge.enums import PeeringPolicy as PeeringPolicy
 class MemberCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     short_name: str = Field(min_length=1, max_length=50)
-    asn: int = Field(gt=0)
+    asn: int = Field(gt=0, le=4294967295)
     peering_policy: PeeringPolicy = PeeringPolicy.open
     peering_policy_details: str | None = None
     website: str | None = None

@@ -1,6 +1,6 @@
 """Custom field definition model."""
 
-from sqlalchemy import Boolean, Enum, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Enum, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import CustomFieldEntityType, CustomFieldType
@@ -32,7 +32,9 @@ class CustomFieldDefinition(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         Enum(CustomFieldType, name="custom_field_type"),
         nullable=False,
     )
-    is_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_required: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     default_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import PortType
@@ -11,6 +11,7 @@ from ixforge.models.base import Base, ExtraDataMixin, TimestampMixin, UUIDPrimar
 
 class Port(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
     __tablename__ = "ports"
+    __table_args__ = (UniqueConstraint("switch_id", "name", name="uq_ports_switch_id_name"),)
 
     switch_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
@@ -30,4 +31,6 @@ class Port(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
         nullable=True,
         index=True,
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
