@@ -1,0 +1,100 @@
+"""Monitoring service: build target payloads for the Collector agent."""
+
+import uuid
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ixforge.models.connection import Connection
+from ixforge.models.ip import IPAssignment, IPPool
+from ixforge.models.member import Member
+from ixforge.models.port import Port
+from ixforge.models.switch import Switch
+from ixforge.schemas.monitoring import (
+    MonitoringMemberIP,
+    MonitoringPortTarget,
+    MonitoringSwitchTarget,
+    MonitoringTargets,
+)
+from ixforge.services.switches import decrypt_snmp
+
+
+async def build_targets(
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+) -> MonitoringTargets:
+    """Build monitoring targets payload for the Collector.
+
+    Returns active switches with decrypted SNMP communities,
+    active ports, and IP addresses for active members.
+    """
+    # Active switches with decrypted SNMP communities.
+    switch_stmt = select(Switch).where(Switch.ixp_id == ixp_id, Switch.is_active.is_(True))
+    switch_result = await session.execute(switch_stmt)
+    switches_raw = list(switch_result.scalars().all())
+
+    switch_targets: list[MonitoringSwitchTarget] = []
+    switch_ids: list[uuid.UUID] = []
+    for sw in switches_raw:
+        snmp: str | None = None
+        if sw.snmp_community_encrypted is not None:
+            snmp = decrypt_snmp(sw.snmp_community_encrypted)
+        switch_targets.append(
+            MonitoringSwitchTarget(
+                id=sw.id,
+                hostname=sw.hostname,
+                management_ip=sw.management_ip,
+                snmp_community=snmp,
+            )
+        )
+        switch_ids.append(sw.id)
+
+    # Active ports on active switches.
+    port_targets: list[MonitoringPortTarget] = []
+    if switch_ids:
+        port_stmt = select(Port).where(Port.switch_id.in_(switch_ids), Port.is_active.is_(True))
+        port_result = await session.execute(port_stmt)
+        for port in port_result.scalars().all():
+            port_targets.append(
+                MonitoringPortTarget(
+                    id=port.id,
+                    switch_id=port.switch_id,
+                    name=port.name,
+                    speed=port.speed,
+                    member_id=port.member_id,
+                )
+            )
+
+    # IP addresses for active members.
+    member_ip_stmt = (
+        select(
+            Member.id.label("member_id"),
+            Member.name.label("member_name"),
+            IPAssignment.address,
+            IPPool.af,
+        )
+        .join(Connection, Connection.member_id == Member.id)
+        .join(IPAssignment, IPAssignment.connection_id == Connection.id)
+        .join(IPPool, IPPool.id == IPAssignment.pool_id)
+        .where(
+            Member.ixp_id == ixp_id,
+            Member.state == "active",
+            Connection.state == "active",
+        )
+    )
+    member_ip_result = await session.execute(member_ip_stmt)
+    member_ips = [
+        MonitoringMemberIP(
+            member_id=row.member_id,
+            member_name=row.member_name,
+            address=row.address,
+            af=row.af,
+        )
+        for row in member_ip_result.all()
+    ]
+
+    return MonitoringTargets(
+        switches=switch_targets,
+        ports=port_targets,
+        member_ips=member_ips,
+    )
