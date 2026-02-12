@@ -25,11 +25,12 @@ class Event(UUIDPrimaryKey, TenantMixin, Base):
         nullable=True,
         index=True,
     )
-    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    resource_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    resource_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+        index=True,
     )
