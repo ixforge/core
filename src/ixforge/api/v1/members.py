@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Query
 
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
+from ixforge.exceptions import ForbiddenError
 from ixforge.models.member import Member
 from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
@@ -59,9 +60,11 @@ async def create_member(
 async def get_member(
     member_id: uuid.UUID,
     db: DBSession,
-    _user: CurrentUser,
+    user: CurrentUser,
 ) -> Member:
     """Get member details."""
+    if user.role != UserRole.admin and user.member_id != member_id:
+        raise ForbiddenError("You can only view your own member record")
     return await member_svc.get(db, member_id)
 
 

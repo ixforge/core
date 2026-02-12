@@ -5,13 +5,14 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ixforge.enums import BGPAdminState
 from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.schemas.bgp_session import BGPSessionRead
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.services.base import paginate
 
-_VALID_ADMIN_STATES = {"up", "down"}
+_VALID_ADMIN_STATES = {BGPAdminState.up, BGPAdminState.down}
 
 
 async def get(session: AsyncSession, session_id: uuid.UUID) -> BGPSession:

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.api.deps import DBSession
+from ixforge.enums import BGPOperState
 from ixforge.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from ixforge.metrics import bgp_sessions_active
 from ixforge.models.api_key import APIKey
@@ -165,7 +166,7 @@ async def report_agent_status(
         updated += 1
 
         # Emit events for meaningful state transitions
-        if old_state == "up" and new_state == "down":
+        if old_state == BGPOperState.up and new_state == BGPOperState.down:
             await create_event(
                 db,
                 ixp_id=rs.ixp_id,
@@ -181,7 +182,9 @@ async def report_agent_status(
                     "new_state": new_state,
                 },
             )
-        elif old_state in ("down", "unknown") and new_state == "up":
+        elif (
+            old_state in (BGPOperState.down, BGPOperState.unknown) and new_state == BGPOperState.up
+        ):
             await create_event(
                 db,
                 ixp_id=rs.ixp_id,
@@ -199,7 +202,7 @@ async def report_agent_status(
             )
 
     # Update Prometheus gauge: count all sessions currently "up" for this RS
-    active_count = sum(1 for s in sessions_by_ip.values() if s.oper_state == "up")
+    active_count = sum(1 for s in sessions_by_ip.values() if s.oper_state == BGPOperState.up)
     bgp_sessions_active.set(active_count)
 
     await db.flush()

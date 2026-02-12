@@ -1,6 +1,7 @@
 """Authentication service: password hashing, JWT tokens, API key management."""
 
 import hashlib
+import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import cast
@@ -53,11 +54,13 @@ def generate_api_key() -> tuple[str, str, str]:
     """
     random_part = secrets.token_hex(32)
     raw_key = f"{_API_KEY_PREFIX}{random_part}"
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    settings = get_settings()
+    key_hash = hmac.new(settings.secret_key.encode(), raw_key.encode(), hashlib.sha256).hexdigest()
     prefix = raw_key[:12]
     return raw_key, key_hash, prefix
 
 
 def hash_api_key(raw_key: str) -> str:
     """Hash a raw API key for database lookup."""
-    return hashlib.sha256(raw_key.encode()).hexdigest()
+    settings = get_settings()
+    return hmac.new(settings.secret_key.encode(), raw_key.encode(), hashlib.sha256).hexdigest()

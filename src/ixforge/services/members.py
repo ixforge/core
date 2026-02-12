@@ -12,6 +12,7 @@ from ixforge.models.ip import IPAssignment
 from ixforge.models.member import Member
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.member import MemberCreate, MemberRead, MemberState, MemberUpdate
+from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 from ixforge.services.events import create_event
 
@@ -32,6 +33,9 @@ async def create(
     actor_id: uuid.UUID | None = None,
 ) -> Member:
     """Create a new member in prospect state."""
+    if data.extra_data is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "member", data.extra_data)
+
     member = Member(
         ixp_id=ixp_id,
         name=data.name,
@@ -98,6 +102,12 @@ async def update(
     """Update mutable fields on an existing member."""
     member = await get(session, member_id)
     update_fields = data.model_dump(exclude_unset=True)
+
+    if "extra_data" in update_fields and update_fields["extra_data"] is not None:
+        await custom_fields.validate_extra_data(
+            session, member.ixp_id, "member", update_fields["extra_data"]
+        )
+
     for field, value in update_fields.items():
         setattr(member, field, value)
 

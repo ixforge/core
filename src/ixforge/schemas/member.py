@@ -2,25 +2,11 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-class MemberState(StrEnum):
-    prospect = "prospect"
-    provisioning = "provisioning"
-    active = "active"
-    suspended = "suspended"
-    terminated = "terminated"
-
-
-class PeeringPolicy(StrEnum):
-    open = "open"
-    selective = "selective"
-    restrictive = "restrictive"
-    no = "no"
+from ixforge.enums import MemberState as MemberState, PeeringPolicy as PeeringPolicy
 
 
 class MemberCreate(BaseModel):

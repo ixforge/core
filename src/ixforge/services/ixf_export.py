@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
+from ixforge.enums import ConnectionState, MemberState, VLANType
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
@@ -88,9 +89,9 @@ async def generate_ixf_member_export(
                 "shortname": ixp.short_name,
                 "name": ixp.name,
                 "vlan": vlan_list,
-                "member_list": member_list,
             },
         ],
+        "member_list": member_list,
     }
 
 
@@ -101,12 +102,17 @@ def _empty_export() -> dict[str, Any]:
         "version": "1.0",
         "timestamp": timestamp,
         "ixp_list": [],
+        "member_list": [],
     }
 
 
 async def _get_vlans(session: AsyncSession, ixp_id: uuid.UUID) -> list[VLAN]:
     """Fetch production VLANs for an IXP."""
-    stmt = select(VLAN).where(VLAN.ixp_id == ixp_id, VLAN.type == "production").order_by(VLAN.vid)
+    stmt = (
+        select(VLAN)
+        .where(VLAN.ixp_id == ixp_id, VLAN.type == VLANType.production)
+        .order_by(VLAN.vid)
+    )
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -115,7 +121,7 @@ async def _get_active_members(session: AsyncSession, ixp_id: uuid.UUID) -> list[
     """Fetch active members for an IXP."""
     stmt = (
         select(Member)
-        .where(Member.ixp_id == ixp_id, Member.state == "active")
+        .where(Member.ixp_id == ixp_id, Member.state == MemberState.active)
         .order_by(Member.asn)
     )
     result = await session.execute(stmt)
@@ -126,7 +132,7 @@ async def _get_active_connections(session: AsyncSession, member_id: uuid.UUID) -
     """Fetch active connections for a member."""
     stmt = (
         select(Connection)
-        .where(Connection.member_id == member_id, Connection.state == "active")
+        .where(Connection.member_id == member_id, Connection.state == ConnectionState.active)
         .order_by(Connection.created_at)
     )
     result = await session.execute(stmt)

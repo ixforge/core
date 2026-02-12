@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ixforge.enums import BGPAdminState, ConnectionState, MemberState
 from ixforge.exceptions import NotFoundError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
@@ -66,9 +67,9 @@ async def _build_peers(
         .where(
             BGPSession.route_server_id == route_server_id,
             BGPSession.af == af,
-            BGPSession.admin_state == "up",
-            Connection.state == "active",
-            Member.state == "active",
+            BGPSession.admin_state == BGPAdminState.up,
+            Connection.state == ConnectionState.active,
+            Member.state == MemberState.active,
         )
         .order_by(BGPSession.peer_asn, BGPSession.peer_ip)
     )
@@ -126,9 +127,6 @@ async def generate_config(
     v4_peers = await _build_peers(session, route_server_id, af=4)
     v6_peers = await _build_peers(session, route_server_id, af=6)
 
-    # Render a placeholder hash first, then replace after computing the real one.
-    placeholder_hash = "PENDING"
-
     v4_config = ""
     if rs.ip_v4:
         v4_template = env.get_template("bird_v4.conf.j2")
@@ -136,7 +134,7 @@ async def generate_config(
             route_server=rs_context,
             peers=v4_peers,
             generated_at=generated_at_str,
-            config_hash=placeholder_hash,
+            config_hash="",
         )
 
     v6_config = ""
@@ -146,14 +144,11 @@ async def generate_config(
             route_server=rs_context,
             peers=v6_peers,
             generated_at=generated_at_str,
-            config_hash=placeholder_hash,
+            config_hash="",
         )
 
     combined = _combine_configs(v4_config, v6_config)
     config_hash = hashlib.sha256(combined.encode()).hexdigest()
-
-    # Replace placeholder hash in the final output.
-    combined = combined.replace(placeholder_hash, config_hash)
 
     template_snapshot = get_template_snapshots()
 

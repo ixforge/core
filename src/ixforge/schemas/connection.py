@@ -2,23 +2,11 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-class ConnectionType(StrEnum):
-    physical = "physical"
-    virtual = "virtual"
-
-
-class ConnectionState(StrEnum):
-    draft = "draft"
-    provisioning = "provisioning"
-    active = "active"
-    disabled = "disabled"
-    decommissioned = "decommissioned"
+from ixforge.enums import ConnectionState as ConnectionState, ConnectionType as ConnectionType
 
 
 class ConnectionCreate(BaseModel):
