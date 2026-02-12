@@ -34,11 +34,18 @@ def _login() -> str:
     """Obtain a JWT token for the admin user."""
     r = subprocess.run(
         [
-            "curl", "-s", "-X", "POST", f"{BASE}/auth/login",
-            "-H", "Content-Type: application/json",
-            "-d", json.dumps({"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}),
+            "curl",
+            "-s",
+            "-X",
+            "POST",
+            f"{BASE}/auth/login",
+            "-H",
+            "Content-Type: application/json",
+            "-d",
+            json.dumps({"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}),
         ],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return json.loads(r.stdout)["access_token"]
 
@@ -48,8 +55,15 @@ TOKEN = ""
 
 def req(method: str, path: str, data=None, expect: int = 200, auth: bool = True):
     cmd = [
-        "curl", "-s", "-w", "\n%{http_code}", "-X", method,
-        f"{BASE}{path}", "-H", "Content-Type: application/json",
+        "curl",
+        "-s",
+        "-w",
+        "\n%{http_code}",
+        "-X",
+        method,
+        f"{BASE}{path}",
+        "-H",
+        "Content-Type: application/json",
     ]
     if auth:
         cmd += ["-H", f"Authorization: Bearer {TOKEN}"]
@@ -105,7 +119,8 @@ def raw_test(name, url, expect_code="200"):
     total += 1
     r = subprocess.run(
         ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", url],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     ok = r.stdout.strip() == expect_code
     if ok:
@@ -119,6 +134,7 @@ def raw_test(name, url, expect_code="200"):
 # Test suite
 # ---------------------------------------------------------------------------
 
+
 def run():
     global TOKEN
 
@@ -130,83 +146,175 @@ def run():
 
     # === AUTH ===
     print("\n-- AUTH --")
-    test("Login valid", "POST", "/auth/login",
-         {"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}, 200,
-         lambda b: "access_token" in b and b["token_type"] == "bearer", auth=False)
-    test("Login wrong password", "POST", "/auth/login",
-         {"email": ADMIN_EMAIL, "password": "wrong"}, 401, auth=False)
-    test("Login nonexistent user", "POST", "/auth/login",
-         {"email": "no@example.com", "password": "x"}, 401, auth=False)
-    test("GET /me valid token", "GET", "/auth/me", expect=200,
-         check=lambda b: b.get("email") == ADMIN_EMAIL and b["role"] == "admin")
+    test(
+        "Login valid",
+        "POST",
+        "/auth/login",
+        {"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+        200,
+        lambda b: "access_token" in b and b["token_type"] == "bearer",
+        auth=False,
+    )
+    test(
+        "Login wrong password",
+        "POST",
+        "/auth/login",
+        {"email": ADMIN_EMAIL, "password": "wrong"},
+        401,
+        auth=False,
+    )
+    test(
+        "Login nonexistent user",
+        "POST",
+        "/auth/login",
+        {"email": "no@example.com", "password": "x"},
+        401,
+        auth=False,
+    )
+    test(
+        "GET /me valid token",
+        "GET",
+        "/auth/me",
+        expect=200,
+        check=lambda b: b.get("email") == ADMIN_EMAIL and b["role"] == "admin",
+    )
     test("GET /me no auth", "GET", "/auth/me", expect=401, auth=False)
     test("GET /me invalid token", "GET", "/auth/me", expect=401, auth=False)
 
     # === HEALTH ===
     print("\n-- HEALTH --")
-    test("Health check", "GET", "/health", expect=200,
-         check=lambda b: b["status"] == "healthy" and b["checks"]["database"]["status"] == "ok",
-         auth=False)
+    test(
+        "Health check",
+        "GET",
+        "/health",
+        expect=200,
+        check=lambda b: b["status"] == "healthy" and b["checks"]["database"]["status"] == "ok",
+        auth=False,
+    )
 
     # === MEMBERS CRUD ===
     print("\n-- MEMBERS CRUD --")
-    ml = test("List members", "GET", "/members", expect=200,
-              check=lambda b: len(b["items"]) >= 5)
-    test("List with limit=2", "GET", "/members?limit=2", expect=200,
-         check=lambda b: len(b["items"]) == 2 and b["has_more"] is True)
-    m = test("Create member (prospect)", "POST", "/members",
-             {"name": "E2E Net", "short_name": "E2N", "asn": 64700}, 201,
-             lambda b: b["state"] == "prospect" and b["asn"] == 64700)
+    ml = test("List members", "GET", "/members", expect=200, check=lambda b: len(b["items"]) >= 5)
+    test(
+        "List with limit=2",
+        "GET",
+        "/members?limit=2",
+        expect=200,
+        check=lambda b: len(b["items"]) == 2 and b["has_more"] is True,
+    )
+    m = test(
+        "Create member (prospect)",
+        "POST",
+        "/members",
+        {"name": "E2E Net", "short_name": "E2N", "asn": 64700},
+        201,
+        lambda b: b["state"] == "prospect" and b["asn"] == 64700,
+    )
     mid = m.get("id", "")
     ixp_id = m.get("ixp_id", "")
-    test("Get member by ID", "GET", f"/members/{mid}", expect=200,
-         check=lambda b: b["name"] == "E2E Net")
-    test("Update member", "PATCH", f"/members/{mid}",
-         {"website": "https://e2n.test", "peering_policy": "selective"}, 200,
-         check=lambda b: b["website"] == "https://e2n.test")
-    test("Duplicate ASN rejected", "POST", "/members",
-         {"name": "Dup", "short_name": "DUP", "asn": 64700}, 409)
+    test(
+        "Get member by ID",
+        "GET",
+        f"/members/{mid}",
+        expect=200,
+        check=lambda b: b["name"] == "E2E Net",
+    )
+    test(
+        "Update member",
+        "PATCH",
+        f"/members/{mid}",
+        {"website": "https://e2n.test", "peering_policy": "selective"},
+        200,
+        check=lambda b: b["website"] == "https://e2n.test",
+    )
+    test(
+        "Duplicate ASN rejected",
+        "POST",
+        "/members",
+        {"name": "Dup", "short_name": "DUP", "asn": 64700},
+        409,
+    )
     test("Member not found", "GET", "/members/00000000-0000-0000-0000-000000000000", expect=404)
     test("Missing required fields", "POST", "/members", {"name": "Bad"}, 422)
 
     # === MEMBER STATE MACHINE (basic) ===
     print("\n-- MEMBER STATE MACHINE --")
-    test("prospect -> provisioning", "POST", f"/members/{mid}/transition",
-         {"state": "provisioning"}, 200, lambda b: b["state"] == "provisioning")
-    test("INVALID: provisioning -> prospect", "POST", f"/members/{mid}/transition",
-         {"state": "prospect"}, 422)
-    test("INVALID: provisioning -> active (no conn)", "POST",
-         f"/members/{mid}/transition", {"state": "active"}, 422)
+    test(
+        "prospect -> provisioning",
+        "POST",
+        f"/members/{mid}/transition",
+        {"state": "provisioning"},
+        200,
+        lambda b: b["state"] == "provisioning",
+    )
+    test(
+        "INVALID: provisioning -> prospect",
+        "POST",
+        f"/members/{mid}/transition",
+        {"state": "prospect"},
+        422,
+    )
+    test(
+        "INVALID: provisioning -> active (no conn)",
+        "POST",
+        f"/members/{mid}/transition",
+        {"state": "active"},
+        422,
+    )
 
     # === SWITCHES ===
     print("\n-- SWITCHES --")
-    sw = test("List switches", "GET", "/switches", expect=200,
-              check=lambda b: len(b["items"]) >= 2)
+    sw = test(
+        "List switches", "GET", "/switches", expect=200, check=lambda b: len(b["items"]) >= 2
+    )
     sw_id = sw["items"][0]["id"]
-    test("Get switch", "GET", f"/switches/{sw_id}", expect=200,
-         check=lambda b: b["vendor"] == "Arista")
-    new_sw = test("Create switch", "POST", "/switches",
-                  {"name": "sw-e2n", "hostname": "sw-e2n.test",
-                   "vendor": "Juniper", "model": "QFX5100",
-                   "management_ip": "10.0.0.201"}, 201,
-                  lambda b: b["name"] == "sw-e2n")
+    test(
+        "Get switch",
+        "GET",
+        f"/switches/{sw_id}",
+        expect=200,
+        check=lambda b: b["vendor"] == "Arista",
+    )
+    new_sw = test(
+        "Create switch",
+        "POST",
+        "/switches",
+        {
+            "name": "sw-e2n",
+            "hostname": "sw-e2n.test",
+            "vendor": "Juniper",
+            "model": "QFX5100",
+            "management_ip": "10.0.0.201",
+        },
+        201,
+        lambda b: b["name"] == "sw-e2n",
+    )
 
     # === PORTS ===
     print("\n-- PORTS --")
-    p = test("List ports", "GET", f"/ports?switch_id={sw_id}", expect=200,
-             check=lambda b: len(b["items"]) >= 4)
+    p = test(
+        "List ports",
+        "GET",
+        f"/ports?switch_id={sw_id}",
+        expect=200,
+        check=lambda b: len(b["items"]) >= 4,
+    )
     port_id = p["items"][0]["id"]
-    test("Get port", "GET", f"/ports/{port_id}", expect=200,
-         check=lambda b: "Ethernet" in b["name"])
-    test("Create port", "POST", "/ports",
-         {"switch_id": new_sw.get("id", ""), "name": "Ethernet1",
-          "speed": 40000, "type": "member"}, 201,
-         lambda b: b["name"] == "Ethernet1")
+    test(
+        "Get port", "GET", f"/ports/{port_id}", expect=200, check=lambda b: "Ethernet" in b["name"]
+    )
+    test(
+        "Create port",
+        "POST",
+        "/ports",
+        {"switch_id": new_sw.get("id", ""), "name": "Ethernet1", "speed": 40000, "type": "member"},
+        201,
+        lambda b: b["name"] == "Ethernet1",
+    )
 
     # === VLANS ===
     print("\n-- VLANS --")
-    v = test("List VLANs", "GET", "/vlans", expect=200,
-             check=lambda b: len(b["items"]) >= 2)
+    v = test("List VLANs", "GET", "/vlans", expect=200, check=lambda b: len(b["items"]) >= 2)
     prod_vlan_id = None
     for vl in v.get("items", []):
         if vl.get("vid") == 100:
@@ -214,19 +322,33 @@ def run():
             break
     if not prod_vlan_id:
         prod_vlan_id = v["items"][0]["id"]
-    test("Get VLAN", "GET", f"/vlans/{prod_vlan_id}", expect=200,
-         check=lambda b: "vid" in b)
-    test("Create VLAN", "POST", "/vlans",
-         {"name": "E2E VLAN", "vid": 501, "type": "production"}, 201,
-         lambda b: b["vid"] == 501)
+    test("Get VLAN", "GET", f"/vlans/{prod_vlan_id}", expect=200, check=lambda b: "vid" in b)
+    test(
+        "Create VLAN",
+        "POST",
+        "/vlans",
+        {"name": "E2E VLAN", "vid": 501, "type": "production"},
+        201,
+        lambda b: b["vid"] == 501,
+    )
 
     # === IP POOLS ===
     print("\n-- IP POOLS --")
-    ip_pools = test("List IP pools", "GET", f"/ip-pools?vlan_id={prod_vlan_id}", expect=200,
-                    check=lambda b: len(b["items"]) >= 1)
+    ip_pools = test(
+        "List IP pools",
+        "GET",
+        f"/ip-pools?vlan_id={prod_vlan_id}",
+        expect=200,
+        check=lambda b: len(b["items"]) >= 1,
+    )
     pool_id = ip_pools["items"][0]["id"] if ip_pools.get("items") else ""
-    test("Get IP pool", "GET", f"/ip-pools/{pool_id}", expect=200,
-         check=lambda b: "network" in b and "gateway" in b)
+    test(
+        "Get IP pool",
+        "GET",
+        f"/ip-pools/{pool_id}",
+        expect=200,
+        check=lambda b: "network" in b and "gateway" in b,
+    )
 
     # === CONNECTIONS ===
     print("\n-- CONNECTIONS --")
@@ -237,12 +359,21 @@ def run():
             break
 
     if active_member:
-        c = test("List connections", "GET",
-                 f"/connections?member_id={active_member['id']}", expect=200,
-                 check=lambda b: len(b["items"]) >= 1)
+        c = test(
+            "List connections",
+            "GET",
+            f"/connections?member_id={active_member['id']}",
+            expect=200,
+            check=lambda b: len(b["items"]) >= 1,
+        )
         if c.get("items"):
-            test("Get connection", "GET", f"/connections/{c['items'][0]['id']}",
-                 expect=200, check=lambda b: "type" in b)
+            test(
+                "Get connection",
+                "GET",
+                f"/connections/{c['items'][0]['id']}",
+                expect=200,
+                check=lambda b: "type" in b,
+            )
 
     # Build a complete connection: port + VLAN + IP
     free_port = None
@@ -257,51 +388,120 @@ def run():
                 break
 
     if free_port and mid:
-        cn = test("Create connection", "POST", "/connections",
-                  {"member_id": mid, "port_id": free_port, "type": "physical",
-                   "speed": 10000}, 201, lambda b: "id" in b)
+        cn = test(
+            "Create connection",
+            "POST",
+            "/connections",
+            {"member_id": mid, "port_id": free_port, "type": "physical", "speed": 10000},
+            201,
+            lambda b: "id" in b,
+        )
         cn_id = cn.get("id", "")
 
         if cn_id:
             print("\n-- COMPLETE CONNECTION SETUP --")
-            test("Attach VLAN", "POST", f"/connections/{cn_id}/vlans",
-                 {"vlan_id": prod_vlan_id, "tagged": False}, 201)
+            test(
+                "Attach VLAN",
+                "POST",
+                f"/connections/{cn_id}/vlans",
+                {"vlan_id": prod_vlan_id, "tagged": False},
+                201,
+            )
             if pool_id:
-                test("Assign IP", "POST", f"/connections/{cn_id}/ips",
-                     {"pool_id": pool_id}, 201, lambda b: "address" in b)
-            test("Verify connection", "GET", f"/connections/{cn_id}",
-                 expect=200, check=lambda b: b.get("id") == cn_id)
+                test(
+                    "Assign IP",
+                    "POST",
+                    f"/connections/{cn_id}/ips",
+                    {"pool_id": pool_id},
+                    201,
+                    lambda b: "address" in b,
+                )
+            test(
+                "Verify connection",
+                "GET",
+                f"/connections/{cn_id}",
+                expect=200,
+                check=lambda b: b.get("id") == cn_id,
+            )
 
             print("\n-- FULL LIFECYCLE --")
-            test("provisioning -> active", "POST", f"/members/{mid}/transition",
-                 {"state": "active"}, 200, lambda b: b["state"] == "active")
-            test("active -> suspended", "POST", f"/members/{mid}/transition",
-                 {"state": "suspended"}, 200, lambda b: b["state"] == "suspended")
-            test("suspended -> active", "POST", f"/members/{mid}/transition",
-                 {"state": "active"}, 200, lambda b: b["state"] == "active")
-            test("active -> suspended (again)", "POST", f"/members/{mid}/transition",
-                 {"state": "suspended"}, 200, lambda b: b["state"] == "suspended")
+            test(
+                "provisioning -> active",
+                "POST",
+                f"/members/{mid}/transition",
+                {"state": "active"},
+                200,
+                lambda b: b["state"] == "active",
+            )
+            test(
+                "active -> suspended",
+                "POST",
+                f"/members/{mid}/transition",
+                {"state": "suspended"},
+                200,
+                lambda b: b["state"] == "suspended",
+            )
+            test(
+                "suspended -> active",
+                "POST",
+                f"/members/{mid}/transition",
+                {"state": "active"},
+                200,
+                lambda b: b["state"] == "active",
+            )
+            test(
+                "active -> suspended (again)",
+                "POST",
+                f"/members/{mid}/transition",
+                {"state": "suspended"},
+                200,
+                lambda b: b["state"] == "suspended",
+            )
 
     # === ROUTE SERVERS ===
     print("\n-- ROUTE SERVERS --")
-    rs = test("List route servers", "GET", "/route-servers", expect=200,
-              check=lambda b: len(b["items"]) == 2)
+    rs = test(
+        "List route servers",
+        "GET",
+        "/route-servers",
+        expect=200,
+        check=lambda b: len(b["items"]) == 2,
+    )
     rs_id = rs["items"][0]["id"]
-    test("Get route server", "GET", f"/route-servers/{rs_id}", expect=200,
-         check=lambda b: b["software"] == "bird")
+    test(
+        "Get route server",
+        "GET",
+        f"/route-servers/{rs_id}",
+        expect=200,
+        check=lambda b: b["software"] == "bird",
+    )
 
     # === BGP SESSIONS ===
     print("\n-- BGP SESSIONS --")
-    bgp = test("List BGP sessions", "GET", f"/bgp-sessions?route_server_id={rs_id}",
-               expect=200, check=lambda b: len(b["items"]) >= 1)
-    test("Get BGP session", "GET", f"/bgp-sessions/{bgp['items'][0]['id']}",
-         expect=200, check=lambda b: "peer_asn" in b)
+    bgp = test(
+        "List BGP sessions",
+        "GET",
+        f"/bgp-sessions?route_server_id={rs_id}",
+        expect=200,
+        check=lambda b: len(b["items"]) >= 1,
+    )
+    test(
+        "Get BGP session",
+        "GET",
+        f"/bgp-sessions/{bgp['items'][0]['id']}",
+        expect=200,
+        check=lambda b: "peer_asn" in b,
+    )
 
     # === CONFIG GENERATION ===
     print("\n-- CONFIG GENERATION --")
-    cfg = test("Generate BIRD config", "POST",
-               f"/route-servers/{rs_id}/config/generate", expect=201,
-               check=lambda b: "content" in b and "config_hash" in b)
+    cfg = test(
+        "Generate BIRD config",
+        "POST",
+        f"/route-servers/{rs_id}/config/generate",
+        expect=201,
+        check=lambda b: "content" in b and "config_hash" in b,
+    )
     if cfg.get("content"):
         lines = cfg["content"].split("\n")
         global total, passed_count
@@ -331,13 +531,24 @@ def run():
 
     # === CONFIG HISTORY ===
     print("\n-- CONFIG HISTORY --")
-    test("Config version history", "GET", f"/route-servers/{rs_id}/config/history",
-         expect=200, check=lambda b: len(b.get("items", [])) >= 1)
+    test(
+        "Config version history",
+        "GET",
+        f"/route-servers/{rs_id}/config/history",
+        expect=200,
+        check=lambda b: len(b.get("items", [])) >= 1,
+    )
 
     # === IX-F EXPORT ===
     print("\n-- IX-F EXPORT --")
-    ixf = test("IX-F member export", "GET", "/ixf/member-export", expect=200,
-               check=lambda b: b.get("version") == "1.0", auth=False)
+    ixf = test(
+        "IX-F member export",
+        "GET",
+        "/ixf/member-export",
+        expect=200,
+        check=lambda b: b.get("version") == "1.0",
+        auth=False,
+    )
     if ixf.get("version"):
         ixp_list = ixf.get("ixp_list", [])
         members_list = ixp_list[0].get("member_list", []) if ixp_list else []
@@ -359,55 +570,110 @@ def run():
 
     # === EVENTS ===
     print("\n-- EVENTS --")
-    test("List events", "GET", "/events", expect=200,
-         check=lambda b: len(b.get("items", [])) >= 1)
+    test("List events", "GET", "/events", expect=200, check=lambda b: len(b.get("items", [])) >= 1)
 
     # === USERS ===
     print("\n-- USERS --")
-    test("List users", "GET", "/users", expect=200,
-         check=lambda b: isinstance(b, list) and len(b) >= 1)
-    test("Create user", "POST", "/users",
-         {"email": "member@demo-ixp.net", "password": "memberpass123",
-          "full_name": "Member User", "role": "member"}, 201,
-         check=lambda b: b.get("email") == "member@demo-ixp.net")
+    test(
+        "List users",
+        "GET",
+        "/users",
+        expect=200,
+        check=lambda b: isinstance(b, list) and len(b) >= 1,
+    )
+    test(
+        "Create user",
+        "POST",
+        "/users",
+        {
+            "email": "member@demo-ixp.net",
+            "password": "memberpass123",
+            "full_name": "Member User",
+            "role": "member",
+        },
+        201,
+        check=lambda b: b.get("email") == "member@demo-ixp.net",
+    )
 
     # === CONTACTS ===
     print("\n-- CONTACTS --")
     if active_member:
-        test("Create contact", "POST", f"/members/{active_member['id']}/contacts",
-             {"name": "John NOC", "email": "noc@acme.example.com",
-              "role": "noc", "phone": "+1-555-0100"}, 201,
-             lambda b: b.get("name") == "John NOC")
-        test("List contacts", "GET", f"/members/{active_member['id']}/contacts",
-             expect=200, check=lambda b: isinstance(b, (list, dict)))
+        test(
+            "Create contact",
+            "POST",
+            f"/members/{active_member['id']}/contacts",
+            {
+                "name": "John NOC",
+                "email": "noc@acme.example.com",
+                "role": "noc",
+                "phone": "+1-555-0100",
+            },
+            201,
+            lambda b: b.get("name") == "John NOC",
+        )
+        test(
+            "List contacts",
+            "GET",
+            f"/members/{active_member['id']}/contacts",
+            expect=200,
+            check=lambda b: isinstance(b, (list, dict)),
+        )
 
     # === CUSTOM FIELDS ===
     print("\n-- CUSTOM FIELDS --")
     if ixp_id:
-        cf = test("Create custom field", "POST", "/custom-fields",
-                  {"ixp_id": ixp_id, "entity_type": "member",
-                   "field_name": "noc_hours", "field_type": "string",
-                   "is_required": False, "description": "NOC hours"}, 201,
-                  lambda b: b.get("field_name") == "noc_hours")
-        test("List custom fields", "GET", f"/custom-fields?ixp_id={ixp_id}",
-             expect=200, check=lambda b: len(b.get("items", [])) >= 1)
+        cf = test(
+            "Create custom field",
+            "POST",
+            "/custom-fields",
+            {
+                "ixp_id": ixp_id,
+                "entity_type": "member",
+                "field_name": "noc_hours",
+                "field_type": "string",
+                "is_required": False,
+                "description": "NOC hours",
+            },
+            201,
+            lambda b: b.get("field_name") == "noc_hours",
+        )
+        test(
+            "List custom fields",
+            "GET",
+            f"/custom-fields?ixp_id={ixp_id}",
+            expect=200,
+            check=lambda b: len(b.get("items", [])) >= 1,
+        )
         if cf.get("id"):
-            test("Delete custom field", "DELETE", f"/custom-fields/{cf['id']}",
-                 expect=204)
+            test("Delete custom field", "DELETE", f"/custom-fields/{cf['id']}", expect=204)
 
     # === AGENT API (auth required) ===
     print("\n-- AGENT API --")
-    test("Agent config (no key)", "GET",
-         f"/route-servers/{rs_id}/agent/config", expect=401, auth=False)
-    test("Agent status (no key)", "POST",
-         f"/route-servers/{rs_id}/agent/status", expect=401, auth=False)
-    test("Agent heartbeat (no key)", "POST",
-         f"/route-servers/{rs_id}/agent/heartbeat", expect=401, auth=False)
+    test(
+        "Agent config (no key)",
+        "GET",
+        f"/route-servers/{rs_id}/agent/config",
+        expect=401,
+        auth=False,
+    )
+    test(
+        "Agent status (no key)",
+        "POST",
+        f"/route-servers/{rs_id}/agent/status",
+        expect=401,
+        auth=False,
+    )
+    test(
+        "Agent heartbeat (no key)",
+        "POST",
+        f"/route-servers/{rs_id}/agent/heartbeat",
+        expect=401,
+        auth=False,
+    )
 
     # === MONITORING (auth required) ===
     print("\n-- MONITORING --")
-    test("Monitoring targets (no key)", "GET", "/monitoring/targets",
-         expect=401, auth=False)
+    test("Monitoring targets (no key)", "GET", "/monitoring/targets", expect=401, auth=False)
 
     # === INFRASTRUCTURE ===
     print("\n-- INFRASTRUCTURE --")

@@ -4,13 +4,23 @@ import uuid
 
 from fastapi import APIRouter, Query, Response
 
-from ixforge.api.deps import DBSession, MemberOrAdminUser
+from ixforge.api.deps import CurrentUser, DBSession
+from ixforge.exceptions import ForbiddenError
 from ixforge.models.contact import Contact
+from ixforge.models.user import User, UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.contact import ContactCreate, ContactRead, ContactUpdate
 from ixforge.services import contacts as contact_svc
 
 contacts_router = APIRouter(tags=["contacts"])
+
+
+def _check_member_access(user: User, member_id: uuid.UUID) -> None:
+    """Verify that a non-admin user can only access their own member's data."""
+    if user.role == UserRole.admin:
+        return
+    if user.member_id != member_id:
+        raise ForbiddenError("You can only access contacts for your own member")
 
 
 @contacts_router.get(
@@ -20,11 +30,12 @@ contacts_router = APIRouter(tags=["contacts"])
 async def list_contacts(
     member_id: uuid.UUID,
     db: DBSession,
-    _user: MemberOrAdminUser,
+    user: CurrentUser,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ContactRead]:
     """List contacts for a member."""
+    _check_member_access(user, member_id)
     params = CursorParams(cursor=cursor, limit=limit)
     return await contact_svc.list_contacts(db, member_id, params)
 
@@ -38,9 +49,10 @@ async def create_contact(
     member_id: uuid.UUID,
     body: ContactCreate,
     db: DBSession,
-    _user: MemberOrAdminUser,
+    user: CurrentUser,
 ) -> Contact:
     """Create a contact for a member."""
+    _check_member_access(user, member_id)
     return await contact_svc.create(db, member_id, body)
 
 
@@ -49,9 +61,11 @@ async def update_contact(
     contact_id: uuid.UUID,
     body: ContactUpdate,
     db: DBSession,
-    _user: MemberOrAdminUser,
+    user: CurrentUser,
 ) -> Contact:
     """Update a contact."""
+    contact = await contact_svc.get(db, contact_id)
+    _check_member_access(user, contact.member_id)
     return await contact_svc.update(db, contact_id, body)
 
 
@@ -59,8 +73,10 @@ async def update_contact(
 async def delete_contact(
     contact_id: uuid.UUID,
     db: DBSession,
-    _user: MemberOrAdminUser,
+    user: CurrentUser,
 ) -> Response:
     """Delete a contact."""
+    contact = await contact_svc.get(db, contact_id)
+    _check_member_access(user, contact.member_id)
     await contact_svc.delete(db, contact_id)
     return Response(status_code=204)

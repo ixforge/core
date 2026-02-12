@@ -12,6 +12,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import all models so Alembic can detect them
+import ixforge.models  # noqa: E402, F401
 from ixforge.models.base import Base  # noqa: E402
 
 target_metadata = Base.metadata
@@ -19,6 +20,9 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
+    if not url:
+        from ixforge.config import get_settings
+        url = get_settings().database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -36,8 +40,11 @@ def do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 
 async def run_async_migrations() -> None:
+    from ixforge.config import get_settings
+    configuration = dict(config.get_section(config.config_ini_section, {}))
+    configuration["sqlalchemy.url"] = get_settings().database_url
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

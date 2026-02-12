@@ -2,16 +2,10 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-
-class ContactRole(StrEnum):
-    noc = "noc"
-    admin = "admin"
-    technical = "technical"
-    billing = "billing"
+from ixforge.enums import ContactRole
 
 
 class ContactCreate(BaseModel):

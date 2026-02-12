@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Query
 
 from ixforge.api.deps import CurrentUser, DBSession, IXPId
+from ixforge.enums import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.event import EventRead
 from ixforge.services import events as event_svc
@@ -33,7 +34,7 @@ async def list_events(
     effective_resource_type = resource_type
     effective_resource_id = resource_id
 
-    if user.role != "admin":
+    if user.role != UserRole.admin:
         effective_resource_type = "member"
         effective_resource_id = user.member_id
 

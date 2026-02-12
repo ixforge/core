@@ -16,6 +16,7 @@ from ixforge.schemas.connection import (
     ConnectionVLANCreate,
 )
 from ixforge.schemas.connection import ConnectionUpdate as ConnectionUpdateSchema
+from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 from ixforge.services.events import create_event
 
@@ -36,6 +37,9 @@ async def create(
     actor_id: uuid.UUID | None = None,
 ) -> Connection:
     """Create a new connection in draft state."""
+    if data.extra_data is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "connection", data.extra_data)
+
     connection = Connection(
         member_id=data.member_id,
         port_id=data.port_id,
@@ -95,6 +99,16 @@ async def update(
     update_fields = data.model_dump(exclude_unset=True)
     # State changes go through the transition method.
     update_fields.pop("state", None)
+
+    if "extra_data" in update_fields and update_fields["extra_data"] is not None:
+        from ixforge.models.member import Member
+
+        member = await session.get(Member, connection.member_id)
+        if member is not None:
+            await custom_fields.validate_extra_data(
+                session, member.ixp_id, "connection", update_fields["extra_data"]
+            )
+
     for field, value in update_fields.items():
         setattr(connection, field, value)
     await session.flush()

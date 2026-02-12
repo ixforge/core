@@ -2,16 +2,11 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-class PortType(StrEnum):
-    member = "member"
-    infra = "infra"
-    unused = "unused"
+from ixforge.enums import PortType
 
 
 class PortCreate(BaseModel):

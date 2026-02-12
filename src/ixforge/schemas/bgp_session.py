@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from ixforge.enums import BGPAdminState, BGPOperState
+
 
 class BGPSessionRead(BaseModel):
     id: uuid.UUID
@@ -13,8 +15,8 @@ class BGPSessionRead(BaseModel):
     connection_id: uuid.UUID
     peer_ip: str
     peer_asn: int
-    admin_state: str
-    oper_state: str
+    admin_state: BGPAdminState
+    oper_state: BGPOperState
     af: Literal[4, 6]
     max_prefixes: int | None
     import_limit: int | None
@@ -26,4 +28,4 @@ class BGPSessionRead(BaseModel):
 
 
 class BGPSessionStatusUpdate(BaseModel):
-    oper_state: str
+    oper_state: BGPOperState

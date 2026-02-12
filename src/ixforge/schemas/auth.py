@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
-from ixforge.models.user import UserRole
+from ixforge.enums import UserRole
 
 
 class LoginRequest(BaseModel):
