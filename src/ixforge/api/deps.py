@@ -1,0 +1,138 @@
+"""FastAPI dependencies (auth, db session, pagination, IXP resolution)."""
+
+import uuid
+from collections.abc import AsyncGenerator
+from typing import Annotated
+
+from fastapi import Depends, Header
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ixforge.database import get_db
+from ixforge.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
+from ixforge.models.api_key import APIKey
+from ixforge.models.ixp import IXP
+from ixforge.models.user import User, UserRole
+from ixforge.services.auth import decode_access_token, hash_api_key
+
+_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def get_db_session() -> AsyncGenerator[AsyncSession]:
+    """Yield an async database session. Re-exports get_db from database module."""
+    async for session in get_db():
+        yield session
+
+
+DBSession = Annotated[AsyncSession, Depends(get_db_session)]
+
+
+async def get_current_user(
+    db: DBSession,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)] = None,
+    x_api_key: Annotated[str | None, Header()] = None,
+) -> User:
+    """Resolve the current user from a Bearer JWT or X-API-Key header."""
+    if credentials is not None:
+        return await _resolve_jwt_user(db, credentials.credentials)
+
+    if x_api_key is not None:
+        return await _resolve_api_key_user(db, x_api_key)
+
+    raise UnauthorizedError("Missing authentication credentials")
+
+
+async def _resolve_jwt_user(db: AsyncSession, token: str) -> User:
+    user_id_str = decode_access_token(token)
+    try:
+        user_id = uuid.UUID(user_id_str)
+    except ValueError as exc:
+        raise UnauthorizedError("Invalid token subject") from exc
+
+    user = await db.get(User, user_id)
+    if user is None or not user.is_active:
+        raise UnauthorizedError("User not found or inactive")
+    return user
+
+
+async def _resolve_api_key_user(db: AsyncSession, raw_key: str) -> User:
+    key_hash = hash_api_key(raw_key)
+    stmt = select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
+    result = await db.execute(stmt)
+    api_key = result.scalar_one_or_none()
+
+    if api_key is None:
+        raise UnauthorizedError("Invalid API key")
+
+    if api_key.user_id is None:
+        raise UnauthorizedError("API key is not associated with a user")
+
+    user = await db.get(User, api_key.user_id)
+    if user is None or not user.is_active:
+        raise UnauthorizedError("User not found or inactive")
+
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def require_admin(user: CurrentUser) -> User:
+    if user.role != UserRole.admin:
+        raise ForbiddenError("Admin access required")
+    return user
+
+
+async def require_member_or_admin(user: CurrentUser) -> User:
+    if user.role not in (UserRole.admin, UserRole.member):
+        raise ForbiddenError("Insufficient permissions")
+    return user
+
+
+AdminUser = Annotated[User, Depends(require_admin)]
+MemberOrAdminUser = Annotated[User, Depends(require_member_or_admin)]
+
+
+async def get_ixp_id(db: DBSession) -> uuid.UUID:
+    """Resolve the default IXP id (MVP: first IXP in the database)."""
+    stmt = select(IXP.id).limit(1)
+    result = await db.execute(stmt)
+    ixp_id = result.scalar_one_or_none()
+    if ixp_id is None:
+        raise NotFoundError("IXP", "No IXP configured")
+    return ixp_id
+
+
+IXPId = Annotated[uuid.UUID, Depends(get_ixp_id)]
+
+
+async def require_monitoring_scope(
+    db: DBSession,
+    x_api_key: Annotated[str | None, Header()] = None,
+) -> uuid.UUID:
+    """Resolve IXP id from an API key with monitoring:read scope."""
+    if x_api_key is None:
+        raise UnauthorizedError("API key required for monitoring endpoints")
+
+    key_hash = hash_api_key(x_api_key)
+    stmt = select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
+    result = await db.execute(stmt)
+    api_key = result.scalar_one_or_none()
+
+    if api_key is None:
+        raise UnauthorizedError("Invalid API key")
+
+    if "monitoring:read" not in api_key.scopes:
+        raise ForbiddenError("API key missing 'monitoring:read' scope")
+
+    # Resolve the IXP id from the default IXP.
+    ixp_stmt = select(IXP.id).limit(1)
+    ixp_result = await db.execute(ixp_stmt)
+    ixp_id = ixp_result.scalar_one_or_none()
+    if ixp_id is None:
+        raise NotFoundError("IXP", "No IXP configured")
+    return ixp_id
+
+
+MonitoringIXPId = Annotated[uuid.UUID, Depends(require_monitoring_scope)]
