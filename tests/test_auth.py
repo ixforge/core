@@ -16,7 +16,7 @@ from ixforge.services.auth import hash_api_key
 
 
 class TestLogin:
-    async def test_login_valid_credentials(self, client: AsyncClient, admin_user: User):
+    async def test_login_valid_credentials(self, client: AsyncClient, admin_user: User, ixp: IXP):
         resp = await client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": "adminpass123"},
@@ -26,21 +26,23 @@ class TestLogin:
         assert "access_token" in body
         assert body["token_type"] == "bearer"
 
-    async def test_login_wrong_password(self, client: AsyncClient, admin_user: User):
+    async def test_login_wrong_password(self, client: AsyncClient, admin_user: User, ixp: IXP):
         resp = await client.post(
             "/api/v1/auth/login",
             json={"email": "admin@example.com", "password": "wrongpassword"},
         )
         assert resp.status_code == 401
 
-    async def test_login_nonexistent_user(self, client: AsyncClient):
+    async def test_login_nonexistent_user(self, client: AsyncClient, ixp: IXP):
         resp = await client.post(
             "/api/v1/auth/login",
             json={"email": "nobody@example.com", "password": "irrelevant"},
         )
         assert resp.status_code == 401
 
-    async def test_login_inactive_user(self, client: AsyncClient, db_session: AsyncSession):
+    async def test_login_inactive_user(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
+    ):
         from ixforge.services.auth import hash_password
 
         user = User(

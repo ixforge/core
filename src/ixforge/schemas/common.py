@@ -29,11 +29,11 @@ class CursorParams(BaseModel):
 
 
 def encode_cursor(sort_value: str, record_id: uuid.UUID) -> str:
-    raw = f"{sort_value}:{record_id}"
+    raw = f"{sort_value}|{record_id}"
     return base64.urlsafe_b64encode(raw.encode()).decode()
 
 
 def decode_cursor(cursor: str) -> tuple[str, uuid.UUID]:
     raw = base64.urlsafe_b64decode(cursor.encode()).decode()
-    sort_value, id_str = raw.rsplit(":", 1)
+    sort_value, id_str = raw.rsplit("|", 1)
     return sort_value, uuid.UUID(id_str)

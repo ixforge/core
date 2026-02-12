@@ -5,7 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from ixforge.enums import CustomFieldEntityType as CustomFieldEntityType, CustomFieldType as CustomFieldType
+from ixforge.enums import CustomFieldEntityType as CustomFieldEntityType
+from ixforge.enums import CustomFieldType as CustomFieldType
 
 
 class CustomFieldDefinitionCreate(BaseModel):

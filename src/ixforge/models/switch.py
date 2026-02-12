@@ -10,6 +10,7 @@ from ixforge.models.base import (
     TimestampMixin,
     UUIDPrimaryKey,
 )
+from ixforge.models.types import INET
 
 
 class Switch(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
@@ -19,6 +20,6 @@ class Switch(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     hostname: Mapped[str] = mapped_column(String(255), nullable=False)
     vendor: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    management_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    management_ip: Mapped[str | None] = mapped_column(INET, nullable=True)
     snmp_community_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

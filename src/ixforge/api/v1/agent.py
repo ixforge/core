@@ -156,7 +156,7 @@ async def report_agent_status(
             continue
 
         old_state = session.oper_state
-        new_state = report.oper_state
+        new_state = BGPOperState(report.oper_state)
 
         if old_state == new_state:
             unchanged += 1

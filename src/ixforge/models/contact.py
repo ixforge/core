@@ -2,9 +2,10 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy import Enum, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import ContactRole
 from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 
@@ -20,8 +21,7 @@ class Contact(UUIDPrimaryKey, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    role: Mapped[str] = mapped_column(
-        String(20),
+    role: Mapped[ContactRole] = mapped_column(
+        Enum(ContactRole, name="contact_role"),
         nullable=False,
-        comment="noc, admin, technical, billing",
     )

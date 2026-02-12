@@ -199,4 +199,21 @@ async def transition(
         resource_id=member.id,
         data={"old_state": old_state, "new_state": target_state},
     )
+
+    if target_state == MemberState.active or old_state == MemberState.active:
+        try:
+            from ixforge.tasks.config import regenerate_configs_for_member
+
+            await regenerate_configs_for_member.defer_async(
+                member_id=str(member_id),
+                triggered_by="member.state_changed",
+            )
+        except Exception:
+            import structlog
+
+            structlog.get_logger().warning(
+                "config_regeneration.defer_failed",
+                member_id=str(member_id),
+            )
+
     return member

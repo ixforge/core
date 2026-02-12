@@ -2,9 +2,10 @@
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import PortType
 from ixforge.models.base import Base, ExtraDataMixin, TimestampMixin, UUIDPrimaryKey
 
 
@@ -19,10 +20,9 @@ class Port(UUIDPrimaryKey, TimestampMixin, ExtraDataMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     speed: Mapped[int] = mapped_column(Integer, nullable=False, comment="Speed in Mbps")
-    type: Mapped[str] = mapped_column(
-        String(20),
+    type: Mapped[PortType] = mapped_column(
+        Enum(PortType, name="port_type"),
         nullable=False,
-        comment="member, infra, unused",
     )
     member_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,

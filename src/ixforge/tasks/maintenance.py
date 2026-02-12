@@ -109,6 +109,18 @@ async def cleanup_config_versions(
                 applied_result = await session.execute(applied_stmt)
                 keep_ids.update(row[0] for row in applied_result.all())
 
+                # Proteger la version mas reciente independientemente de applied_at
+                newest_stmt = (
+                    select(ConfigVersion.id)
+                    .where(ConfigVersion.route_server_id == rs_id)
+                    .order_by(ConfigVersion.generated_at.desc())
+                    .limit(1)
+                )
+                newest_result = await session.execute(newest_stmt)
+                newest_row = newest_result.first()
+                if newest_row is not None:
+                    keep_ids.add(newest_row[0])
+
                 # Count how many versions exist for this route server.
                 count_stmt = (
                     select(func.count())

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import BGPAdminState, ConnectionState, MemberState
-from ixforge.exceptions import NotFoundError
+from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
@@ -93,7 +93,23 @@ async def _build_peers(
 
 def _build_rs_context(rs: RouteServer) -> RouteServerContext:
     """Build the route server template context from the model."""
-    router_id = rs.ip_v4 if rs.ip_v4 else "0.0.0.1"
+    import ipaddress
+
+    if not rs.ip_v4 and not rs.ip_v6:
+        raise ValidationError(
+            f"Route server '{rs.name}' must have at least one IP (v4 or v6) to generate config"
+        )
+
+    if rs.ip_v4:
+        router_id = rs.ip_v4
+    elif rs.ip_v6:
+        # Derivar router ID de los ultimos 4 bytes de la IPv6
+        v6 = ipaddress.ip_address(rs.ip_v6)
+        v6_bytes = v6.packed[-4:]
+        router_id = str(ipaddress.IPv4Address(v6_bytes))
+    else:
+        router_id = "0.0.0.1"
+
     return RouteServerContext(
         name=rs.name,
         hostname=rs.hostname,

@@ -2,10 +2,12 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String, Uuid
+from sqlalchemy import Enum, ForeignKey, Integer, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import BGPAdminState, BGPOperState
 from ixforge.models.base import Base, TimestampMixin, UUIDPrimaryKey
+from ixforge.models.types import INET
 
 
 class BGPSession(UUIDPrimaryKey, TimestampMixin, Base):
@@ -23,18 +25,16 @@ class BGPSession(UUIDPrimaryKey, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    peer_ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    peer_ip: Mapped[str] = mapped_column(INET, nullable=False)
     peer_asn: Mapped[int] = mapped_column(Integer, nullable=False)
-    admin_state: Mapped[str] = mapped_column(
-        String(10),
+    admin_state: Mapped[BGPAdminState] = mapped_column(
+        Enum(BGPAdminState, name="bgp_admin_state"),
         nullable=False,
-        comment="up, down",
     )
-    oper_state: Mapped[str] = mapped_column(
-        String(10),
+    oper_state: Mapped[BGPOperState] = mapped_column(
+        Enum(BGPOperState, name="bgp_oper_state"),
         nullable=False,
-        default="unknown",
-        comment="up, down, unknown",
+        default=BGPOperState.unknown,
     )
     af: Mapped[int] = mapped_column(Integer, nullable=False, comment="Address family: 4 or 6")
     max_prefixes: Mapped[int | None] = mapped_column(Integer, nullable=True)
