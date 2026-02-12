@@ -627,7 +627,6 @@ def run():
             "POST",
             "/custom-fields",
             {
-                "ixp_id": ixp_id,
                 "entity_type": "member",
                 "field_name": "noc_hours",
                 "field_type": "string",

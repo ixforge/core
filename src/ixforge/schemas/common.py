@@ -34,6 +34,14 @@ def encode_cursor(sort_value: str, record_id: uuid.UUID) -> str:
 
 
 def decode_cursor(cursor: str) -> tuple[str, uuid.UUID]:
-    raw = base64.urlsafe_b64decode(cursor.encode()).decode()
-    sort_value, id_str = raw.rsplit("|", 1)
-    return sort_value, uuid.UUID(id_str)
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode()).decode()
+        sort_value, id_str = raw.rsplit("|", 1)
+        return sort_value, uuid.UUID(id_str)
+    except Exception as exc:
+        from ixforge.exceptions import ValidationError
+
+        raise ValidationError(
+            "Invalid pagination cursor",
+            details={"cursor": "Malformed or corrupted cursor value"},
+        ) from exc
