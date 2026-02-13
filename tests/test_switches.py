@@ -11,9 +11,7 @@ from ixforge.models.user import User
 
 
 class TestSwitchCRUD:
-    async def test_create_switch(
-        self, client: AsyncClient, auth_headers: dict, ixp: IXP
-    ):
+    async def test_create_switch(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
         resp = await client.post(
             "/api/v1/switches",
             headers=auth_headers,
@@ -53,12 +51,8 @@ class TestSwitchCRUD:
         assert resp.status_code == 200
         assert resp.json()["id"] == str(sw.id)
 
-    async def test_get_switch_not_found(
-        self, client: AsyncClient, auth_headers: dict, ixp: IXP
-    ):
-        resp = await client.get(
-            f"/api/v1/switches/{uuid.uuid4()}", headers=auth_headers
-        )
+    async def test_get_switch_not_found(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
+        resp = await client.get(f"/api/v1/switches/{uuid.uuid4()}", headers=auth_headers)
         assert resp.status_code == 404
 
     async def test_list_switches(

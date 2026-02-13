@@ -18,12 +18,9 @@ from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
-from ixforge.models.user import User
 
 
-async def _setup_bgp_session(
-    db: AsyncSession, ixp: IXP
-) -> tuple[RouteServer, BGPSession]:
+async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, BGPSession]:
     rs = RouteServer(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
@@ -105,9 +102,7 @@ class TestBGPSessionEndpoints:
     ):
         _rs, bgp = await _setup_bgp_session(db_session, ixp)
 
-        resp = await client.get(
-            f"/api/v1/bgp-sessions/{bgp.id}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/bgp-sessions/{bgp.id}", headers=auth_headers)
         assert resp.status_code == 200
         body = resp.json()
         assert body["peer_ip"] == "192.0.2.10"
@@ -153,7 +148,5 @@ class TestBGPSessionEndpoints:
     async def test_get_nonexistent_bgp_session(
         self, client: AsyncClient, auth_headers: dict, ixp: IXP
     ):
-        resp = await client.get(
-            f"/api/v1/bgp-sessions/{uuid.uuid4()}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/bgp-sessions/{uuid.uuid4()}", headers=auth_headers)
         assert resp.status_code == 404

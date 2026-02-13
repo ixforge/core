@@ -11,9 +11,7 @@ from ixforge.models.vlan import VLAN
 
 
 class TestVLANCRUD:
-    async def test_create_vlan(
-        self, client: AsyncClient, auth_headers: dict, ixp: IXP
-    ):
+    async def test_create_vlan(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
         resp = await client.post(
             "/api/v1/vlans",
             headers=auth_headers,

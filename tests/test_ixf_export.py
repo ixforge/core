@@ -23,9 +23,7 @@ from ixforge.models.vlan import VLAN
 
 
 class TestIXFExport:
-    async def test_export_empty_ixp(
-        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_export_empty_ixp(self, client: AsyncClient, db_session: AsyncSession, ixp: IXP):
         """IX-F export with no active members should return valid structure."""
         resp = await client.get("/api/v1/ixf/member-export")
         assert resp.status_code == 200

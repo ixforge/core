@@ -9,7 +9,6 @@ from ixforge.enums import ContactRole, MemberState, PeeringPolicy
 from ixforge.models.contact import Contact
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.user import User
 
 
 async def _create_member(db: AsyncSession, ixp: IXP) -> Member:
