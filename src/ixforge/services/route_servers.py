@@ -68,6 +68,7 @@ async def update(
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(rs, field, value)
     await session.flush()
+    await session.refresh(rs)
     return rs
 
 

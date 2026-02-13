@@ -115,6 +115,7 @@ async def update(
     for field, value in update_fields.items():
         setattr(connection, field, value)
     await session.flush()
+    await session.refresh(connection)
     return connection
 
 
@@ -166,6 +167,7 @@ async def transition(
     old_state = connection.state
     connection.state = target_state
     await session.flush()
+    await session.refresh(connection)
 
     await create_event(
         session,

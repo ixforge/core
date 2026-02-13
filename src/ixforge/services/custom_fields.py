@@ -89,6 +89,7 @@ async def update(
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(definition, field, value)
     await session.flush()
+    await session.refresh(definition)
     return definition
 
 
