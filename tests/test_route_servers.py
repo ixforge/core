@@ -10,9 +10,7 @@ from ixforge.models.route_server import RouteServer
 
 
 class TestRouteServerCRUD:
-    async def test_create_route_server(
-        self, client: AsyncClient, auth_headers: dict, ixp: IXP
-    ):
+    async def test_create_route_server(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
         resp = await client.post(
             "/api/v1/route-servers",
             headers=auth_headers,
@@ -53,18 +51,14 @@ class TestRouteServerCRUD:
         db_session.add(rs)
         await db_session.flush()
 
-        resp = await client.get(
-            f"/api/v1/route-servers/{rs.id}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/route-servers/{rs.id}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["id"] == str(rs.id)
 
     async def test_get_route_server_not_found(
         self, client: AsyncClient, auth_headers: dict, ixp: IXP
     ):
-        resp = await client.get(
-            f"/api/v1/route-servers/{uuid.uuid4()}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/route-servers/{uuid.uuid4()}", headers=auth_headers)
         assert resp.status_code == 404
 
     async def test_list_route_servers(
@@ -141,7 +135,5 @@ class TestRouteServerCRUD:
         db_session.add(rs)
         await db_session.flush()
 
-        resp = await client.delete(
-            f"/api/v1/route-servers/{rs.id}", headers=auth_headers
-        )
+        resp = await client.delete(f"/api/v1/route-servers/{rs.id}", headers=auth_headers)
         assert resp.status_code == 204

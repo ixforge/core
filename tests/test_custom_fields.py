@@ -12,9 +12,7 @@ from ixforge.models.user import User
 
 
 class TestCustomFieldCRUD:
-    async def test_create_custom_field(
-        self, client: AsyncClient, auth_headers: dict, ixp: IXP
-    ):
+    async def test_create_custom_field(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
         resp = await client.post(
             "/api/v1/custom-fields",
             headers=auth_headers,
@@ -149,9 +147,7 @@ class TestCustomFieldCRUD:
         db_session.add(cf)
         await db_session.flush()
 
-        resp = await client.delete(
-            f"/api/v1/custom-fields/{cf.id}", headers=auth_headers
-        )
+        resp = await client.delete(f"/api/v1/custom-fields/{cf.id}", headers=auth_headers)
         assert resp.status_code == 204
 
     async def test_member_can_list_custom_fields(

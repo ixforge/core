@@ -49,9 +49,7 @@ async def _setup_route_server(db: AsyncSession, ixp: IXP) -> RouteServer:
     return rs
 
 
-async def _setup_agent_key(
-    db: AsyncSession, rs: RouteServer, admin_user: User
-) -> str:
+async def _setup_agent_key(db: AsyncSession, rs: RouteServer, admin_user: User) -> str:
     """Create an agent API key scoped to the given route server. Returns raw key."""
     key_hash = hash_api_key(_RAW_AGENT_KEY)
     api_key = APIKey(
@@ -362,9 +360,7 @@ class TestAgentHeartbeat:
                 "version": "0.1.0",
                 "uptime_seconds": 3600.0,
                 "current_config_hash": cv.config_hash,
-                "bird_instances": [
-                    {"name": "bird_v4", "running": True, "uptime_seconds": 3600.0}
-                ],
+                "bird_instances": [{"name": "bird_v4", "running": True, "uptime_seconds": 3600.0}],
             },
         )
         assert resp.status_code == 200

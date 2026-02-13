@@ -19,7 +19,6 @@ from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.port import Port
 from ixforge.models.switch import Switch
-from ixforge.models.user import User
 from ixforge.models.vlan import VLAN
 
 # ---------------------------------------------------------------------------

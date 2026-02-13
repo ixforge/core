@@ -12,24 +12,19 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
-    VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
-from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
-from ixforge.models.user import User
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-async def _setup_route_server(
-    db: AsyncSession, ixp: IXP, **overrides
-) -> RouteServer:
+async def _setup_route_server(db: AsyncSession, ixp: IXP, **overrides) -> RouteServer:
     defaults = {
         "id": uuid.uuid4(),
         "ixp_id": ixp.id,
