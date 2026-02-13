@@ -69,6 +69,7 @@ async def update(
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(port, field, value)
     await session.flush()
+    await session.refresh(port)
     return port
 
 
@@ -95,6 +96,7 @@ async def assign(
         await session.flush()
     except IntegrityError:
         raise ConflictError(f"Port {port_id} was assigned concurrently") from None
+    await session.refresh(port)
     return port
 
 
@@ -105,4 +107,5 @@ async def release(session: AsyncSession, port_id: uuid.UUID) -> Port:
         raise ConflictError(f"Port {port_id} is not assigned to any member")
     port.member_id = None
     await session.flush()
+    await session.refresh(port)
     return port

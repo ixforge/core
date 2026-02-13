@@ -112,6 +112,7 @@ async def update(
         setattr(switch, field, value)
 
     await session.flush()
+    await session.refresh(switch)
     return switch
 
 
