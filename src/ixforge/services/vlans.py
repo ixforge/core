@@ -66,6 +66,7 @@ async def update(
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(vlan, field, value)
     await session.flush()
+    await session.refresh(vlan)
     return vlan
 
 

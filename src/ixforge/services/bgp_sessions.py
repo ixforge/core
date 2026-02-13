@@ -80,4 +80,5 @@ async def update_admin_state(
     bgp_session = await get(session, session_id)
     bgp_session.admin_state = BGPAdminState(admin_state)
     await session.flush()
+    await session.refresh(bgp_session)
     return bgp_session
