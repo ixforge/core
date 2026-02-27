@@ -1,63 +1,69 @@
 # IXForge Core
 
-Modular IXP management platform.
+API REST central de [IXForge](https://github.com/ixforge), plataforma open-source para gestionar Internet Exchange Points. El Core maneja miembros, conexiones, switches, IPAM, generacion de configuracion BIRD, sesiones BGP, y expone toda la funcionalidad via REST para los demas componentes.
 
-## Quick Start
+## Componentes del ecosistema
+
+- **Core** (este repo) — API REST, logica de negocio, base de datos
+- [Agent](https://github.com/ixforge/agent) — Daemon Rust que aplica configs BIRD en route servers
+- [Collector](https://github.com/ixforge/collector) — Daemon Python que recolecta metricas SNMP/ICMP
+- [E2E](https://github.com/ixforge/e2e) — Tests end-to-end del pipeline completo
+
+## Requisitos
+
+- Python 3.12+
+- PostgreSQL 17
+- [uv](https://docs.astral.sh/uv/)
+
+## Quick start
 
 ```bash
-# Install dependencies
 cd core
 uv sync
 
-# Start PostgreSQL (dev instance on port 5432)
+# PostgreSQL de desarrollo (puerto 5432)
 docker compose -f docker/docker-compose.dev.yml up -d
 
-# Run migrations
+# Migraciones, usuario admin y datos de ejemplo
 uv run ixforge upgrade
-
-# Create admin user
 uv run ixforge createsuperuser
-
-# Seed demo data (optional)
 uv run ixforge seed
 
-# Start API server (with hot reload)
+# Iniciar servidor (hot reload)
 IXFORGE_DEBUG=true uv run ixforge run
 ```
 
-The API is available at `http://localhost:8000/api/v1/docs` (Swagger UI).
+API disponible en `http://localhost:8000/api/v1/docs`.
 
-## Documentation
-
-- [Quickstart Guide](docs/quickstart.md) - Installation, configuration, Docker
-- [API Reference](docs/api.md) - Endpoints, auth, pagination
-- [Architecture](docs/architecture.md) - Layers, patterns, conventions
-
-## Running Tests
+## Tests
 
 ```bash
-# Start test database (port 5433, ephemeral tmpfs)
+# PostgreSQL de testing (puerto 5433, tmpfs)
 docker compose -f docker/docker-compose.testing.yml up -d
 
-# Run tests
 uv run pytest -v
-
-# With coverage
-uv run pytest --cov=ixforge --cov-report=term-missing
+uv run ruff check src/ tests/
+uv run mypy src/
 ```
 
-## CLI Commands
+## CLI
 
 ```
-ixforge run              Start API server
-ixforge worker           Start background task workers
-ixforge upgrade          Run database migrations
-ixforge createsuperuser  Create an admin user
-ixforge seed             Seed demo data (idempotent)
-ixforge backup           Create compressed database backup
-ixforge restore <file>   Restore from backup archive
+ixforge run              Iniciar servidor API
+ixforge worker           Iniciar workers de tareas en background
+ixforge upgrade          Ejecutar migraciones de base de datos
+ixforge createsuperuser  Crear usuario administrador
+ixforge seed             Seed de datos de ejemplo (idempotente)
+ixforge backup           Backup comprimido de la base de datos
+ixforge restore <file>   Restaurar desde archivo de backup
 ```
 
-## License
+## Documentacion
+
+- [Quickstart](docs/quickstart.md) — Instalacion, configuracion, Docker
+- [API](docs/api.md) — Endpoints, autenticacion, paginacion
+- [Arquitectura](docs/architecture.md) — Capas, patrones, convenciones
+
+## Licencia
 
 Apache 2.0
