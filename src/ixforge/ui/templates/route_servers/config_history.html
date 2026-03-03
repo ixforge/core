@@ -1,0 +1,52 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/route-servers/{{ rs.id }}" class="btn-secondary">Volver</a>
+</div>
+
+{% if configs %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Hash</th>
+          <th class="pb-3 font-medium">Generada</th>
+          <th class="pb-3 font-medium">Aplicada</th>
+          <th class="pb-3 font-medium">Generada por</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for c in configs %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3"><code class="text-sm">{{ c.hash[:12] if c.hash else c.id[:8] }}</code></td>
+          <td class="py-3 text-sm">{{ c.generated_at[:16] if c.generated_at else "-" }}</td>
+          <td class="py-3 text-sm">
+            {% if c.get("applied_at") %}
+            <span class="text-green-600 dark:text-green-400">{{ c.applied_at[:16] }}</span>
+            {% else %}
+            <span class="text-yellow-600 dark:text-yellow-400">Pendiente</span>
+            {% endif %}
+          </td>
+          <td class="py-3 text-sm">{{ c.generated_by or "-" }}</td>
+          <td class="py-3">
+            <a href="/admin/route-servers/{{ rs.id }}/config/diff?to={{ c.id }}"
+               class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+              Ver Diff
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <p class="text-gray-500 dark:text-gray-400 text-center py-8">No hay configuraciones en el historial</p>
+</div>
+{% endif %}
+{% endblock %}

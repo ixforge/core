@@ -1,0 +1,55 @@
+{# Reusable state badge macro
+   Usage:
+   {% import "components/state_badge.html" as badges %}
+   {{ badges.member_state(member.state) }}
+   {{ badges.connection_state(connection.state) }}
+   {{ badges.active_badge(is_active) }}
+#}
+
+{% macro member_state(state) %}
+  {% if state == "active" %}<span class="badge badge-green">Activo</span>
+  {% elif state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+  {% elif state == "prospect" %}<span class="badge badge-blue">Prospecto</span>
+  {% elif state == "suspended" %}<span class="badge badge-red">Suspendido</span>
+  {% elif state == "terminated" %}<span class="badge badge-gray">Terminado</span>
+  {% else %}<span class="badge badge-gray">{{ state }}</span>{% endif %}
+{% endmacro %}
+
+{% macro connection_state(state) %}
+  {% if state == "active" %}<span class="badge badge-green">Activo</span>
+  {% elif state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+  {% elif state == "draft" %}<span class="badge badge-blue">Borrador</span>
+  {% elif state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
+  {% elif state == "decommissioned" %}<span class="badge badge-gray">Decomisionado</span>
+  {% else %}<span class="badge badge-gray">{{ state }}</span>{% endif %}
+{% endmacro %}
+
+{% macro active_badge(is_active) %}
+  {% if is_active %}<span class="badge badge-green">Activo</span>
+  {% else %}<span class="badge badge-red">Inactivo</span>{% endif %}
+{% endmacro %}
+
+{% macro vlan_type(type) %}
+  {% if type == "production" %}<span class="badge badge-green">production</span>
+  {% elif type == "quarantine" %}<span class="badge badge-yellow">quarantine</span>
+  {% elif type == "management" %}<span class="badge badge-blue">management</span>
+  {% else %}<span class="badge badge-gray">{{ type }}</span>{% endif %}
+{% endmacro %}
+
+{% macro af_badge(af) %}
+  {% if af == 4 %}<span class="badge badge-blue">IPv4</span>
+  {% else %}<span class="badge badge-green">IPv6</span>{% endif %}
+{% endmacro %}
+
+{% macro port_type(type) %}
+  {% if type == "member" %}<span class="badge badge-blue">member</span>
+  {% elif type == "infra" %}<span class="badge badge-yellow">infra</span>
+  {% else %}<span class="badge badge-gray">unused</span>{% endif %}
+{% endmacro %}
+
+{% macro bgp_state(state) %}
+  {% if state == "up" %}<span class="badge badge-green">Up</span>
+  {% elif state == "down" %}<span class="badge badge-red">Down</span>
+  {% elif state == "start" %}<span class="badge badge-yellow">Start</span>
+  {% else %}<span class="badge badge-gray">{{ state }}</span>{% endif %}
+{% endmacro %}

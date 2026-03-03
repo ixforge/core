@@ -1,0 +1,155 @@
+{% extends "layouts/base.html" %}
+{% import "components/stats_card.html" as cards %}
+{% block title %}Dashboard - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">Dashboard</h1>
+</div>
+
+{# Stats grid - 3x2 on desktop #}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+  {% set icon_members %}
+  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+  </svg>
+  {% endset %}
+  {% set icon_connections %}
+  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+  </svg>
+  {% endset %}
+  {% set icon_switches %}
+  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
+  </svg>
+  {% endset %}
+  {% set icon_vlans %}
+  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
+  </svg>
+  {% endset %}
+  {% set icon_rs %}
+  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z" />
+  </svg>
+  {% endset %}
+  {% set icon_users %}
+  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+  </svg>
+  {% endset %}
+
+  {{ cards.stat_card("Miembros", member_count, "indigo", icon_members, active_member_count ~ " activos") }}
+  {{ cards.stat_card("Conexiones", connection_count, "purple", icon_connections, active_connection_count ~ " activas") }}
+  {{ cards.stat_card("Switches", switch_count, "blue", icon_switches, active_switch_count ~ " activos") }}
+  {{ cards.stat_card("VLANs", vlan_count, "green", icon_vlans) }}
+  {{ cards.stat_card("Route Servers", rs_count, "orange", icon_rs, active_rs_count ~ " activos") }}
+  {{ cards.stat_card("Usuarios", user_count, "cyan", icon_users) }}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {# Recent members #}
+  <div class="card">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold">Miembros Recientes</h2>
+      <a href="/admin/members" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver todos</a>
+    </div>
+    {% if members %}
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+            <th class="pb-3 font-medium">Nombre</th>
+            <th class="pb-3 font-medium">ASN</th>
+            <th class="pb-3 font-medium">Estado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y dark:divide-gray-700">
+          {% for m in members %}
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+            <td class="py-3">
+              <a href="/admin/members/{{ m.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ m.name }}</a>
+            </td>
+            <td class="py-3">AS{{ m.asn }}</td>
+            <td class="py-3">
+              {% if m.state == "active" %}<span class="badge badge-green">Activo</span>
+              {% elif m.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+              {% elif m.state == "prospect" %}<span class="badge badge-blue">Prospecto</span>
+              {% elif m.state == "suspended" %}<span class="badge badge-red">Suspendido</span>
+              {% else %}<span class="badge badge-gray">{{ m.state }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay miembros aun</p>
+    {% endif %}
+  </div>
+
+  {# Recent activity #}
+  <div class="card">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold">Actividad Reciente</h2>
+      <a href="/admin/events" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver todos</a>
+    </div>
+    {% if events %}
+    <div class="space-y-3">
+      {% for e in events %}
+      <div class="flex items-start gap-3 py-2 {% if not loop.last %}border-b dark:border-gray-700{% endif %}">
+        <div class="flex-shrink-0 mt-0.5">
+          <span class="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm">
+            <span class="font-medium">{{ e.event_type or e.type or "-" }}</span>
+            {% if e.resource_type %}
+            <span class="text-gray-500 dark:text-gray-400">en {{ e.resource_type }}</span>
+            {% endif %}
+          </p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">
+            {{ e.created_at[:16] if e.created_at else "-" }}
+            {% if e.actor_email %} por {{ e.actor_email }}{% endif %}
+          </p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay eventos recientes</p>
+    {% endif %}
+  </div>
+</div>
+
+{# VLAN summary #}
+<div class="card mt-6">
+  <h2 class="text-lg font-semibold mb-4">Resumen VLANs</h2>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    {% set production = vlans|selectattr("type", "eq", "production")|list %}
+    {% set quarantine = vlans|selectattr("type", "eq", "quarantine")|list %}
+    {% set other_count = vlan_count - production|length - quarantine|length %}
+    <div class="text-center">
+      <p class="text-2xl font-bold">{{ vlan_count }}</p>
+      <p class="text-sm text-gray-500">Total</p>
+      <div class="mt-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+    </div>
+    <div class="text-center">
+      <p class="text-2xl font-bold text-green-600">{{ production|length }}</p>
+      <p class="text-sm text-gray-500">Production</p>
+      <div class="mt-1 h-1 bg-green-400 rounded-full" style="width: {{ (production|length / vlan_count * 100) if vlan_count else 0 }}%"></div>
+    </div>
+    <div class="text-center">
+      <p class="text-2xl font-bold text-yellow-600">{{ quarantine|length }}</p>
+      <p class="text-sm text-gray-500">Quarantine</p>
+      <div class="mt-1 h-1 bg-yellow-400 rounded-full" style="width: {{ (quarantine|length / vlan_count * 100) if vlan_count else 0 }}%"></div>
+    </div>
+    <div class="text-center">
+      <p class="text-2xl font-bold text-gray-600">{{ other_count }}</p>
+      <p class="text-sm text-gray-500">Otros</p>
+      <div class="mt-1 h-1 bg-gray-400 rounded-full" style="width: {{ (other_count / vlan_count * 100) if vlan_count else 0 }}%"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

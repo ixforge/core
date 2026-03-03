@@ -1,0 +1,120 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold"><code>{{ pool.network }}</code></h1>
+    {% if pool.af == 4 %}
+    <span class="badge badge-blue">IPv4</span>
+    {% else %}
+    <span class="badge badge-green">IPv6</span>
+    {% endif %}
+  </div>
+  <div class="flex gap-2" x-data="{ confirmDelete: false }">
+    <button type="button"
+            class="btn-danger"
+            @click="confirmDelete = true">
+      Eliminar
+    </button>
+    <a href="/admin/ip-pools?vlan_id={{ pool.vlan_id }}" class="btn-secondary">Volver</a>
+
+    {# Modal confirmacion eliminar #}
+    <div x-show="confirmDelete"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+        <h3 class="text-lg font-semibold mb-2">Confirmar eliminacion</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Estas seguro de eliminar el pool <strong>{{ pool.network }}</strong>?
+        </p>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn-secondary" @click="confirmDelete = false">Cancelar</button>
+          <form method="post" action="/admin/ip-pools/{{ pool.id }}/delete">
+            <button type="submit" class="btn-danger">Eliminar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion del Pool</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Red</p>
+      <p class="font-medium"><code class="text-sm">{{ pool.network }}</code></p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Familia</p>
+      <p class="font-medium">
+        {% if pool.af == 4 %}
+        <span class="badge badge-blue">IPv4</span>
+        {% else %}
+        <span class="badge badge-green">IPv6</span>
+        {% endif %}
+      </p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">VLAN</p>
+      <p class="font-medium">
+        {% set vlan = vlan_map.get(pool.vlan_id) %}
+        {% if vlan %}
+        <a href="/admin/vlans/{{ vlan.id }}/edit" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+          {{ vlan.name }} (VID: {{ vlan.vid }})
+        </a>
+        {% else %}
+        <span class="text-gray-500 dark:text-gray-400">-</span>
+        {% endif %}
+      </p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
+      <p class="font-medium">{{ pool.created_at[:10] if pool.created_at else "-" }}</p>
+    </div>
+  </div>
+</div>
+
+{# Assignments table #}
+<div class="card">
+  <h2 class="text-lg font-semibold mb-4">Asignaciones</h2>
+
+  {% if assignments %}
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Direccion</th>
+          <th class="pb-3 font-medium">Conexion</th>
+          <th class="pb-3 font-medium">Asignado</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for a in assignments %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3"><code class="text-sm">{{ a.address or "-" }}</code></td>
+          <td class="py-3">
+            {% if a.connection_id %}
+            <a href="/admin/connections/{{ a.connection_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline text-sm">
+              {% set conn_info = connection_map.get(a.connection_id, {}) %}
+              {{ conn_info.get("label", "Ver conexion") }}
+            </a>
+            {% else %}
+            <span class="text-gray-500 dark:text-gray-400">-</span>
+            {% endif %}
+          </td>
+          <td class="py-3 text-sm text-gray-600 dark:text-gray-400">
+            {{ a.created_at[:10] if a.created_at else "-" }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-center text-gray-500 dark:text-gray-400 py-8">No hay asignaciones en este pool</p>
+  {% endif %}
+</div>
+{% endblock %}

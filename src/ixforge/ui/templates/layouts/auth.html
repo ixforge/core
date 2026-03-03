@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full" x-data x-init="$store.darkMode.init()">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IXForge{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script defer src="/static/js/vendor/alpine.min.js"></script>
+  <script src="/static/js/app.js"></script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-900">
+  <div class="min-h-full flex items-center justify-center py-12 px-4">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

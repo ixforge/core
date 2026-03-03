@@ -1,0 +1,62 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+{# Selector de Route Server #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div class="flex-1">
+      <label for="route_server_id" class="block text-sm font-medium mb-1">Route Server</label>
+      <select name="route_server_id"
+              id="route_server_id"
+              class="input-field w-full"
+              hx-get="/admin/bgp-sessions"
+              hx-target="#sessions-content"
+              hx-trigger="change"
+              hx-select="#sessions-content"
+              hx-swap="outerHTML">
+        <option value="">Seleccionar Route Server...</option>
+        {% for r in route_servers %}
+        <option value="{{ r.id }}" {% if filter_route_server_id == r.id %}selected{% endif %}>
+          {{ r.name }} (AS{{ r.asn }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+<div id="sessions-content">
+{% if not filter_route_server_id %}
+<div class="card">
+  <p class="text-gray-500 dark:text-gray-400 text-center py-8">Selecciona un Route Server para ver sus sesiones BGP</p>
+</div>
+{% elif sessions %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Peer IP</th>
+          <th class="pb-3 font-medium">Peer ASN</th>
+          <th class="pb-3 font-medium">Admin</th>
+          <th class="pb-3 font-medium">Oper</th>
+          <th class="pb-3 font-medium">AF</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="table-body" class="divide-y dark:divide-gray-700">
+        {% include "bgp_sessions/list_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay sesiones BGP para este Route Server") }}
+{% endif %}
+</div>
+{% endblock %}

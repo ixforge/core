@@ -1,0 +1,22 @@
+{# Delete confirmation modal
+   Usage:
+   {% with modal_id="delete-member", modal_title="Eliminar miembro", modal_message="Seguro?", modal_action="/admin/members/xxx/delete" %}
+     {% include "components/modal.html" %}
+   {% endwith %}
+#}
+<div x-data="{ open: false }">
+  <button @click="open = true" class="btn-danger btn-sm">Eliminar</button>
+  <div x-show="open" x-transition class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
+    <div class="fixed inset-0 bg-black/50" @click="open = false"></div>
+    <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+      <h3 class="text-lg font-semibold mb-2">{{ modal_title }}</h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">{{ modal_message }}</p>
+      <div class="flex justify-end gap-3">
+        <button @click="open = false" class="btn-secondary btn-sm">Cancelar</button>
+        <form method="post" action="{{ modal_action }}">
+          <button type="submit" class="btn-danger btn-sm">Confirmar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

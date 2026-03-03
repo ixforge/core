@@ -1,0 +1,85 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/ip-pools/new{% if filter_vlan_id %}?vlan_id={{ filter_vlan_id }}{% endif %}" class="btn-primary">Nuevo Pool</a>
+</div>
+
+{# Selector de VLAN #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div>
+      <label for="vlan_id" class="block text-sm font-medium mb-1">VLAN</label>
+      <select name="vlan_id"
+              id="vlan_id"
+              class="input-field"
+              hx-get="/admin/ip-pools"
+              hx-target="#pools-content"
+              hx-trigger="change"
+              hx-select="#pools-content"
+              hx-swap="outerHTML">
+        <option value="">Seleccionar VLAN...</option>
+        {% for v in vlans %}
+        <option value="{{ v.id }}" {% if filter_vlan_id == v.id %}selected{% endif %}>
+          {{ v.name }} (VID: {{ v.vid }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+{# Contenido condicional #}
+<div id="pools-content">
+{% if not filter_vlan_id %}
+<div class="card">
+  <p class="text-center text-gray-500 dark:text-gray-400 py-8">
+    Selecciona una VLAN para ver sus pools de IPs
+  </p>
+</div>
+{% elif pools %}
+<div class="card overflow-hidden" x-data="{ confirmId: null, confirmNetwork: '' }">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Red</th>
+          <th class="pb-3 font-medium">AF</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="table-body" class="divide-y dark:divide-gray-700">
+        {% include "ip_pools/list_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Modal confirmacion eliminar #}
+  <div x-show="confirmId !== null"
+       x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+      <h3 class="text-lg font-semibold mb-2">Confirmar eliminacion</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Estas seguro de eliminar el pool <strong x-text="confirmNetwork"></strong>?
+      </p>
+      <div class="flex justify-end gap-3">
+        <button type="button"
+                class="btn-secondary"
+                @click="confirmId = null; confirmNetwork = ''">
+          Cancelar
+        </button>
+        <form method="post" :action="'/admin/ip-pools/' + confirmId + '/delete'">
+          <button type="submit" class="btn-danger">Eliminar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay pools para esta VLAN", "/admin/ip-pools/new?vlan_id=" ~ filter_vlan_id, "Crear Pool") }}
+{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% for v in vlans %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3">
+    <a href="/admin/vlans/{{ v.id }}/edit" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+      {{ v.name }}
+    </a>
+  </td>
+  <td class="py-3 text-sm"><code class="text-sm">{{ v.vid }}</code></td>
+  <td class="py-3">
+    {% if v.type == "production" %}
+    <span class="badge badge-green">production</span>
+    {% elif v.type == "quarantine" %}
+    <span class="badge badge-yellow">quarantine</span>
+    {% elif v.type == "management" %}
+    <span class="badge badge-blue">management</span>
+    {% else %}
+    <span class="badge badge-gray">{{ v.type }}</span>
+    {% endif %}
+  </td>
+  <td class="py-3 text-sm text-gray-600 dark:text-gray-400">{{ v.description or "-" }}</td>
+  <td class="py-3">
+    <div class="flex gap-2">
+      <a href="/admin/vlans/{{ v.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+      <button type="button"
+              class="text-sm text-red-600 dark:text-red-400 hover:underline"
+              @click="confirmId = {{ v.id|tojson }}; confirmName = {{ v.name|tojson }}">
+        Eliminar
+      </button>
+    </div>
+  </td>
+</tr>
+{% endfor %}

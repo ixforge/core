@@ -1,0 +1,83 @@
+{% extends "layouts/base.html" %}
+{% set is_edit = vlan is not none and vlan.id is defined %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Errores de validacion #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
+    {% if errors is mapping and errors.detail %}
+      {% for err in errors.detail %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% elif errors is iterable and errors is not string %}
+      {% for err in errors %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ '/admin/vlans/new' if not is_edit else '/admin/vlans/' ~ vlan.id ~ '/edit' }}">
+    {# Nombre #}
+    <div class="mb-4">
+      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
+      <input type="text"
+             id="name"
+             name="name"
+             value="{{ vlan.name if vlan else '' }}"
+             required
+             class="input-field w-full"
+             placeholder="Production Peering">
+    </div>
+
+    {# VID #}
+    <div class="mb-4">
+      <label for="vid" class="block text-sm font-medium mb-1">VID</label>
+      <input type="number"
+             id="vid"
+             name="vid"
+             value="{{ vlan.vid if vlan else '' }}"
+             min="1"
+             max="4094"
+             required
+             class="input-field w-full"
+             placeholder="100">
+    </div>
+
+    {# Tipo #}
+    <div class="mb-4">
+      <label for="type" class="block text-sm font-medium mb-1">Tipo</label>
+      <select id="type" name="type" class="input-field w-full" required>
+        <option value="production" {% if vlan and vlan.type == "production" %}selected{% elif not vlan %}selected{% endif %}>production</option>
+        <option value="quarantine" {% if vlan and vlan.type == "quarantine" %}selected{% endif %}>quarantine</option>
+        <option value="management" {% if vlan and vlan.type == "management" %}selected{% endif %}>management</option>
+        <option value="other" {% if vlan and vlan.type == "other" %}selected{% endif %}>other</option>
+      </select>
+    </div>
+
+    {# Descripcion #}
+    <div class="mb-6">
+      <label for="description" class="block text-sm font-medium mb-1">Descripcion</label>
+      <textarea id="description"
+                name="description"
+                rows="3"
+                class="input-field w-full"
+                placeholder="Descripcion opcional">{{ vlan.description if vlan else '' }}</textarea>
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">
+        {{ "Guardar" if is_edit else "Crear" }}
+      </button>
+      <a href="/admin/vlans" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

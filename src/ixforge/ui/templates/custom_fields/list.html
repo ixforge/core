@@ -1,0 +1,99 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/custom-fields/new" class="btn-primary">Nuevo Custom Field</a>
+</div>
+
+{# Filtro #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div>
+      <label for="entity_type" class="block text-sm font-medium mb-1">Tipo de Entidad</label>
+      <select name="entity_type" id="entity_type" class="input-field"
+              hx-get="/admin/custom-fields"
+              hx-target="#fields-content"
+              hx-trigger="change"
+              hx-select="#fields-content"
+              hx-swap="outerHTML">
+        <option value="" {% if filter_entity_type == "" %}selected{% endif %}>Todos</option>
+        <option value="member" {% if filter_entity_type == "member" %}selected{% endif %}>Member</option>
+        <option value="connection" {% if filter_entity_type == "connection" %}selected{% endif %}>Connection</option>
+        <option value="switch" {% if filter_entity_type == "switch" %}selected{% endif %}>Switch</option>
+        <option value="port" {% if filter_entity_type == "port" %}selected{% endif %}>Port</option>
+        <option value="vlan" {% if filter_entity_type == "vlan" %}selected{% endif %}>VLAN</option>
+        <option value="ip_pool" {% if filter_entity_type == "ip_pool" %}selected{% endif %}>IP Pool</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div id="fields-content">
+{% if fields %}
+  {% for entity_type, group in grouped_fields.items() %}
+  <div class="card mb-4 overflow-hidden" x-data="{ confirmId: null, confirmName: '' }">
+    <h2 class="text-md font-semibold mb-3 capitalize">{{ entity_type }}</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+            <th class="pb-3 font-medium">Campo</th>
+            <th class="pb-3 font-medium">Tipo</th>
+            <th class="pb-3 font-medium">Requerido</th>
+            <th class="pb-3 font-medium">Default</th>
+            <th class="pb-3 font-medium">Orden</th>
+            <th class="pb-3 font-medium">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y dark:divide-gray-700">
+          {% for f in group %}
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+            <td class="py-3 font-medium">{{ f.field_name }}</td>
+            <td class="py-3 text-sm"><span class="badge badge-gray">{{ f.field_type }}</span></td>
+            <td class="py-3">
+              {% if f.is_required %}<span class="badge badge-blue">Si</span>
+              {% else %}<span class="badge badge-gray">No</span>{% endif %}
+            </td>
+            <td class="py-3 text-sm">{{ f.default_value or "-" }}</td>
+            <td class="py-3 text-sm">{{ f.display_order if f.display_order is defined else "-" }}</td>
+            <td class="py-3">
+              <div class="flex gap-2">
+                <button type="button"
+                        class="text-sm text-red-600 dark:text-red-400 hover:underline"
+                        @click="confirmId = {{ f.id|tojson }}; confirmName = {{ f.field_name|tojson }}">
+                  Eliminar
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Delete modal #}
+    <div x-show="confirmId !== null"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+        <h3 class="text-lg font-semibold mb-2">Confirmar eliminacion</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Eliminar el campo <strong x-text="confirmName"></strong>?
+        </p>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn-secondary" @click="confirmId = null; confirmName = ''">Cancelar</button>
+          <form method="post" :action="'/admin/custom-fields/' + confirmId + '/delete'">
+            <button type="submit" class="btn-danger">Eliminar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  {{ empty.empty_state("No hay custom fields", "/admin/custom-fields/new", "Crear Custom Field") }}
+{% endif %}
+</div>
+{% endblock %}

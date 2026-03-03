@@ -47,9 +47,12 @@ HTTP Request
 src/ixforge/
   main.py              Application factory, middleware, exception handlers
   config.py            Pydantic Settings (IXFORGE_* env vars)
-  cli.py               CLI entrypoint (run, worker, upgrade, seed, backup, restore)
+  cli.py               CLI entrypoint (run, ui, worker, upgrade, createsuperuser, seed, backup, restore)
+  enums.py             Shared enumerations (states, types, policies)
   exceptions.py        Exception hierarchy -> HTTP status codes
+  logging.py           structlog configuration
   metrics.py           Prometheus counters, histograms, gauges
+  rate_limit.py        Rate limiting (slowapi)
   models/
     base.py            UUIDPrimaryKey, TimestampMixin, TenantMixin, ExtraDataMixin
     ixp.py             IXP (top-level tenant)
@@ -67,6 +70,7 @@ src/ixforge/
     user.py            User (admin/member roles)
     api_key.py         APIKey (scoped, hashed)
     custom_field.py    CustomFieldDefinition
+    types.py           Custom SQLAlchemy column types
   schemas/             Pydantic request/response models (1:1 with models)
   services/
     auth.py            Password hashing, JWT, API key generation
@@ -96,10 +100,22 @@ src/ixforge/
   database.py          Async engine + session factory
 tests/
   conftest.py          Fixtures (db, client, auth, IXP seed)
-  factories.py         Factory Boy factories (17 models)
+  factories.py         Factory Boy factories
+  test_agent.py        Agent API tests
   test_auth.py         Auth + RBAC tests
-  test_members.py      Member CRUD + state machine tests
+  test_bgp_sessions.py BGP session tests
+  test_config_generation.py  BIRD config generation tests
+  test_connections.py  Connection CRUD + state machine tests
+  test_contacts.py     Contact CRUD tests
+  test_custom_fields.py Custom field tests
+  test_events.py       Audit event tests
   test_ipam.py         IP pool + allocation tests
+  test_ixf_export.py   IX-F export tests
+  test_members.py      Member CRUD + state machine tests
+  test_ports.py        Port CRUD + assign/release tests
+  test_route_servers.py Route server tests
+  test_switches.py     Switch CRUD tests
+  test_vlans.py        VLAN CRUD tests
 ```
 
 ## Key Patterns
@@ -118,7 +134,7 @@ Transitions are validated in the service layer. The `provisioning -> active` tra
 ### IPAM
 
 IP pools are CIDR-scoped and attached to VLANs. Allocation supports:
-- **Sequential**: next available host address, skipping network/broadcast/gateway
+- **Sequential**: next available host address, skipping network/broadcast
 - **Manual**: specific address with validation
 
 All addresses are globally unique across pools.

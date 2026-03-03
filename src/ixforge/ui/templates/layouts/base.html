@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es" x-data x-init="$store.darkMode.init()">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IXForge{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script defer src="/static/js/vendor/alpine-collapse.min.js"></script>
+  <script defer src="/static/js/vendor/alpine.min.js"></script>
+  <script src="/static/js/vendor/htmx.min.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: true }">
+    {% include "components/sidebar.html" %}
+    <div class="flex flex-col flex-1 overflow-hidden">
+      {% include "components/topbar.html" %}
+      <main class="flex-1 overflow-y-auto p-6">
+        {% include "components/flash.html" %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+{# Filtros #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div>
+      <label for="resource_type" class="block text-sm font-medium mb-1">Tipo de Recurso</label>
+      <select name="resource_type"
+              id="resource_type"
+              class="input-field"
+              hx-get="/admin/events"
+              hx-target="#table-body"
+              hx-trigger="change">
+        <option value="" {% if filter_resource_type == "" %}selected{% endif %}>Todos</option>
+        <option value="member" {% if filter_resource_type == "member" %}selected{% endif %}>Member</option>
+        <option value="user" {% if filter_resource_type == "user" %}selected{% endif %}>User</option>
+        <option value="connection" {% if filter_resource_type == "connection" %}selected{% endif %}>Connection</option>
+        <option value="bgp_session" {% if filter_resource_type == "bgp_session" %}selected{% endif %}>BGP Session</option>
+        <option value="switch" {% if filter_resource_type == "switch" %}selected{% endif %}>Switch</option>
+        <option value="port" {% if filter_resource_type == "port" %}selected{% endif %}>Port</option>
+        <option value="vlan" {% if filter_resource_type == "vlan" %}selected{% endif %}>VLAN</option>
+        <option value="ip_pool" {% if filter_resource_type == "ip_pool" %}selected{% endif %}>IP Pool</option>
+        <option value="route_server" {% if filter_resource_type == "route_server" %}selected{% endif %}>Route Server</option>
+        <option value="config" {% if filter_resource_type == "config" %}selected{% endif %}>Config</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+{# Events list #}
+{% if events %}
+<div class="card">
+  <div class="space-y-0 divide-y dark:divide-gray-700" id="table-body">
+    {% include "events/list_rows.html" %}
+  </div>
+</div>
+
+{# Pagination #}
+{% if has_more and next_cursor %}
+<div class="mt-4 text-center">
+  <button hx-get="/admin/events?cursor={{ next_cursor }}"
+          hx-target="#table-body"
+          hx-swap="beforeend"
+          hx-include="[name='resource_type']"
+          class="btn-secondary btn-sm">
+    Cargar mas
+  </button>
+</div>
+{% endif %}
+{% else %}
+<div class="card">
+  <p class="text-gray-500 dark:text-gray-400 text-center py-8">No hay eventos</p>
+</div>
+{% endif %}
+{% endblock %}

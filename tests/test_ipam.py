@@ -91,14 +91,12 @@ class TestIPPoolCreation:
             json={
                 "vlan_id": str(vlan.id),
                 "network": "198.51.100.0/24",
-                "gateway": "198.51.100.1",
                 "af": 4,
             },
         )
         assert resp.status_code == 201
         body = resp.json()
         assert body["network"] == "198.51.100.0/24"
-        assert body["gateway"] == "198.51.100.1"
         assert body["af"] == 4
 
     async def test_create_ipv6_pool(
@@ -124,7 +122,6 @@ class TestIPPoolCreation:
             json={
                 "vlan_id": str(vlan.id),
                 "network": "2001:db8::/64",
-                "gateway": "2001:db8::1",
                 "af": 6,
             },
         )
@@ -151,32 +148,6 @@ class TestIPPoolCreation:
             json={
                 "vlan_id": str(vlan.id),
                 "network": "not-a-cidr",
-                "gateway": "192.0.2.1",
-                "af": 4,
-            },
-        )
-        assert resp.status_code == 422
-
-    async def test_create_pool_gateway_outside_network(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP
-    ):
-        vlan = VLAN(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="Bad GW VLAN",
-            vid=303,
-            type=VLANType.production,
-        )
-        db_session.add(vlan)
-        await db_session.flush()
-
-        resp = await client.post(
-            "/api/v1/ip-pools",
-            headers=auth_headers,
-            json={
-                "vlan_id": str(vlan.id),
-                "network": "198.51.100.0/24",
-                "gateway": "10.0.0.1",
                 "af": 4,
             },
         )
@@ -201,7 +172,6 @@ class TestIPPoolCreation:
             json={
                 "vlan_id": str(vlan.id),
                 "network": "198.51.100.0/24",
-                "gateway": "198.51.100.1",
                 "af": 6,
             },
         )
@@ -228,7 +198,6 @@ class TestSequentialAllocation:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="192.0.2.0/24",
-            gateway="192.0.2.1",
             af=4,
         )
         db_session.add(pool)
@@ -241,10 +210,10 @@ class TestSequentialAllocation:
         )
         assert resp.status_code == 201
         body = resp.json()
-        # First usable IP after skipping network (192.0.2.0) and gateway (192.0.2.1).
-        assert body["address"] == "192.0.2.2"
+        # First usable IP after skipping network address (192.0.2.0)
+        assert body["address"] == "192.0.2.1"
 
-    async def test_sequential_allocation_skips_gateway(
+    async def test_sequential_allocation_skips_reserved(
         self,
         client: AsyncClient,
         auth_headers: dict,
@@ -259,7 +228,6 @@ class TestSequentialAllocation:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="203.0.113.0/29",
-            gateway="203.0.113.1",
             af=4,
         )
         db_session.add(pool)
@@ -276,23 +244,23 @@ class TestSequentialAllocation:
         db_session.add(conn2)
         await db_session.flush()
 
-        # First allocation: should be .2 (skip .0 network, .1 gateway).
+        # First allocation: should be .1 (skip .0 network)
         resp1 = await client.post(
             f"/api/v1/ip-pools/{pool.id}/assign",
             headers=auth_headers,
             json={"connection_id": str(conn1.id)},
         )
         assert resp1.status_code == 201
-        assert resp1.json()["address"] == "203.0.113.2"
+        assert resp1.json()["address"] == "203.0.113.1"
 
-        # Second allocation: should be .3.
+        # Second allocation: should be .2
         resp2 = await client.post(
             f"/api/v1/ip-pools/{pool.id}/assign",
             headers=auth_headers,
             json={"connection_id": str(conn2.id)},
         )
         assert resp2.status_code == 201
-        assert resp2.json()["address"] == "203.0.113.3"
+        assert resp2.json()["address"] == "203.0.113.2"
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +283,6 @@ class TestManualAllocation:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
-            gateway="198.51.100.1",
             af=4,
         )
         db_session.add(pool)
@@ -343,7 +310,6 @@ class TestManualAllocation:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
-            gateway="198.51.100.1",
             af=4,
         )
         db_session.add(pool)
@@ -363,33 +329,6 @@ class TestManualAllocation:
 
 
 class TestReservedIPRejection:
-    async def test_cannot_assign_gateway(
-        self,
-        client: AsyncClient,
-        auth_headers: dict,
-        db_session: AsyncSession,
-        ixp: IXP,
-    ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
-
-        pool = IPPool(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            vlan_id=vlan.id,
-            network="198.51.100.0/24",
-            gateway="198.51.100.1",
-            af=4,
-        )
-        db_session.add(pool)
-        await db_session.flush()
-
-        resp = await client.post(
-            f"/api/v1/ip-pools/{pool.id}/assign",
-            headers=auth_headers,
-            json={"connection_id": str(conn.id), "address": "198.51.100.1"},
-        )
-        assert resp.status_code == 422
-
     async def test_cannot_assign_network_address(
         self,
         client: AsyncClient,
@@ -404,7 +343,6 @@ class TestReservedIPRejection:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
-            gateway="198.51.100.1",
             af=4,
         )
         db_session.add(pool)
@@ -431,7 +369,6 @@ class TestReservedIPRejection:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
-            gateway="198.51.100.1",
             af=4,
         )
         db_session.add(pool)
@@ -458,7 +395,7 @@ class TestPoolExhaustion:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """A /30 pool has only 2 usable IPs (.1 is gateway, .0 is network, .3 is broadcast)"""
+        """A /30 pool has only 2 usable IPs (.0 is network, .3 is broadcast)"""
         vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
@@ -466,19 +403,19 @@ class TestPoolExhaustion:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="203.0.113.0/30",
-            gateway="203.0.113.1",
             af=4,
         )
         db_session.add(pool)
         await db_session.flush()
 
+        # First allocation: .1
         resp1 = await client.post(
             f"/api/v1/ip-pools/{pool.id}/assign",
             headers=auth_headers,
             json={"connection_id": str(conn1.id)},
         )
         assert resp1.status_code == 201
-        assert resp1.json()["address"] == "203.0.113.2"
+        assert resp1.json()["address"] == "203.0.113.1"
 
         conn2 = Connection(
             id=uuid.uuid4(),
@@ -491,12 +428,33 @@ class TestPoolExhaustion:
         db_session.add(conn2)
         await db_session.flush()
 
+        # Second allocation: .2
         resp2 = await client.post(
             f"/api/v1/ip-pools/{pool.id}/assign",
             headers=auth_headers,
             json={"connection_id": str(conn2.id)},
         )
-        assert resp2.status_code == 409
+        assert resp2.status_code == 201
+        assert resp2.json()["address"] == "203.0.113.2"
+
+        conn3 = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
+            speed=10000,
+        )
+        db_session.add(conn3)
+        await db_session.flush()
+
+        # Third allocation: pool exhausted
+        resp3 = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn3.id)},
+        )
+        assert resp3.status_code == 409
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +470,7 @@ class TestSequentialSkipsReserved:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """In a /29 pool, sequential allocation should skip .0 (network), .1 (gw), and .7 (broadcast)"""
+        """In a /29 pool, sequential allocation should skip .0 (network) and .7 (broadcast)"""
         vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
@@ -520,7 +478,6 @@ class TestSequentialSkipsReserved:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="203.0.113.0/29",
-            gateway="203.0.113.1",
             af=4,
         )
         db_session.add(pool)
@@ -528,7 +485,7 @@ class TestSequentialSkipsReserved:
 
         allocated: list[str] = []
         connections = [conn1]
-        for _i in range(4):
+        for _i in range(5):
             c = Connection(
                 id=uuid.uuid4(),
                 ixp_id=ixp.id,
@@ -551,9 +508,9 @@ class TestSequentialSkipsReserved:
             allocated.append(resp.json()["address"])
 
         assert "203.0.113.0" not in allocated
-        assert "203.0.113.1" not in allocated
         assert "203.0.113.7" not in allocated
         assert allocated == [
+            "203.0.113.1",
             "203.0.113.2",
             "203.0.113.3",
             "203.0.113.4",
@@ -582,7 +539,6 @@ class TestIPv6Allocation:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="2001:db8::/126",
-            gateway="2001:db8::1",
             af=6,
         )
         db_session.add(pool)
@@ -595,7 +551,82 @@ class TestIPv6Allocation:
         )
         assert resp.status_code == 201
         body = resp.json()
-        # IPv6 has no reserved network/broadcast, only gateway (::1) is skipped
-        # So first available in 2001:db8::/126 is 2001:db8:: (::0)
+        # IPv6 has no reserved addresses (no network/broadcast concept)
         assert body["address"] == "2001:db8::"
         assert body["pool_id"] == str(pool.id)
+
+
+# ---------------------------------------------------------------------------
+# Pool deletion
+# ---------------------------------------------------------------------------
+
+
+class TestPoolDeletion:
+    async def test_delete_pool_with_assignments_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Deleting a pool that has IP assignments must return 409"""
+        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="198.51.100.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        # Allocate an IP so the pool has assignments
+        alloc_resp = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn.id)},
+        )
+        assert alloc_resp.status_code == 201
+
+        # Attempt to delete the pool with active assignments
+        resp = await client.delete(
+            f"/api/v1/ip-pools/{pool.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 409
+
+    async def test_delete_empty_pool_succeeds(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Deleting a pool with no assignments must return 204"""
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Delete Pool VLAN",
+            vid=400,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="203.0.113.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp = await client.delete(
+            f"/api/v1/ip-pools/{pool.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 204

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ixforge.enums import ConnectionState as ConnectionState
 from ixforge.enums import ConnectionType as ConnectionType
@@ -59,8 +59,28 @@ class ConnectionRead(BaseModel):
     extra_data: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+    member_name: str | None = None
+    port_name: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _populate_names(cls, values: Any, handler: Any) -> "ConnectionRead":
+        obj = handler(values)
+        # Extract display names from loaded relationships (joinedload)
+        # Gracefully skip if relationships are not loaded (lazy="raise")
+        try:
+            if values.member is not None:
+                obj.member_name = values.member.name
+        except Exception:
+            pass
+        try:
+            if values.port is not None:
+                obj.port_name = values.port.name
+        except Exception:
+            pass
+        return obj
 
 
 class ConnectionVLANCreate(BaseModel):

@@ -23,19 +23,11 @@ async def create_pool(
     data: IPPoolCreate,
 ) -> IPPool:
     """Create an IP pool."""
-    # Validate that network is valid CIDR and gateway is within it.
+    # Validate that network is valid CIDR
     try:
         network = ipaddress.ip_network(data.network, strict=False)
     except ValueError as exc:
         raise ValidationError(f"Invalid network CIDR: {data.network}") from exc
-
-    try:
-        gateway = ipaddress.ip_address(data.gateway)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid gateway address: {data.gateway}") from exc
-
-    if gateway not in network:
-        raise ValidationError(f"Gateway {data.gateway} is not within network {data.network}")
 
     expected_af = 4 if network.version == 4 else 6
     if data.af != expected_af:
@@ -47,7 +39,6 @@ async def create_pool(
         ixp_id=ixp_id,
         vlan_id=data.vlan_id,
         network=data.network,
-        gateway=data.gateway,
         af=data.af,
     )
     session.add(pool)
@@ -83,19 +74,29 @@ async def list_pools(
 async def delete_pool(session: AsyncSession, pool_id: uuid.UUID) -> None:
     """Delete an IP pool."""
     pool = await get_pool(session, pool_id)
+
+    has_assignments = await session.scalar(
+        select(IPAssignment.id)
+        .where(IPAssignment.pool_id == pool_id)
+        .limit(1)
+    )
+    if has_assignments is not None:
+        raise ConflictError(
+            "Cannot delete pool: release all IP assignments first"
+        )
+
     await session.delete(pool)
     await session.flush()
 
 
 def _reserved_addresses(
     network: ipaddress.IPv4Network | ipaddress.IPv6Network,
-    gateway: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-    """Return the set of addresses that cannot be assigned (network, broadcast, gateway)."""
-    reserved: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = {gateway}
+    """Return the set of addresses that cannot be assigned (network, broadcast)."""
+    reserved: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
     # IPv4: reservar network y broadcast solo para prefijos menores a /31
-    # /31 (RFC 3021): ambas IPs son usables, solo reservar gateway
-    # /32: single host, solo reservar gateway
+    # /31 (RFC 3021): ambas IPs son usables
+    # /32: single host
     if isinstance(network, ipaddress.IPv4Network) and network.prefixlen < 31:
         reserved.add(network.network_address)
         reserved.add(network.broadcast_address)
@@ -146,15 +147,14 @@ async def _validate_pool_connection_same_tenant(
 def _validate_address_in_pool(
     address: ipaddress.IPv4Address | ipaddress.IPv6Address,
     network: ipaddress.IPv4Network | ipaddress.IPv6Network,
-    gateway: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> None:
     """Validate that an address is usable within the pool."""
     if address not in network:
         raise ValidationError(f"Address {address} is not within network {network}")
 
-    reserved = _reserved_addresses(network, gateway)
+    reserved = _reserved_addresses(network)
     if address in reserved:
-        raise ValidationError(f"Address {address} is reserved (network, broadcast, or gateway)")
+        raise ValidationError(f"Address {address} is reserved (network or broadcast)")
 
 
 async def _check_global_uniqueness(
@@ -182,8 +182,7 @@ async def allocate_sequential(
     if pool is None:
         raise NotFoundError("IPPool", str(pool_id))
     network = ipaddress.ip_network(pool.network, strict=False)
-    gateway = ipaddress.ip_address(pool.gateway)
-    reserved = _reserved_addresses(network, gateway)
+    reserved = _reserved_addresses(network)
     # Lock existing assignments to prevent concurrent allocations
     used = await _get_used_addresses(session, pool_id, lock=True)
 
@@ -227,14 +226,13 @@ async def allocate_manual(
     if pool is None:
         raise NotFoundError("IPPool", str(pool_id))
     network = ipaddress.ip_network(pool.network, strict=False)
-    gateway = ipaddress.ip_address(pool.gateway)
 
     try:
         addr = ipaddress.ip_address(address)
     except ValueError as exc:
         raise ValidationError(f"Invalid IP address: {address}") from exc
 
-    _validate_address_in_pool(addr, network, gateway)
+    _validate_address_in_pool(addr, network)
     await _check_global_uniqueness(session, address)
 
     assignment = IPAssignment(

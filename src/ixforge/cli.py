@@ -357,14 +357,12 @@ async def _seed_data() -> None:
             ixp_id=ixp.id,
             vlan_id=vlan_prod.id,
             network="192.0.2.0/24",
-            gateway="192.0.2.1",
             af=4,
         )
         pool_v6 = IPPool(
             ixp_id=ixp.id,
             vlan_id=vlan_prod.id,
             network="2001:db8::/64",
-            gateway="2001:db8::1",
             af=6,
         )
         session.add(pool_v4)
@@ -375,7 +373,7 @@ async def _seed_data() -> None:
         # -- Connections for active members with ports, VLANs, IPs --
         active_members = [m for m in members if m.state == MemberState.active]
         connections: list[Connection] = []
-        ip_offset = 2  # Start from .2 (skip network .0 and gateway .1)
+        ip_offset = 1  # Start from .1 (skip network .0)
         for port_idx, m in enumerate(active_members):
             if port_idx >= len(ports):
                 break
@@ -468,8 +466,25 @@ def _run_seed() -> None:
     asyncio.run(_seed_data())
 
 
+def _run_ui() -> None:
+    """Start the UI portal server."""
+    import uvicorn
+
+    from ixforge.config import get_settings
+
+    settings = get_settings()
+    uvicorn.run(
+        "ixforge.ui.app:create_ui_app",
+        factory=True,
+        host="0.0.0.0",
+        port=settings.ui_port,
+        reload=settings.debug,
+    )
+
+
 _COMMANDS = {
     "run": "Start the API server",
+    "ui": "Start the admin portal (port 8001)",
     "worker": "Start background task workers",
     "upgrade": "Run database migrations (alembic upgrade head)",
     "createsuperuser": "Create an admin user",
@@ -495,6 +510,8 @@ def main() -> None:
 
     if command == "run":
         _run_server()
+    elif command == "ui":
+        _run_ui()
     elif command == "worker":
         # Parse optional --queues flag: ixforge worker --queues config maintenance
         queues: list[str] | None = None

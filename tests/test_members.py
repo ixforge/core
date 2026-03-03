@@ -281,7 +281,6 @@ class TestMemberStateMachine:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="192.0.2.0/24",
-            gateway="192.0.2.1",
             af=4,
         )
         db_session.add(pool)
@@ -413,3 +412,150 @@ class TestMemberStateMachine:
             json={"state": "active"},
         )
         assert resp.status_code == 422
+
+    async def test_terminate_member_with_active_connection_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Cannot terminate a member that has non-decommissioned connections."""
+        member = Member(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Term Conn Net",
+            short_name="TCN",
+            asn=65007,
+            state=MemberState.provisioning,
+            peering_policy=PeeringPolicy.open,
+        )
+        db_session.add(member)
+        await db_session.flush()
+
+        switch = Switch(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="sw-term",
+            hostname="sw-term.ixp.example.net",
+            is_active=True,
+        )
+        db_session.add(switch)
+        await db_session.flush()
+
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=switch.id,
+            name="Ethernet1",
+            speed=10000,
+            type=PortType.member,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Peering VLAN",
+            vid=200,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            port_id=port.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.active,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        conn_vlan = ConnectionVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            connection_id=conn.id,
+            vlan_id=vlan.id,
+            tagged=False,
+        )
+        db_session.add(conn_vlan)
+        await db_session.flush()
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="198.51.100.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        ip_assignment = IPAssignment(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            pool_id=pool.id,
+            connection_id=conn.id,
+            address="198.51.100.2",
+        )
+        db_session.add(ip_assignment)
+        await db_session.flush()
+
+        # Activate the member (has complete connection)
+        resp = await client.post(
+            f"/api/v1/members/{member.id}/transition",
+            headers=auth_headers,
+            json={"state": "active"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "active"
+
+        # Try to terminate with active connection -> should fail
+        resp = await client.post(
+            f"/api/v1/members/{member.id}/transition",
+            headers=auth_headers,
+            json={"state": "terminated"},
+        )
+        assert resp.status_code == 422
+
+        # Decommission the connection: disable, release resources, decommission
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/transition",
+            headers=auth_headers,
+            json={"state": "disabled"},
+        )
+        assert resp.status_code == 200
+
+        resp = await client.delete(
+            f"/api/v1/connections/{conn.id}/ips/{ip_assignment.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 204
+
+        resp = await client.delete(
+            f"/api/v1/connections/{conn.id}/vlans/{vlan.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 204
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/transition",
+            headers=auth_headers,
+            json={"state": "decommissioned"},
+        )
+        assert resp.status_code == 200
+
+        # Now termination should succeed
+        resp = await client.post(
+            f"/api/v1/members/{member.id}/transition",
+            headers=auth_headers,
+            json={"state": "terminated"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "terminated"

@@ -1,0 +1,68 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/members/new" class="btn-primary">Nuevo Miembro</a>
+</div>
+
+{# Filtros #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div class="flex-1">
+      <input type="text"
+             name="search"
+             value="{{ search }}"
+             placeholder="Buscar por nombre o ASN..."
+             class="input-field w-full"
+             hx-get="/admin/members"
+             hx-target="#table-body"
+             hx-trigger="input changed delay:300ms"
+             hx-include="[name='state']">
+    </div>
+    <div>
+      <select name="state"
+              class="input-field"
+              hx-get="/admin/members"
+              hx-target="#table-body"
+              hx-trigger="change"
+              hx-include="[name='search']">
+        <option value="">Todos los estados</option>
+        <option value="prospect" {% if filter_state == "prospect" %}selected{% endif %}>Prospecto</option>
+        <option value="provisioning" {% if filter_state == "provisioning" %}selected{% endif %}>Provisioning</option>
+        <option value="active" {% if filter_state == "active" %}selected{% endif %}>Activo</option>
+        <option value="suspended" {% if filter_state == "suspended" %}selected{% endif %}>Suspendido</option>
+        <option value="terminated" {% if filter_state == "terminated" %}selected{% endif %}>Terminado</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+{# Tabla #}
+{% if members %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Nombre</th>
+          <th class="pb-3 font-medium">ASN</th>
+          <th class="pb-3 font-medium">Politica Peering</th>
+          <th class="pb-3 font-medium">Estado</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="table-body" class="divide-y dark:divide-gray-700">
+        {% include "members/list_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Paginacion #}
+{% include "components/pagination.html" %}
+{% else %}
+  {{ empty.empty_state("No hay miembros", "/admin/members/new", "Crear miembro") }}
+{% endif %}
+{% endblock %}

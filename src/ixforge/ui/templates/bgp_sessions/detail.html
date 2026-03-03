@@ -1,0 +1,83 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold"><code>{{ session.peer_ip }}</code></h1>
+    {% if session.admin_state == "up" %}<span class="badge badge-green">Admin Up</span>
+    {% else %}<span class="badge badge-red">Admin Down</span>{% endif %}
+    {% if session.oper_state == "up" %}<span class="badge badge-green">Oper Up</span>
+    {% elif session.oper_state == "down" %}<span class="badge badge-red">Oper Down</span>
+    {% else %}<span class="badge badge-gray">{{ session.oper_state or "-" }}</span>{% endif %}
+  </div>
+  <div class="flex gap-2">
+    <form method="post" action="/admin/bgp-sessions/{{ session.id }}/toggle">
+      {% if session.admin_state == "up" %}
+      <button type="submit" class="btn-danger btn-sm">Admin Down</button>
+      {% else %}
+      <button type="submit" class="btn-primary btn-sm">Admin Up</button>
+      {% endif %}
+    </form>
+    <a href="/admin/bgp-sessions" class="btn-secondary">Volver</a>
+  </div>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion de Session</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Peer IP</p>
+      <p class="font-medium"><code class="text-sm">{{ session.peer_ip or "-" }}</code></p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Peer ASN</p>
+      <p class="font-medium">AS{{ session.peer_asn or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Address Family</p>
+      <p class="font-medium">
+        {% if session.af == 4 %}<span class="badge badge-blue">IPv4</span>
+        {% else %}<span class="badge badge-green">IPv6</span>{% endif %}
+      </p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Route Server</p>
+      <p class="font-medium">
+        {% if session.route_server_id %}
+        <a href="/admin/route-servers/{{ session.route_server_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+          {{ rs_name or "-" }}
+        </a>
+        {% else %}-{% endif %}
+      </p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Conexion</p>
+      <p class="font-medium">
+        {% if session.connection_id %}
+        <a href="/admin/connections/{{ session.connection_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+          {{ connection_label or "-" }}
+        </a>
+        {% else %}-{% endif %}
+      </p>
+    </div>
+    {% if session.max_prefixes_v4 is defined and session.max_prefixes_v4 %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Max Prefixes IPv4</p>
+      <p class="font-medium">{{ session.max_prefixes_v4 }}</p>
+    </div>
+    {% endif %}
+    {% if session.max_prefixes_v6 is defined and session.max_prefixes_v6 %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Max Prefixes IPv6</p>
+      <p class="font-medium">{{ session.max_prefixes_v6 }}</p>
+    </div>
+    {% endif %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
+      <p class="font-medium">{{ session.created_at[:10] if session.created_at else "-" }}</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -91,7 +91,6 @@ async def _create_pool_and_assign_ip(
         ixp_id=ixp.id,
         vlan_id=vlan.id,
         network="198.51.100.0/24",
-        gateway="198.51.100.1",
         af=4,
     )
     db.add(pool)
@@ -682,7 +681,6 @@ class TestConnectionIP:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="203.0.113.0/24",
-            gateway="203.0.113.1",
             af=4,
         )
         db_session.add(pool)
@@ -694,7 +692,7 @@ class TestConnectionIP:
             json={"pool_id": str(pool.id)},
         )
         assert resp.status_code == 201
-        assert resp.json()["address"] == "203.0.113.2"
+        assert resp.json()["address"] == "203.0.113.1"
 
     async def test_assign_ip_manual(
         self,
@@ -721,7 +719,6 @@ class TestConnectionIP:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="203.0.113.0/24",
-            gateway="203.0.113.1",
             af=4,
         )
         db_session.add(pool)
@@ -762,3 +759,131 @@ class TestConnectionIP:
             headers=auth_headers,
         )
         assert resp.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Business logic validation
+# ---------------------------------------------------------------------------
+
+
+class TestConnectionBusinessLogic:
+    async def test_decommission_with_vlans_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp)
+        vlan = await _create_vlan(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.disabled,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        cv = ConnectionVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            connection_id=conn.id,
+            vlan_id=vlan.id,
+            tagged=False,
+        )
+        db_session.add(cv)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/transition",
+            headers=auth_headers,
+            json={"state": "decommissioned"},
+        )
+        assert resp.status_code == 422
+
+    async def test_assign_vlan_to_decommissioned_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp)
+        vlan = await _create_vlan(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.decommissioned,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/vlans",
+            headers=auth_headers,
+            json={"vlan_id": str(vlan.id), "tagged": False},
+        )
+        assert resp.status_code == 422
+
+    async def test_assign_ip_to_disabled_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp)
+        vlan = await _create_vlan(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.disabled,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="203.0.113.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/ips",
+            headers=auth_headers,
+            json={"pool_id": str(pool.id)},
+        )
+        assert resp.status_code == 422
+
+    async def test_create_connection_for_terminated_member_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp, state=MemberState.terminated)
+
+        resp = await client.post(
+            "/api/v1/connections",
+            headers=auth_headers,
+            json={
+                "member_id": str(member.id),
+                "type": "physical",
+                "speed": 10000,
+            },
+        )
+        assert resp.status_code == 422

@@ -1,0 +1,101 @@
+{% extends "layouts/base.html" %}
+{% set is_edit = rs is not none and rs.id is defined %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
+    {% if errors is mapping and errors.detail %}
+      {% for err in errors.detail %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% elif errors is iterable and errors is not string %}
+      {% for err in errors %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ '/admin/route-servers/new' if not is_edit else '/admin/route-servers/' ~ rs.id ~ '/edit' }}">
+    {# Nombre #}
+    <div class="mb-4">
+      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
+      <input type="text" id="name" name="name"
+             value="{{ rs.name if rs else '' }}"
+             required class="input-field w-full"
+             placeholder="rs1">
+    </div>
+
+    {# Hostname #}
+    <div class="mb-4">
+      <label for="hostname" class="block text-sm font-medium mb-1">Hostname</label>
+      <input type="text" id="hostname" name="hostname"
+             value="{{ rs.hostname if rs else '' }}"
+             class="input-field w-full"
+             placeholder="rs1.ejemplo.net">
+    </div>
+
+    {# ASN #}
+    <div class="mb-4">
+      <label for="asn" class="block text-sm font-medium mb-1">ASN</label>
+      <input type="number" id="asn" name="asn"
+             value="{{ rs.asn if rs and rs.asn else '' }}"
+             required min="1" class="input-field w-full"
+             placeholder="64500">
+    </div>
+
+    {# IPv4 #}
+    <div class="mb-4">
+      <label for="ip_v4" class="block text-sm font-medium mb-1">IPv4</label>
+      <input type="text" id="ip_v4" name="ip_v4"
+             value="{{ rs.ip_v4 if rs and rs.ip_v4 else '' }}"
+             class="input-field w-full"
+             placeholder="10.0.0.1">
+    </div>
+
+    {# IPv6 #}
+    <div class="mb-4">
+      <label for="ip_v6" class="block text-sm font-medium mb-1">IPv6</label>
+      <input type="text" id="ip_v6" name="ip_v6"
+             value="{{ rs.ip_v6 if rs and rs.ip_v6 else '' }}"
+             class="input-field w-full"
+             placeholder="2001:db8::1">
+    </div>
+
+    {# Software #}
+    <div class="mb-4">
+      <label for="software" class="block text-sm font-medium mb-1">Software</label>
+      <select id="software" name="software" class="input-field w-full">
+        {% set current_sw = rs.software if rs else 'bird' %}
+        <option value="bird" {% if current_sw == "bird" %}selected{% endif %}>BIRD</option>
+        <option value="openbgpd" {% if current_sw == "openbgpd" %}selected{% endif %}>OpenBGPD</option>
+      </select>
+    </div>
+
+    {# Is Active #}
+    <div class="mb-6">
+      <label class="flex items-center gap-3">
+        <input type="checkbox" name="is_active" value="on"
+               {% if not is_edit or (rs and rs.is_active) %}checked{% endif %}
+               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+        <span class="text-sm font-medium">Activo</span>
+      </label>
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">
+        {{ "Guardar" if is_edit else "Crear" }}
+      </button>
+      <a href="/admin/route-servers" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "layouts/base.html" %}
+{% set is_edit = switch is not none and switch.id is defined %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
+    {% if errors is mapping and errors.detail %}
+      {% for err in errors.detail %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% elif errors is iterable and errors is not string %}
+      {% for err in errors %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ '/admin/switches/new' if not is_edit else '/admin/switches/' ~ switch.id ~ '/edit' }}">
+    {# Nombre #}
+    <div class="mb-4">
+      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
+      <input type="text"
+             id="name"
+             name="name"
+             value="{{ switch.name if switch else '' }}"
+             required
+             class="input-field w-full"
+             placeholder="sw-core-01">
+    </div>
+
+    {# Hostname #}
+    <div class="mb-4">
+      <label for="hostname" class="block text-sm font-medium mb-1">Hostname</label>
+      <input type="text"
+             id="hostname"
+             name="hostname"
+             value="{{ switch.hostname if switch else '' }}"
+             class="input-field w-full"
+             placeholder="sw-core-01.ejemplo.net">
+    </div>
+
+    {# Vendor #}
+    <div class="mb-4">
+      <label for="vendor" class="block text-sm font-medium mb-1">Vendor</label>
+      <input type="text"
+             id="vendor"
+             name="vendor"
+             value="{{ switch.vendor if switch else '' }}"
+             class="input-field w-full"
+             placeholder="Arista">
+    </div>
+
+    {# Modelo #}
+    <div class="mb-4">
+      <label for="model" class="block text-sm font-medium mb-1">Modelo</label>
+      <input type="text"
+             id="model"
+             name="model"
+             value="{{ switch.model if switch else '' }}"
+             class="input-field w-full"
+             placeholder="DCS-7280SR">
+    </div>
+
+    {# Management IP #}
+    <div class="mb-4">
+      <label for="management_ip" class="block text-sm font-medium mb-1">Management IP</label>
+      <input type="text"
+             id="management_ip"
+             name="management_ip"
+             value="{{ switch.management_ip if switch else '' }}"
+             class="input-field w-full"
+             placeholder="10.0.0.1">
+    </div>
+
+    {# Is Active #}
+    <div class="mb-6">
+      <label class="flex items-center gap-3">
+        <input type="checkbox"
+               name="is_active"
+               value="on"
+               {% if not is_edit or (switch and switch.is_active) %}checked{% endif %}
+               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+        <span class="text-sm font-medium">Activo</span>
+      </label>
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">
+        {{ "Guardar" if is_edit else "Crear" }}
+      </button>
+      <a href="/admin/switches" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

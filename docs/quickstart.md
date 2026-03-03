@@ -40,7 +40,7 @@ All settings use the `IXFORGE_` prefix. Core variables:
 | `IXFORGE_DATABASE_URL` | `postgresql+asyncpg://ixforge:ixforge@localhost:5432/ixforge` | Database connection |
 | `IXFORGE_SECRET_KEY` | `change-me-...` | JWT signing & SNMP encryption key |
 | `IXFORGE_DEBUG` | `false` | Enables reload and verbose logging |
-| `IXFORGE_CORS_ORIGINS` | `["*"]` | Allowed CORS origins |
+| `IXFORGE_CORS_ORIGINS` | `[]` (debug: `["*"]`) | Allowed CORS origins |
 | `IXFORGE_RATE_LIMIT_PER_MINUTE` | `60` | Rate limit for public endpoints |
 
 ## Docker (Production)
@@ -89,6 +89,7 @@ uv run pytest --cov=ixforge --cov-report=term-missing
 
 ```
 ixforge run              Start API server
+ixforge ui               Start admin portal (port 8001)
 ixforge worker           Start background task workers
 ixforge upgrade          Run database migrations (alembic upgrade head)
 ixforge createsuperuser  Create an admin user
