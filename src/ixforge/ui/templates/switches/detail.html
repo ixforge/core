@@ -1,0 +1,117 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ switch.name }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold">{{ switch.name }}</h1>
+    {% if switch.is_active %}
+    <span class="badge badge-green">Activo</span>
+    {% else %}
+    <span class="badge badge-red">Inactivo</span>
+    {% endif %}
+  </div>
+  <div class="flex gap-2">
+    <a href="/admin/switches/{{ switch.id }}/edit" class="btn-secondary">Editar</a>
+    <div x-data="{ open: false }">
+      <button @click="open = true" class="btn-danger">Eliminar</button>
+      <div x-show="open" x-transition class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
+        <div class="fixed inset-0 bg-black/50" @click="open = false"></div>
+        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+          <h3 class="text-lg font-semibold mb-2">Eliminar Switch</h3>
+          <p class="text-gray-600 dark:text-gray-400 mb-4">Seguro que quieres eliminar <strong>{{ switch.name }}</strong>? Esta accion no se puede deshacer.</p>
+          <div class="flex justify-end gap-3">
+            <button @click="open = false" class="btn-secondary btn-sm">Cancelar</button>
+            <form method="post" action="/admin/switches/{{ switch.id }}/delete">
+              <button type="submit" class="btn-danger btn-sm">Eliminar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <a href="/admin/switches" class="btn-secondary">Volver</a>
+  </div>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Hostname</p>
+      <p class="font-medium">{{ switch.hostname or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Management IP</p>
+      <p class="font-medium"><code class="text-sm">{{ switch.management_ip or "-" }}</code></p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Vendor</p>
+      <p class="font-medium">{{ switch.vendor or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Modelo</p>
+      <p class="font-medium">{{ switch.model or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
+      <p class="font-medium">{{ switch.created_at[:10] if switch.created_at else "-" }}</p>
+    </div>
+  </div>
+</div>
+
+{# Ports table #}
+<div class="card">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">Puertos</h2>
+    <a href="/admin/ports/new?switch_id={{ switch.id }}" class="btn-primary btn-sm">Nuevo Puerto</a>
+  </div>
+  {% if ports %}
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Nombre</th>
+          <th class="pb-3 font-medium">Velocidad</th>
+          <th class="pb-3 font-medium">Tipo</th>
+          <th class="pb-3 font-medium">Miembro</th>
+          <th class="pb-3 font-medium">Estado</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for p in ports %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3 font-medium">{{ p.name or "-" }}</td>
+          <td class="py-3">{{ p.speed or "-" }}</td>
+          <td class="py-3 capitalize">{{ p.type or "-" }}</td>
+          <td class="py-3">
+            {% if p.connection_id %}
+            <span class="text-sm text-indigo-600 dark:text-indigo-400">Asignado</span>
+            {% else %}
+            <span class="text-sm text-gray-400">Libre</span>
+            {% endif %}
+          </td>
+          <td class="py-3">
+            {% if p.is_active %}
+            <span class="badge badge-green">Activo</span>
+            {% else %}
+            <span class="badge badge-red">Inactivo</span>
+            {% endif %}
+          </td>
+          <td class="py-3">
+            <a href="/admin/ports/{{ p.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+    Este switch no tiene puertos.
+    <a href="/admin/ports/new?switch_id={{ switch.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">Nuevo Puerto</a>
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

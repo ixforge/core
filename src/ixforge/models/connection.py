@@ -3,7 +3,7 @@
 import uuid
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Integer, UniqueConstraint, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ixforge.enums import ConnectionState, ConnectionType
 from ixforge.models.base import Base, ExtraDataMixin, TenantMixin, TimestampMixin, UUIDPrimaryKey
@@ -40,6 +40,10 @@ class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Ba
         nullable=True,
         comment="Speed in Mbps",
     )
+
+    # Relationships for eager loading display names
+    member: Mapped["Member"] = relationship(lazy="raise")  # type: ignore[name-defined]
+    port: Mapped["Port | None"] = relationship(lazy="raise")  # type: ignore[name-defined]
 
 
 class ConnectionVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):

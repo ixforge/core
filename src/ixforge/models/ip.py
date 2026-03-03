@@ -20,7 +20,6 @@ class IPPool(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         index=True,
     )
     network: Mapped[str] = mapped_column(CIDR, nullable=False, comment="CIDR notation")
-    gateway: Mapped[str] = mapped_column(INET, nullable=False, comment="Gateway address")
     af: Mapped[int] = mapped_column(Integer, nullable=False, comment="Address family: 4 or 6")
 
 

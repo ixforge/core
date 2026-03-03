@@ -103,7 +103,6 @@ class TestIXFExport:
             ixp_id=ixp.id,
             vlan_id=vlan.id,
             network="198.51.100.0/24",
-            gateway="198.51.100.1",
             af=4,
         )
         db_session.add(pool)

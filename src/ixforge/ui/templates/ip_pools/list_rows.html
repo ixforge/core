@@ -1,0 +1,26 @@
+{% for p in pools %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3">
+    <a href="/admin/ip-pools/{{ p.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+      <code class="text-sm">{{ p.network }}</code>
+    </a>
+  </td>
+  <td class="py-3">
+    {% if p.af == 4 %}
+    <span class="badge badge-blue">IPv4</span>
+    {% else %}
+    <span class="badge badge-green">IPv6</span>
+    {% endif %}
+  </td>
+  <td class="py-3">
+    <div class="flex gap-2">
+      <a href="/admin/ip-pools/{{ p.id }}" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Ver</a>
+      <button type="button"
+              class="text-sm text-red-600 dark:text-red-400 hover:underline"
+              @click="confirmId = {{ p.id|tojson }}; confirmNetwork = {{ p.network|tojson }}">
+        Eliminar
+      </button>
+    </div>
+  </td>
+</tr>
+{% endfor %}

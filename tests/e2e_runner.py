@@ -347,7 +347,7 @@ def run():
         "GET",
         f"/ip-pools/{pool_id}",
         expect=200,
-        check=lambda b: "network" in b and "gateway" in b,
+        check=lambda b: "network" in b,
     )
 
     # === CONNECTIONS ===

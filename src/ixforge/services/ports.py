@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.exceptions import ConflictError, NotFoundError
+from ixforge.enums import ConnectionState, PortType
+from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
+from ixforge.models.connection import Connection
 from ixforge.models.port import Port
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.port import PortCreate, PortRead, PortUpdate
@@ -19,6 +21,8 @@ async def create(
     data: PortCreate,
 ) -> Port:
     """Create a port on a switch."""
+    if data.type != PortType.member and data.member_id is not None:
+        raise ValidationError("Cannot assign a member to a non-member port")
     port = Port(
         ixp_id=ixp_id,
         switch_id=data.switch_id,
@@ -66,7 +70,16 @@ async def update(
 ) -> Port:
     """Update port fields."""
     port = await get(session, port_id)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+
+    # Determine resulting type and member_id after applying updates
+    new_type = updates.get("type", port.type)
+    new_member = updates.get("member_id", port.member_id)
+
+    if new_type != PortType.member and new_member is not None:
+        raise ValidationError("Cannot have a member assigned to a non-member port")
+
+    for field, value in updates.items():
         setattr(port, field, value)
     await session.flush()
     await session.refresh(port)
@@ -85,10 +98,12 @@ async def assign(
     port_id: uuid.UUID,
     member_id: uuid.UUID,
 ) -> Port:
-    """Assign a port to a member. Fails if already assigned."""
+    """Assign a port to a member. Fails if already assigned or unused."""
     port = await session.get(Port, port_id, with_for_update=True)
     if port is None:
         raise NotFoundError("Port", str(port_id))
+    if port.type != PortType.member:
+        raise ValidationError("Can only assign members to ports with type 'member'")
     if port.member_id is not None:
         raise ConflictError(f"Port {port_id} is already assigned to member {port.member_id}")
     port.member_id = member_id
@@ -105,6 +120,18 @@ async def release(session: AsyncSession, port_id: uuid.UUID) -> Port:
     port = await get(session, port_id)
     if port.member_id is None:
         raise ConflictError(f"Port {port_id} is not assigned to any member")
+    active_conn = await session.scalar(
+        select(Connection.id)
+        .where(
+            Connection.port_id == port_id,
+            Connection.state != ConnectionState.decommissioned,
+        )
+        .limit(1)
+    )
+    if active_conn is not None:
+        raise ValidationError(
+            "Cannot release port: it is referenced by a non-decommissioned connection"
+        )
     port.member_id = None
     await session.flush()
     await session.refresh(port)

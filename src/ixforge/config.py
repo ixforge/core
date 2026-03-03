@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Rate limiting
     rate_limit_per_minute: int = 60
 
+    # UI
+    core_url: str = "http://localhost:8000"
+    ui_port: int = 8001
+
     # Modules
     modules: ModuleFlags = Field(default_factory=ModuleFlags)
 

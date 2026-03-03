@@ -1,0 +1,243 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ member.name }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold">{{ member.name }}</h1>
+    {% if member.state == "active" %}<span class="badge badge-green">Activo</span>
+    {% elif member.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+    {% elif member.state == "prospect" %}<span class="badge badge-blue">Prospecto</span>
+    {% elif member.state == "suspended" %}<span class="badge badge-red">Suspendido</span>
+    {% elif member.state == "terminated" %}<span class="badge badge-gray">Terminado</span>
+    {% else %}<span class="badge badge-gray">{{ member.state }}</span>{% endif %}
+  </div>
+  <div class="flex gap-2">
+    <a href="/admin/members/{{ member.id }}/edit" class="btn-secondary">Editar</a>
+    <a href="/admin/members" class="btn-secondary">Volver</a>
+  </div>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Nombre corto</p>
+      <p class="font-medium">{{ member.short_name or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">ASN</p>
+      <p class="font-medium">AS{{ member.asn }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Politica de Peering</p>
+      <p class="font-medium capitalize">{{ member.peering_policy }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Website</p>
+      <p class="font-medium">
+        {% if member.website %}
+        <a href="{{ member.website }}" target="_blank" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ member.website }}</a>
+        {% else %}-{% endif %}
+      </p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">PeeringDB ID</p>
+      <p class="font-medium">{{ member.peeringdb_id or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
+      <p class="font-medium">{{ member.created_at[:10] if member.created_at else "-" }}</p>
+    </div>
+  </div>
+</div>
+
+{# State transitions #}
+<div class="card mb-6" x-data="{ confirmAction: null }">
+  <h2 class="text-lg font-semibold mb-4">Transiciones de Estado</h2>
+  <div class="flex flex-wrap gap-2">
+    {% set transitions = {
+      "prospect": ["provisioning"],
+      "provisioning": ["active"],
+      "active": ["suspended"],
+      "suspended": ["active", "terminated"]
+    } %}
+    {% set available = transitions.get(member.state, []) %}
+    {% if available %}
+      {% for next_state in available %}
+        {% if next_state == "terminated" %}
+        <button type="button" class="btn-danger btn-sm"
+                @click="confirmAction = 'terminated'">
+          Terminar
+        </button>
+        {% elif next_state == "suspended" %}
+        <form method="post" action="/admin/members/{{ member.id }}/transition" class="inline">
+          <input type="hidden" name="state" value="suspended">
+          <button type="submit" class="btn-danger btn-sm">Suspender</button>
+        </form>
+        {% elif next_state == "active" %}
+        <form method="post" action="/admin/members/{{ member.id }}/transition" class="inline">
+          <input type="hidden" name="state" value="active">
+          <button type="submit" class="btn-primary btn-sm">Activar</button>
+        </form>
+        {% elif next_state == "provisioning" %}
+        <form method="post" action="/admin/members/{{ member.id }}/transition" class="inline">
+          <input type="hidden" name="state" value="provisioning">
+          <button type="submit" class="btn-primary btn-sm">Iniciar Provisioning</button>
+        </form>
+        {% else %}
+        <form method="post" action="/admin/members/{{ member.id }}/transition" class="inline">
+          <input type="hidden" name="state" value="{{ next_state }}">
+          <button type="submit" class="btn-secondary btn-sm">{{ next_state|capitalize }}</button>
+        </form>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No hay transiciones disponibles para el estado actual</p>
+    {% endif %}
+  </div>
+
+  {# Confirmation modal #}
+  <div x-show="confirmAction !== null"
+       x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+      <h3 class="text-lg font-semibold mb-2">Confirmar terminacion</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Seguro que quieres terminar al miembro <strong>{{ member.name }}</strong>? Esta accion no se puede deshacer.
+      </p>
+      <div class="flex justify-end gap-3">
+        <button type="button" class="btn-secondary" @click="confirmAction = null">Cancelar</button>
+        <form method="post" action="/admin/members/{{ member.id }}/transition">
+          <input type="hidden" name="state" value="terminated">
+          <button type="submit" class="btn-danger">Confirmar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Contacts #}
+<div class="card mb-6" x-data="{ showForm: false, editId: null }">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">Contactos</h2>
+    <button type="button" class="btn-primary btn-sm" @click="showForm = !showForm">
+      <span x-text="showForm ? 'Cancelar' : 'Agregar'"></span>
+    </button>
+  </div>
+
+  {# Add contact form #}
+  <div x-show="showForm" x-cloak class="mb-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+    <form method="post" action="/admin/members/{{ member.id }}/contacts/new">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label for="contact_name" class="block text-sm font-medium mb-1">Nombre</label>
+          <input type="text" id="contact_name" name="name" required class="input-field w-full" placeholder="Juan Perez">
+        </div>
+        <div>
+          <label for="contact_email" class="block text-sm font-medium mb-1">Email</label>
+          <input type="email" id="contact_email" name="email" required class="input-field w-full" placeholder="juan@ejemplo.com">
+        </div>
+        <div>
+          <label for="contact_phone" class="block text-sm font-medium mb-1">Telefono</label>
+          <input type="text" id="contact_phone" name="phone" class="input-field w-full" placeholder="+54 11 1234-5678">
+        </div>
+        <div>
+          <label for="contact_role" class="block text-sm font-medium mb-1">Rol</label>
+          <select id="contact_role" name="role" class="input-field w-full">
+            <option value="noc">NOC</option>
+            <option value="admin">Admin</option>
+            <option value="technical">Technical</option>
+            <option value="billing">Billing</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary btn-sm">Crear Contacto</button>
+    </form>
+  </div>
+
+  {% if contacts %}
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Nombre</th>
+          <th class="pb-3 font-medium">Email</th>
+          <th class="pb-3 font-medium">Telefono</th>
+          <th class="pb-3 font-medium">Rol</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for c in contacts %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3 font-medium">{{ c.name or "-" }}</td>
+          <td class="py-3 text-sm">{{ c.email or "-" }}</td>
+          <td class="py-3 text-sm">{{ c.phone or "-" }}</td>
+          <td class="py-3">
+            {% if c.role == "noc" %}<span class="badge badge-blue">NOC</span>
+            {% elif c.role == "admin" %}<span class="badge badge-yellow">Admin</span>
+            {% elif c.role == "technical" %}<span class="badge badge-green">Technical</span>
+            {% elif c.role == "billing" %}<span class="badge badge-gray">Billing</span>
+            {% else %}<span class="badge badge-gray">{{ c.role }}</span>{% endif %}
+          </td>
+          <td class="py-3">
+            <form method="post" action="/admin/contacts/{{ c.id }}/delete" class="inline">
+              <input type="hidden" name="member_id" value="{{ member.id }}">
+              <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:underline">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay contactos</p>
+  {% endif %}
+</div>
+
+{# Connections #}
+<div class="card">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">Conexiones</h2>
+  </div>
+  {% if connections %}
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Puerto</th>
+          <th class="pb-3 font-medium">Tipo</th>
+          <th class="pb-3 font-medium">Estado</th>
+          <th class="pb-3 font-medium">Velocidad</th>
+          <th class="pb-3 font-medium">MAC</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for c in connections %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3">
+            <a href="/admin/connections/{{ c.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+              {{ c.port_name or c.port_id or "-" }}
+            </a>
+          </td>
+          <td class="py-3 capitalize">{{ c.type or "-" }}</td>
+          <td class="py-3">
+            {% if c.state == "active" %}<span class="badge badge-green">Activo</span>
+            {% elif c.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+            {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
+          </td>
+          <td class="py-3">{{ c.speed or "-" }}</td>
+          <td class="py-3"><code class="text-sm">{{ c.mac_address or "-" }}</code></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4">Este miembro no tiene conexiones</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold">{{ user.email }}</h1>
+    {% if user.is_active %}
+    <span class="badge badge-green">Activo</span>
+    {% else %}
+    <span class="badge badge-red">Inactivo</span>
+    {% endif %}
+    {% if user.role == "admin" %}<span class="badge badge-blue">Admin</span>
+    {% elif user.role == "operator" %}<span class="badge badge-yellow">Operator</span>
+    {% else %}<span class="badge badge-gray">{{ user.role or "viewer" }}</span>{% endif %}
+  </div>
+  <a href="/admin/users" class="btn-secondary">Volver</a>
+</div>
+
+{# Edit form (inline) #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Editar Usuario</h2>
+  <form method="post" action="/admin/users/{{ user.id }}/edit" class="flex flex-col sm:flex-row gap-4 items-end">
+    <div>
+      <label for="role" class="block text-sm font-medium mb-1">Rol</label>
+      <select id="role" name="role" class="input-field">
+        <option value="member" {% if user.role == "member" %}selected{% endif %}>Member</option>
+        <option value="admin" {% if user.role == "admin" %}selected{% endif %}>Admin</option>
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" name="is_active" value="on"
+             {% if user.is_active %}checked{% endif %}
+             class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+      <label class="text-sm font-medium">Activo</label>
+    </div>
+    <button type="submit" class="btn-primary btn-sm">Guardar</button>
+  </form>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Email</p>
+      <p class="font-medium">{{ user.email }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
+      <p class="font-medium">{{ user.created_at[:10] if user.created_at else "-" }}</p>
+    </div>
+    {% if user.last_login %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Ultimo Login</p>
+      <p class="font-medium">{{ user.last_login[:16] }}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# New API Key alert #}
+{% if new_raw_key %}
+<div class="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800 rounded-lg">
+  <h3 class="text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Nueva API Key creada</h3>
+  <p class="text-sm text-yellow-700 dark:text-yellow-400 mb-2">Copia esta key ahora. No podras verla de nuevo.</p>
+  <code class="block p-2 bg-white dark:bg-gray-800 rounded text-sm font-mono break-all">{{ new_raw_key }}</code>
+</div>
+{% endif %}
+
+{# API Keys #}
+<div class="card">
+  <h2 class="text-lg font-semibold mb-4">API Keys</h2>
+
+  {% if api_keys %}
+  <div class="overflow-x-auto mb-6">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Prefix</th>
+          <th class="pb-3 font-medium">Nombre</th>
+          <th class="pb-3 font-medium">Scopes</th>
+          <th class="pb-3 font-medium">Ultimo Uso</th>
+          <th class="pb-3 font-medium">Creada</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for k in api_keys %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3"><code class="text-sm">{{ k.prefix or k.id[:8] }}...</code></td>
+          <td class="py-3 text-sm">{{ k.name or "-" }}</td>
+          <td class="py-3 text-sm">
+            {% if k.scopes %}
+              {% for s in k.scopes %}<span class="badge badge-gray mr-1">{{ s }}</span>{% endfor %}
+            {% else %}-{% endif %}
+          </td>
+          <td class="py-3 text-sm text-gray-600 dark:text-gray-400">
+            {{ k.last_used_at[:10] if k.get("last_used_at") else "Nunca" }}
+          </td>
+          <td class="py-3 text-sm text-gray-600 dark:text-gray-400">
+            {{ k.created_at[:10] if k.created_at else "-" }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4 mb-4">No hay API keys</p>
+  {% endif %}
+
+  {# Create API Key form #}
+  <div class="border-t dark:border-gray-700 pt-4">
+    <h3 class="text-sm font-semibold mb-3">Crear API Key</h3>
+    <form method="post" action="/admin/users/{{ user.id }}/api-keys" class="flex flex-col sm:flex-row gap-3 items-end">
+      <div class="flex-1">
+        <label for="key_name" class="block text-sm font-medium mb-1">Nombre</label>
+        <input type="text" id="key_name" name="name" required
+               class="input-field w-full" placeholder="mi-api-key">
+      </div>
+      <div class="flex-1">
+        <p class="block text-sm font-medium mb-1">Scopes</p>
+        <div class="flex flex-wrap gap-3">
+          <label class="flex items-center gap-1.5 text-sm">
+            <input type="checkbox" name="scopes" value="agent:route_server"
+                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+            agent:route_server
+          </label>
+          <label class="flex items-center gap-1.5 text-sm">
+            <input type="checkbox" name="scopes" value="monitoring:read"
+                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+            monitoring:read
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary btn-sm">Crear Key</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

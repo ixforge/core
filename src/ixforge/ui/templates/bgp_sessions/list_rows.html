@@ -1,0 +1,26 @@
+{% for s in sessions %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3">
+    <a href="/admin/bgp-sessions/{{ s.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+      <code class="text-sm">{{ s.peer_ip or "-" }}</code>
+    </a>
+  </td>
+  <td class="py-3 text-sm">AS{{ s.peer_asn or "-" }}</td>
+  <td class="py-3">
+    {% if s.admin_state == "up" %}<span class="badge badge-green">Up</span>
+    {% else %}<span class="badge badge-red">Down</span>{% endif %}
+  </td>
+  <td class="py-3">
+    {% if s.oper_state == "up" %}<span class="badge badge-green">Up</span>
+    {% elif s.oper_state == "down" %}<span class="badge badge-red">Down</span>
+    {% else %}<span class="badge badge-gray">{{ s.oper_state or "-" }}</span>{% endif %}
+  </td>
+  <td class="py-3">
+    {% if s.af == 4 %}<span class="badge badge-blue">IPv4</span>
+    {% else %}<span class="badge badge-green">IPv6</span>{% endif %}
+  </td>
+  <td class="py-3">
+    <a href="/admin/bgp-sessions/{{ s.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+  </td>
+</tr>
+{% endfor %}

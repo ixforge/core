@@ -4,10 +4,13 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
+from ixforge.enums import MemberState
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment
+from ixforge.models.member import Member
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.connection import (
     ConnectionCreate,
@@ -37,6 +40,12 @@ async def create(
     actor_id: uuid.UUID | None = None,
 ) -> Connection:
     """Create a new connection in draft state."""
+    member = await session.get(Member, data.member_id)
+    if member is None:
+        raise NotFoundError("Member", str(data.member_id))
+    if member.state == MemberState.terminated:
+        raise ValidationError("Cannot create connection for a terminated member")
+
     if data.extra_data is not None:
         await custom_fields.validate_extra_data(session, ixp_id, "connection", data.extra_data)
 
@@ -62,12 +71,22 @@ async def create(
         resource_id=connection.id,
         data={"member_id": str(data.member_id), "type": data.type},
     )
-    return connection
+    return await get(session, connection.id)
 
 
 async def get(session: AsyncSession, connection_id: uuid.UUID) -> Connection:
-    """Get a connection by id or raise NotFoundError."""
-    connection = await session.get(Connection, connection_id)
+    """Get a connection by id or raise NotFoundError.
+
+    Always loads member and port relationships so ConnectionRead
+    can populate member_name/port_name consistently.
+    """
+    stmt = (
+        select(Connection)
+        .where(Connection.id == connection_id)
+        .options(joinedload(Connection.member), joinedload(Connection.port))
+    )
+    result = await session.execute(stmt)
+    connection = result.unique().scalar_one_or_none()
     if connection is None:
         raise NotFoundError("Connection", str(connection_id))
     return connection
@@ -79,7 +98,11 @@ async def list_connections(
     params: CursorParams,
 ) -> CursorPage[ConnectionRead]:
     """List connections for a member with cursor-based pagination."""
-    stmt = select(Connection).where(Connection.member_id == member_id)
+    stmt = (
+        select(Connection)
+        .where(Connection.member_id == member_id)
+        .options(joinedload(Connection.member), joinedload(Connection.port))
+    )
     return await paginate(
         session,
         stmt,
@@ -115,8 +138,7 @@ async def update(
     for field, value in update_fields.items():
         setattr(connection, field, value)
     await session.flush()
-    await session.refresh(connection)
-    return connection
+    return await get(session, connection_id)
 
 
 async def _has_complete_setup(session: AsyncSession, connection_id: uuid.UUID) -> bool:
@@ -164,10 +186,25 @@ async def transition(
     ):
         raise ValidationError("Cannot activate connection: port, VLAN, and IP must be assigned")
 
+    if target_state == ConnectionState.decommissioned:
+        has_vlan = await session.scalar(
+            select(ConnectionVLAN.id)
+            .where(ConnectionVLAN.connection_id == connection_id)
+            .limit(1)
+        )
+        has_ip = await session.scalar(
+            select(IPAssignment.id)
+            .where(IPAssignment.connection_id == connection_id)
+            .limit(1)
+        )
+        if has_vlan is not None or has_ip is not None:
+            raise ValidationError(
+                "Cannot decommission connection: release all VLANs and IPs first"
+            )
+
     old_state = connection.state
     connection.state = target_state
     await session.flush()
-    await session.refresh(connection)
 
     await create_event(
         session,
@@ -195,7 +232,7 @@ async def transition(
                 connection_id=str(connection_id),
             )
 
-    return connection
+    return await get(session, connection_id)
 
 
 async def assign_vlan(
@@ -205,8 +242,11 @@ async def assign_vlan(
     data: ConnectionVLANCreate,
 ) -> ConnectionVLAN:
     """Assign a VLAN to a connection."""
-    # Verify the connection exists.
-    await get(session, connection_id)
+    connection = await get(session, connection_id)
+    if connection.state in (ConnectionState.disabled, ConnectionState.decommissioned):
+        raise ValidationError(
+            f"Cannot assign resources to a {connection.state} connection"
+        )
 
     # Check for duplicate assignment.
     existing = await session.scalar(
@@ -265,7 +305,11 @@ async def assign_ip(
     """
     from ixforge.services import ipam
 
-    await get(session, connection_id)
+    connection = await get(session, connection_id)
+    if connection.state in (ConnectionState.disabled, ConnectionState.decommissioned):
+        raise ValidationError(
+            f"Cannot assign resources to a {connection.state} connection"
+        )
 
     if address is not None:
         return await ipam.allocate_manual(session, ixp_id, pool_id, connection_id, address)

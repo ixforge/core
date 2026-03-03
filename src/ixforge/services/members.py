@@ -189,6 +189,23 @@ async def transition(
             "a port, VLAN, and IP assigned"
         )
 
+    # Termination requires all connections to be decommissioned first
+    if target_state == MemberState.terminated:
+        from ixforge.enums import ConnectionState
+
+        active_conn = await session.scalar(
+            select(Connection.id)
+            .where(
+                Connection.member_id == member_id,
+                Connection.state != ConnectionState.decommissioned,
+            )
+            .limit(1)
+        )
+        if active_conn is not None:
+            raise ValidationError(
+                "Cannot terminate member: all connections must be decommissioned first"
+            )
+
     old_state = member.state
     member.state = target_state
     await session.flush()

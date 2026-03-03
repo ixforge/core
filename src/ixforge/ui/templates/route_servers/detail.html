@@ -1,0 +1,162 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ rs.name }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold">{{ rs.name }}</h1>
+    {% if rs.is_active %}
+    <span class="badge badge-green">Activo</span>
+    {% else %}
+    <span class="badge badge-red">Inactivo</span>
+    {% endif %}
+  </div>
+  <div class="flex gap-2" x-data="{ confirmDelete: false }">
+    <a href="/admin/route-servers/{{ rs.id }}/edit" class="btn-secondary">Editar</a>
+    <button type="button" class="btn-danger" @click="confirmDelete = true">Eliminar</button>
+    <a href="/admin/route-servers" class="btn-secondary">Volver</a>
+
+    {# Delete modal #}
+    <div x-show="confirmDelete"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+        <h3 class="text-lg font-semibold mb-2">Eliminar Route Server</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Seguro que quieres eliminar <strong>{{ rs.name }}</strong>? Esta accion no se puede deshacer.
+        </p>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn-secondary" @click="confirmDelete = false">Cancelar</button>
+          <form method="post" action="/admin/route-servers/{{ rs.id }}/delete">
+            <button type="submit" class="btn-danger">Eliminar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Hostname</p>
+      <p class="font-medium">{{ rs.hostname or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">ASN</p>
+      <p class="font-medium">AS{{ rs.asn or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Software</p>
+      <p class="font-medium capitalize">{{ rs.software or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">IPv4</p>
+      <p class="font-medium"><code class="text-sm">{{ rs.ip_v4 or "-" }}</code></p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">IPv6</p>
+      <p class="font-medium"><code class="text-sm">{{ rs.ip_v6 or "-" }}</code></p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
+      <p class="font-medium">{{ rs.created_at[:10] if rs.created_at else "-" }}</p>
+    </div>
+    {% if rs.last_heartbeat %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Ultimo Heartbeat</p>
+      <p class="font-medium">{{ rs.last_heartbeat[:16] }}</p>
+    </div>
+    {% endif %}
+    {% if rs.agent_version %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Version Agente</p>
+      <p class="font-medium">{{ rs.agent_version }}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# Config status #}
+<div class="card mb-6">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">Configuracion</h2>
+    <div class="flex gap-2">
+      <form method="post" action="/admin/route-servers/{{ rs.id }}/config/generate">
+        <button type="submit" class="btn-primary btn-sm">Generar Config</button>
+      </form>
+      <a href="/admin/route-servers/{{ rs.id }}/config/history" class="btn-secondary btn-sm">Historial</a>
+    </div>
+  </div>
+  {% if config_current %}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Generada</p>
+      <p class="font-medium text-sm">{{ config_current.generated_at[:16] if config_current.generated_at else "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Aplicada</p>
+      <p class="font-medium text-sm">{{ config_current.applied_at[:16] if config_current.get("applied_at") else "Pendiente" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Hash</p>
+      <p class="font-medium text-sm"><code>{{ config_current.hash[:12] if config_current.get("hash") else "-" }}</code></p>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay configuracion generada</p>
+  {% endif %}
+</div>
+
+{# BGP Sessions #}
+<div class="card">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">BGP Sessions</h2>
+    <a href="/admin/bgp-sessions?route_server_id={{ rs.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver todas</a>
+  </div>
+  {% if bgp_sessions %}
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Peer IP</th>
+          <th class="pb-3 font-medium">Peer ASN</th>
+          <th class="pb-3 font-medium">Admin</th>
+          <th class="pb-3 font-medium">Oper</th>
+          <th class="pb-3 font-medium">AF</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for s in bgp_sessions %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3">
+            <a href="/admin/bgp-sessions/{{ s.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+              <code class="text-sm">{{ s.peer_ip or "-" }}</code>
+            </a>
+          </td>
+          <td class="py-3 text-sm">AS{{ s.peer_asn or "-" }}</td>
+          <td class="py-3">
+            {% if s.admin_state == "up" %}<span class="badge badge-green">Up</span>
+            {% else %}<span class="badge badge-red">Down</span>{% endif %}
+          </td>
+          <td class="py-3">
+            {% if s.oper_state == "up" %}<span class="badge badge-green">Up</span>
+            {% elif s.oper_state == "down" %}<span class="badge badge-red">Down</span>
+            {% else %}<span class="badge badge-gray">{{ s.oper_state or "-" }}</span>{% endif %}
+          </td>
+          <td class="py-3">
+            {% if s.af == 4 %}<span class="badge badge-blue">IPv4</span>
+            {% else %}<span class="badge badge-green">IPv6</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay sesiones BGP</p>
+  {% endif %}
+</div>
+{% endblock %}

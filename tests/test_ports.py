@@ -5,7 +5,8 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.enums import MemberState, PeeringPolicy, PortType
+from ixforge.enums import ConnectionState, ConnectionType, MemberState, PeeringPolicy, PortType
+from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.port import Port
@@ -263,6 +264,86 @@ class TestPortAssignment:
         assert resp.status_code == 200
         assert resp.json()["member_id"] is None
 
+    async def test_assign_unused_port_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetUnused",
+            speed=10000,
+            type=PortType.unused,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ports/{port.id}/assign",
+            headers=auth_headers,
+            json={"member_id": str(member.id)},
+        )
+        assert resp.status_code == 422
+
+    async def test_update_to_unused_with_member_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetBusyUnused",
+            speed=10000,
+            type=PortType.member,
+            member_id=member.id,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        resp = await client.patch(
+            f"/api/v1/ports/{port.id}",
+            headers=auth_headers,
+            json={"type": "unused"},
+        )
+        assert resp.status_code == 422
+
+    async def test_create_unused_with_member_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+
+        resp = await client.post(
+            "/api/v1/ports",
+            headers=auth_headers,
+            json={
+                "switch_id": str(sw.id),
+                "name": "EthernetBadCreate",
+                "speed": 10000,
+                "type": "unused",
+                "member_id": str(member.id),
+            },
+        )
+        assert resp.status_code == 422
+
     async def test_release_unassigned_port_rejected(
         self,
         client: AsyncClient,
@@ -288,3 +369,123 @@ class TestPortAssignment:
             headers=auth_headers,
         )
         assert resp.status_code == 409
+
+    async def test_release_port_with_active_connection_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetActiveConn",
+            speed=10000,
+            type=PortType.member,
+            member_id=member.id,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            port_id=port.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.active,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ports/{port.id}/release",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_assign_infra_port_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetInfra",
+            speed=10000,
+            type=PortType.infra,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ports/{port.id}/assign",
+            headers=auth_headers,
+            json={"member_id": str(member.id)},
+        )
+        assert resp.status_code == 422
+
+    async def test_create_infra_port_with_member_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+
+        resp = await client.post(
+            "/api/v1/ports",
+            headers=auth_headers,
+            json={
+                "switch_id": str(sw.id),
+                "name": "EthernetInfraBadCreate",
+                "speed": 10000,
+                "type": "infra",
+                "member_id": str(member.id),
+            },
+        )
+        assert resp.status_code == 422
+
+    async def test_update_to_infra_with_member_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetInfraUpdate",
+            speed=10000,
+            type=PortType.member,
+            member_id=member.id,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        resp = await client.patch(
+            f"/api/v1/ports/{port.id}",
+            headers=auth_headers,
+            json={"type": "infra"},
+        )
+        assert resp.status_code == 422

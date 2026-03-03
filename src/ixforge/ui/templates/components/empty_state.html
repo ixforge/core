@@ -1,0 +1,18 @@
+{# Empty state macro
+   Usage:
+   {% import "components/empty_state.html" as empty %}
+   {{ empty.empty_state("No hay miembros", "/admin/members/new", "Crear miembro") }}
+#}
+{% macro empty_state(message="No hay datos", action_url=None, action_label="Crear") %}
+<div class="text-center py-12">
+  <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25-2.25M12 13.875V7.5" />
+  </svg>
+  <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ message }}</h3>
+  {% if action_url %}
+  <div class="mt-4">
+    <a href="{{ action_url }}" class="btn-primary btn-sm">{{ action_label }}</a>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
