@@ -1,0 +1,110 @@
+{% extends "layouts/base.html" %}
+{% set is_edit = member is not none and member.id is defined %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
+    {% if errors is mapping and errors.detail %}
+      {% for err in errors.detail %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% elif errors is iterable and errors is not string %}
+      {% for err in errors %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ '/admin/members/new' if not is_edit else '/admin/members/' ~ member.id ~ '/edit' }}">
+    {# Nombre #}
+    <div class="mb-4">
+      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
+      <input type="text"
+             id="name"
+             name="name"
+             value="{{ member.name if member else '' }}"
+             required
+             class="input-field w-full"
+             placeholder="Nombre de la organizacion">
+    </div>
+
+    {# Nombre corto #}
+    <div class="mb-4">
+      <label for="short_name" class="block text-sm font-medium mb-1">Nombre Corto</label>
+      <input type="text"
+             id="short_name"
+             name="short_name"
+             value="{{ member.short_name if member else '' }}"
+             required
+             class="input-field w-full"
+             placeholder="Abreviatura (ej: ACME)">
+    </div>
+
+    {# ASN - solo en creacion #}
+    {% if not is_edit %}
+    <div class="mb-4">
+      <label for="asn" class="block text-sm font-medium mb-1">ASN</label>
+      <input type="number"
+             id="asn"
+             name="asn"
+             value="{{ member.asn if member and member.asn else '' }}"
+             required
+             min="1"
+             class="input-field w-full"
+             placeholder="64512">
+    </div>
+    {% endif %}
+
+    {# Website #}
+    <div class="mb-4">
+      <label for="website" class="block text-sm font-medium mb-1">Website</label>
+      <input type="url"
+             id="website"
+             name="website"
+             value="{{ member.website if member and member.website else '' }}"
+             class="input-field w-full"
+             placeholder="https://ejemplo.com">
+    </div>
+
+    {# PeeringDB ID #}
+    <div class="mb-4">
+      <label for="peeringdb_id" class="block text-sm font-medium mb-1">PeeringDB ID</label>
+      <input type="number"
+             id="peeringdb_id"
+             name="peeringdb_id"
+             value="{{ member.peeringdb_id if member and member.peeringdb_id else '' }}"
+             class="input-field w-full"
+             placeholder="12345"
+             min="1">
+    </div>
+
+    {# Politica de peering #}
+    <div class="mb-6">
+      <label for="peering_policy" class="block text-sm font-medium mb-1">Politica de Peering</label>
+      <select id="peering_policy" name="peering_policy" class="input-field w-full">
+        {% set current_policy = member.peering_policy if member else 'open' %}
+        <option value="open" {% if current_policy == "open" %}selected{% endif %}>Open</option>
+        <option value="selective" {% if current_policy == "selective" %}selected{% endif %}>Selective</option>
+        <option value="restrictive" {% if current_policy == "restrictive" %}selected{% endif %}>Restrictive</option>
+        <option value="no" {% if current_policy == "no" %}selected{% endif %}>No</option>
+      </select>
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">
+        {{ "Guardar" if is_edit else "Crear" }}
+      </button>
+      <a href="/admin/members" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

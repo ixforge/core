@@ -1,0 +1,12 @@
+{# Cursor-based pagination - shows "Cargar mas" button when more items exist #}
+{% if has_more and next_cursor %}
+<div class="mt-4 text-center">
+  <button hx-get="{{ request.url.path }}?cursor={{ next_cursor }}"
+          hx-target="#table-body"
+          hx-swap="innerHTML"
+          hx-include="[name='state'], [name='search']"
+          class="btn-secondary btn-sm">
+    Cargar mas
+  </button>
+</div>
+{% endif %}

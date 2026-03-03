@@ -134,19 +134,19 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 | POST | `/ip-pools/{id}/assign` | Allocate IP (`{"connection_id": "...", "address": "..."}`, address optional) |
 | DELETE | `/ip-assignments/{id}` | Release IP |
 
-### Connections (admin only)
+### Connections
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/connections?member_id=` | List connections for member |
-| POST | `/connections` | Create connection |
-| GET | `/connections/{id}` | Get connection |
-| PATCH | `/connections/{id}` | Update connection |
-| POST | `/connections/{id}/transition` | Change state (`{"state": "active"}`) |
-| POST | `/connections/{id}/vlans` | Assign VLAN |
-| DELETE | `/connections/{id}/vlans/{vlan_id}` | Unassign VLAN |
-| POST | `/connections/{id}/ips` | Assign IP (`{"pool_id": "...", "address": "..."}`) |
-| DELETE | `/connections/{id}/ips/{assignment_id}` | Release IP |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/connections?member_id=` | JWT/Key | List connections (admin: all, member: own) |
+| POST | `/connections` | Admin | Create connection |
+| GET | `/connections/{id}` | JWT/Key | Get connection (admin: all, member: own) |
+| PATCH | `/connections/{id}` | Admin | Update connection |
+| POST | `/connections/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
+| POST | `/connections/{id}/vlans` | Admin | Assign VLAN |
+| DELETE | `/connections/{id}/vlans/{vlan_id}` | Admin | Unassign VLAN |
+| POST | `/connections/{id}/ips` | Admin | Assign IP (`{"pool_id": "...", "address": "..."}`) |
+| DELETE | `/connections/{id}/ips/{assignment_id}` | Admin | Release IP |
 
 States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
@@ -169,13 +169,13 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 | GET | `/route-servers/{id}/config/current` | Latest config version |
 | GET | `/route-servers/{id}/config/diff?from=&to=` | Unified diff between versions |
 
-### BGP Sessions (admin only)
+### BGP Sessions
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/bgp-sessions?route_server_id=` | List sessions |
-| GET | `/bgp-sessions/{id}` | Get session |
-| PATCH | `/bgp-sessions/{id}` | Update admin state (`{"admin_state": "up"}`) |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/bgp-sessions?route_server_id=` | JWT/Key | List sessions (admin: all, member: own) |
+| GET | `/bgp-sessions/{id}` | JWT/Key | Get session (admin: all, member: own) |
+| PATCH | `/bgp-sessions/{id}` | Admin | Update admin state (`{"admin_state": "up"}`) |
 
 ### Agent API (API Key with `agent:route_server` scope)
 

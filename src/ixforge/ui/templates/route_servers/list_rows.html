@@ -1,0 +1,25 @@
+{% for r in route_servers %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3">
+    <a href="/admin/route-servers/{{ r.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+      {{ r.name }}
+    </a>
+  </td>
+  <td class="py-3 text-sm">{{ r.hostname or "-" }}</td>
+  <td class="py-3 text-sm">AS{{ r.asn or "-" }}</td>
+  <td class="py-3 text-sm capitalize">{{ r.software or "-" }}</td>
+  <td class="py-3">
+    {% if r.is_active %}
+    <span class="badge badge-green">Activo</span>
+    {% else %}
+    <span class="badge badge-red">Inactivo</span>
+    {% endif %}
+  </td>
+  <td class="py-3">
+    <div class="flex gap-2">
+      <a href="/admin/route-servers/{{ r.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+      <a href="/admin/route-servers/{{ r.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+    </div>
+  </td>
+</tr>
+{% endfor %}

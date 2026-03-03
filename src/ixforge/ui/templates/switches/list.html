@@ -1,0 +1,53 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/switches/new" class="btn-primary">Nuevo Switch</a>
+</div>
+
+{# Filtros #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div>
+      <label for="is_active" class="block text-sm font-medium mb-1">Estado</label>
+      <select name="is_active"
+              id="is_active"
+              class="input-field"
+              hx-get="/admin/switches"
+              hx-target="#table-body"
+              hx-trigger="change">
+        <option value="" {% if filter_is_active == "" %}selected{% endif %}>Todos</option>
+        <option value="true" {% if filter_is_active == "true" %}selected{% endif %}>Activo</option>
+        <option value="false" {% if filter_is_active == "false" %}selected{% endif %}>Inactivo</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+{# Tabla #}
+{% if switches %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Nombre</th>
+          <th class="pb-3 font-medium">Hostname</th>
+          <th class="pb-3 font-medium">Management IP</th>
+          <th class="pb-3 font-medium">Vendor / Modelo</th>
+          <th class="pb-3 font-medium">Estado</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="table-body" class="divide-y dark:divide-gray-700">
+        {% include "switches/list_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay switches", "/admin/switches/new", "Crear switch") }}
+{% endif %}
+{% endblock %}

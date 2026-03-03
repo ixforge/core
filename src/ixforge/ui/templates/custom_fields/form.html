@@ -1,0 +1,107 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
+    {% if errors is mapping and errors.detail %}
+      {% for err in errors.detail %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% elif errors is iterable and errors is not string %}
+      {% for err in errors %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/admin/custom-fields/new">
+    {# Entity Type #}
+    <div class="mb-4">
+      <label for="entity_type" class="block text-sm font-medium mb-1">Tipo de Entidad</label>
+      <select id="entity_type" name="entity_type" required class="input-field w-full">
+        {% set current_et = field.entity_type if field else '' %}
+        <option value="">Seleccionar...</option>
+        <option value="member" {% if current_et == "member" %}selected{% endif %}>Member</option>
+        <option value="connection" {% if current_et == "connection" %}selected{% endif %}>Connection</option>
+        <option value="switch" {% if current_et == "switch" %}selected{% endif %}>Switch</option>
+        <option value="port" {% if current_et == "port" %}selected{% endif %}>Port</option>
+        <option value="vlan" {% if current_et == "vlan" %}selected{% endif %}>VLAN</option>
+        <option value="ip_pool" {% if current_et == "ip_pool" %}selected{% endif %}>IP Pool</option>
+      </select>
+    </div>
+
+    {# Field Name #}
+    <div class="mb-4">
+      <label for="field_name" class="block text-sm font-medium mb-1">Nombre del Campo</label>
+      <input type="text" id="field_name" name="field_name"
+             value="{{ field.field_name if field else '' }}"
+             required class="input-field w-full"
+             placeholder="circuito_id">
+    </div>
+
+    {# Field Type #}
+    <div class="mb-4">
+      <label for="field_type" class="block text-sm font-medium mb-1">Tipo de Dato</label>
+      <select id="field_type" name="field_type" class="input-field w-full">
+        {% set current_ft = field.field_type if field else 'string' %}
+        <option value="string" {% if current_ft == "string" %}selected{% endif %}>String</option>
+        <option value="integer" {% if current_ft == "integer" %}selected{% endif %}>Integer</option>
+        <option value="boolean" {% if current_ft == "boolean" %}selected{% endif %}>Boolean</option>
+        <option value="url" {% if current_ft == "url" %}selected{% endif %}>URL</option>
+        <option value="date" {% if current_ft == "date" %}selected{% endif %}>Date</option>
+      </select>
+    </div>
+
+    {# Default Value #}
+    <div class="mb-4">
+      <label for="default_value" class="block text-sm font-medium mb-1">Valor por Defecto</label>
+      <input type="text" id="default_value" name="default_value"
+             value="{{ field.default_value if field and field.default_value else '' }}"
+             class="input-field w-full"
+             placeholder="Opcional">
+    </div>
+
+    {# Display Order #}
+    <div class="mb-4">
+      <label for="display_order" class="block text-sm font-medium mb-1">Orden de Display</label>
+      <input type="number" id="display_order" name="display_order"
+             value="{{ field.display_order if field and field.display_order is defined else '' }}"
+             class="input-field w-full" min="0"
+             placeholder="0">
+    </div>
+
+    {# Description #}
+    <div class="mb-4">
+      <label for="description" class="block text-sm font-medium mb-1">Descripcion</label>
+      <input type="text" id="description" name="description"
+             value="{{ field.description if field and field.description else '' }}"
+             class="input-field w-full"
+             placeholder="Descripcion del campo">
+    </div>
+
+    {# Is Required #}
+    <div class="mb-6">
+      <label class="flex items-center gap-3">
+        <input type="checkbox" name="is_required" value="on"
+               {% if field and field.is_required %}checked{% endif %}
+               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+        <span class="text-sm font-medium">Requerido</span>
+      </label>
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">Crear</button>
+      <a href="/admin/custom-fields" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

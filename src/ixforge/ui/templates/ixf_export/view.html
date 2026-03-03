@@ -1,0 +1,38 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+    Exportacion en formato <a href="https://www.ix-f.net/ixp/ixp-member-export" target="_blank" class="text-indigo-600 dark:text-indigo-400 hover:underline">IX-F Member Export Schema</a>
+  </p>
+</div>
+
+{# Actions #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4 items-start">
+    <a href="{{ api_url }}" target="_blank" class="btn-primary">Descargar JSON</a>
+    <div class="flex-1">
+      <label class="block text-sm font-medium mb-1">URL Publica</label>
+      <div class="flex gap-2">
+        <input type="text" readonly value="{{ api_url }}"
+               class="input-field flex-1 text-sm" id="api-url">
+        <button type="button" class="btn-secondary btn-sm"
+                onclick="navigator.clipboard.writeText(document.getElementById('api-url').value)">
+          Copiar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Preview #}
+<div class="card">
+  <h2 class="text-lg font-semibold mb-4">Preview</h2>
+  {% if ixf_json %}
+  <pre class="text-sm font-mono overflow-x-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-lg max-h-96 overflow-y-auto">{{ ixf_json }}</pre>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-8">No se pudo obtener los datos de exportacion</p>
+  {% endif %}
+</div>
+{% endblock %}

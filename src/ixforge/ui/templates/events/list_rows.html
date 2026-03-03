@@ -1,0 +1,38 @@
+{% for e in events %}
+<div class="flex items-start gap-3 py-3">
+  <div class="flex-shrink-0 mt-1">
+    <span class="inline-block w-2.5 h-2.5 rounded-full
+      {% if e.event_type is defined and 'create' in (e.event_type or '') %}bg-green-500
+      {% elif e.event_type is defined and 'delete' in (e.event_type or '') %}bg-red-500
+      {% elif e.event_type is defined and 'update' in (e.event_type or '') %}bg-blue-500
+      {% else %}bg-gray-400{% endif %}"></span>
+  </div>
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="badge badge-gray text-xs">{{ e.resource_type or "-" }}</span>
+      <span class="font-medium text-sm">{{ e.event_type or e.type or "-" }}</span>
+    </div>
+    <p class="text-xs text-gray-400 dark:text-gray-500">
+      {{ e.created_at[:16] if e.created_at else "-" }}
+      {% if e.actor_email %} &middot; {{ e.actor_email }}{% endif %}
+      {% if e.resource_id %}
+        &middot;
+        {% set rt = e.resource_type or "" %}
+        {% if rt == "member" %}<a href="/admin/members/{{ e.resource_id }}" class="text-indigo-500 hover:underline text-xs">ver recurso</a>
+        {% elif rt == "connection" %}<a href="/admin/connections/{{ e.resource_id }}" class="text-indigo-500 hover:underline text-xs">ver recurso</a>
+        {% elif rt == "user" %}<a href="/admin/users/{{ e.resource_id }}" class="text-indigo-500 hover:underline text-xs">ver recurso</a>
+        {% elif rt == "bgp_session" %}<a href="/admin/bgp-sessions/{{ e.resource_id }}" class="text-indigo-500 hover:underline text-xs">ver recurso</a>
+        {% elif rt == "route_server" %}<a href="/admin/route-servers/{{ e.resource_id }}" class="text-indigo-500 hover:underline text-xs">ver recurso</a>
+        {% else %}<span class="text-xs text-gray-400">{{ rt }}#{{ e.resource_id[:8] }}</span>
+        {% endif %}
+      {% endif %}
+    </p>
+    {% if e.data %}
+    <details class="mt-1">
+      <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-600">Datos</summary>
+      <pre class="text-xs bg-gray-50 dark:bg-gray-700/50 rounded p-2 mt-1 overflow-x-auto">{{ e.data | tojson(indent=2) }}</pre>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}

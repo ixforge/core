@@ -150,7 +150,6 @@ class IPPoolFactory(_NoDBFactory):
     ixp_id = factory.LazyFunction(uuid.uuid4)
     vlan_id = factory.LazyFunction(uuid.uuid4)
     network = "192.0.2.0/24"
-    gateway = "192.0.2.1"
     af = 4
 
 

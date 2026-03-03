@@ -50,6 +50,7 @@ uv run mypy src/
 
 ```
 ixforge run              Iniciar servidor API
+ixforge ui               Iniciar portal admin (puerto 8001)
 ixforge worker           Iniciar workers de tareas en background
 ixforge upgrade          Ejecutar migraciones de base de datos
 ixforge createsuperuser  Crear usuario administrador

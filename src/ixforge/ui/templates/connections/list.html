@@ -1,0 +1,105 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/connections/new" class="btn-primary">Nueva Conexion</a>
+</div>
+
+{# Filtros #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div class="flex-1">
+      <label for="member_id" class="block text-sm font-medium mb-1">Miembro</label>
+      <select name="member_id"
+              id="member_id"
+              class="input-field w-full"
+              hx-get="/admin/connections"
+              hx-target="#connections-content"
+              hx-trigger="change"
+              hx-include="[name='state']"
+              hx-select="#connections-content"
+              hx-swap="outerHTML">
+        <option value="">Todos los miembros</option>
+        {% for m in members %}
+        <option value="{{ m.id }}" {% if filter_member_id == m.id %}selected{% endif %}>{{ m.name }} (AS{{ m.asn }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="state" class="block text-sm font-medium mb-1">Estado</label>
+      <select name="state"
+              id="state"
+              class="input-field"
+              hx-get="/admin/connections"
+              hx-target="#connections-content"
+              hx-trigger="change"
+              hx-include="[name='member_id']"
+              hx-select="#connections-content"
+              hx-swap="outerHTML">
+        <option value="">Todos los estados</option>
+        <option value="draft" {% if filter_state == "draft" %}selected{% endif %}>Borrador</option>
+        <option value="provisioning" {% if filter_state == "provisioning" %}selected{% endif %}>Provisioning</option>
+        <option value="active" {% if filter_state == "active" %}selected{% endif %}>Activo</option>
+        <option value="disabled" {% if filter_state == "disabled" %}selected{% endif %}>Deshabilitado</option>
+        <option value="decommissioned" {% if filter_state == "decommissioned" %}selected{% endif %}>Decomisionado</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+{# Tabla #}
+<div id="connections-content">
+{% if connections %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Miembro</th>
+          <th class="pb-3 font-medium">Puerto</th>
+          <th class="pb-3 font-medium">Tipo</th>
+          <th class="pb-3 font-medium">Estado</th>
+          <th class="pb-3 font-medium">Velocidad</th>
+          <th class="pb-3 font-medium">MAC</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for c in connections %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3">
+            <a href="/admin/members/{{ c.member_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+              {{ c.member_name or "-" }}
+            </a>
+          </td>
+          <td class="py-3">{{ c.port_name or "-" }}</td>
+          <td class="py-3 capitalize">{{ c.type or "-" }}</td>
+          <td class="py-3">
+            {% if c.state == "active" %}<span class="badge badge-green">Activo</span>
+            {% elif c.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+            {% elif c.state == "draft" %}<span class="badge badge-blue">Borrador</span>
+            {% elif c.state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
+            {% elif c.state == "decommissioned" %}<span class="badge badge-gray">Decomisionado</span>
+            {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
+          </td>
+          <td class="py-3">{{ c.speed or "-" }}</td>
+          <td class="py-3"><code class="text-sm">{{ c.mac_address or "-" }}</code></td>
+          <td class="py-3">
+            <div class="flex gap-2">
+              <a href="/admin/connections/{{ c.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+              <a href="/admin/connections/{{ c.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay conexiones", "/admin/connections/new", "Crear conexion") }}
+{% endif %}
+</div>
+{% endblock %}

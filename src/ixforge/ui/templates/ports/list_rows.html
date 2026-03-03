@@ -1,0 +1,56 @@
+{% for p in ports %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3 font-medium">{{ p.name }}</td>
+  <td class="py-3 text-sm">{{ p.speed }} Mbps</td>
+  <td class="py-3">
+    {% if p.type == "member" %}
+    <span class="badge badge-blue">member</span>
+    {% elif p.type == "infra" %}
+    <span class="badge badge-yellow">infra</span>
+    {% else %}
+    <span class="badge badge-gray">unused</span>
+    {% endif %}
+  </td>
+  <td class="py-3 text-sm">
+    {% if member_map is defined and p.member_id %}
+      {{ member_map.get(p.member_id, {}).get("name", "-") }}
+    {% else %}
+      {{ p.member_id or "-" }}
+    {% endif %}
+  </td>
+  <td class="py-3">
+    {% if p.is_active %}
+    <span class="badge badge-green">Activo</span>
+    {% else %}
+    <span class="badge badge-red">Inactivo</span>
+    {% endif %}
+  </td>
+  <td class="py-3">
+    <div class="flex flex-wrap gap-2 items-center">
+      <a href="/admin/ports/{{ p.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+      <button type="button"
+              class="text-sm text-red-600 dark:text-red-400 hover:underline"
+              @click="confirmId = {{ p.id|tojson }}; confirmName = {{ p.name|tojson }}">
+        Eliminar
+      </button>
+      {% if p.member_id %}
+      <form method="post" action="/admin/ports/{{ p.id }}/release">
+        <input type="hidden" name="switch_id" value="{{ filter_switch_id }}">
+        <button type="submit" class="text-sm text-orange-600 dark:text-orange-400 hover:underline">Liberar</button>
+      </form>
+      {% else %}
+      <form method="post" action="/admin/ports/{{ p.id }}/assign" class="flex gap-1 items-center">
+        <input type="hidden" name="switch_id" value="{{ filter_switch_id }}">
+        <select name="member_id" class="input-field text-sm py-0.5 px-2 h-7" required>
+          <option value="">Asignar...</option>
+          {% for m in members %}
+          <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Asignar</button>
+      </form>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endfor %}

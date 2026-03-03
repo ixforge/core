@@ -3,7 +3,7 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -19,16 +19,25 @@ from ixforge.schemas.auth import (
     UserRead,
     UserUpdate,
 )
+from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.services.auth import generate_api_key, hash_password
+from ixforge.services.base import paginate
 
 users_router = APIRouter(prefix="/users", tags=["users"])
 
 
-@users_router.get("", response_model=list[UserRead])
-async def list_users(db: DBSession, _admin: AdminUser) -> list[User]:
-    stmt = select(User).order_by(User.created_at.desc())
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+@users_router.get("", response_model=CursorPage[UserRead])
+async def list_users(
+    db: DBSession,
+    _admin: AdminUser,
+    cursor: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+) -> CursorPage[UserRead]:
+    stmt = select(User)
+    return await paginate(
+        db, stmt, CursorParams(cursor=cursor, limit=limit),
+        User.created_at, User.id, UserRead,
+    )
 
 
 @users_router.post("", response_model=UserRead, status_code=201)
@@ -105,12 +114,20 @@ async def create_api_key(
     }
 
 
-@users_router.get("/{user_id}/api-keys", response_model=list[APIKeyRead])
-async def list_api_keys(user_id: uuid.UUID, db: DBSession, _admin: AdminUser) -> list[APIKey]:
+@users_router.get("/{user_id}/api-keys", response_model=CursorPage[APIKeyRead])
+async def list_api_keys(
+    user_id: uuid.UUID,
+    db: DBSession,
+    _admin: AdminUser,
+    cursor: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+) -> CursorPage[APIKeyRead]:
     user = await db.get(User, user_id)
     if user is None:
         raise NotFoundError("User", str(user_id))
 
-    stmt = select(APIKey).where(APIKey.user_id == user_id).order_by(APIKey.created_at.desc())
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    stmt = select(APIKey).where(APIKey.user_id == user_id)
+    return await paginate(
+        db, stmt, CursorParams(cursor=cursor, limit=limit),
+        APIKey.created_at, APIKey.id, APIKeyRead,
+    )

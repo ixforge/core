@@ -1,0 +1,23 @@
+{% for m in members %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3">
+    <a href="/admin/members/{{ m.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ m.name }}</a>
+  </td>
+  <td class="py-3">AS{{ m.asn }}</td>
+  <td class="py-3 capitalize">{{ m.peering_policy }}</td>
+  <td class="py-3">
+    {% if m.state == "active" %}<span class="badge badge-green">Activo</span>
+    {% elif m.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+    {% elif m.state == "prospect" %}<span class="badge badge-blue">Prospecto</span>
+    {% elif m.state == "suspended" %}<span class="badge badge-red">Suspendido</span>
+    {% elif m.state == "terminated" %}<span class="badge badge-gray">Terminado</span>
+    {% else %}<span class="badge badge-gray">{{ m.state }}</span>{% endif %}
+  </td>
+  <td class="py-3">
+    <div class="flex gap-2">
+      <a href="/admin/members/{{ m.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+      <a href="/admin/members/{{ m.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+    </div>
+  </td>
+</tr>
+{% endfor %}
