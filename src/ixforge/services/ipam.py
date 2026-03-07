@@ -124,7 +124,7 @@ def _reserved_addresses(
 ) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     """Return the set of addresses that cannot be assigned (network, broadcast)."""
     reserved: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
-    # IPv4: reservar network y broadcast solo para prefijos menores a /31
+    # IPv4: reserve network and broadcast for prefixes shorter than /31
     # /31 (RFC 3021): ambas IPs son usables
     # /32: single host
     if isinstance(network, ipaddress.IPv4Network) and network.prefixlen < 31:

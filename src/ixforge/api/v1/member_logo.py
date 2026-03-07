@@ -49,7 +49,7 @@ async def upload_logo(
             f"Unsupported file type: {file.content_type}. Allowed: {', '.join(sorted(_ALLOWED_MIME))}"
         )
 
-    content = await file.read()
+    content = await file.read(_MAX_SIZE + 1)
     if len(content) > _MAX_SIZE:
         raise ValidationError("File exceeds 2MB limit")
 
