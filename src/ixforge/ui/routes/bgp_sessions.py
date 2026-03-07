@@ -8,7 +8,7 @@ from starlette.responses import RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -39,9 +39,7 @@ async def bgp_session_list(request: Request) -> Response:
             pass
 
     is_htmx = request.headers.get("hx-request") == "true"
-    template = "bgp_sessions/list.html"
-    if is_htmx:
-        template = "bgp_sessions/list.html"
+    template = "bgp_sessions/list_rows.html" if is_htmx else "bgp_sessions/list.html"
 
     return render(request, template, {
         "sessions": sessions,
@@ -111,6 +109,6 @@ async def bgp_session_toggle(request: Request) -> Response:
         )
         add_flash(request, f"Admin state cambiado a {new_state}", "success")
     except APIError as e:
-        add_flash(request, f"Error cambiando admin state: {e.detail}", "error")
+        add_flash(request, f"Error cambiando admin state: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/bgp-sessions/{session_id}", status_code=302)

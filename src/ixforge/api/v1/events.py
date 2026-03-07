@@ -31,7 +31,7 @@ async def list_events(
     """
     params = CursorParams(cursor=cursor, limit=limit)
 
-    # Member users can only see events on their own member resource.
+    # Member users can only see events on their own member resource
     effective_resource_type = resource_type
     effective_resource_id = resource_id
 

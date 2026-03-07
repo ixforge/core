@@ -18,6 +18,24 @@
   </div>
 </div>
 
+{# Logo #}
+<div class="card mb-6 max-w-sm">
+  <h2 class="text-lg font-semibold mb-3">Logo</h2>
+  {% if member.logo_url %}
+  <img src="{{ member.logo_url }}" alt="Logo {{ member.name }}" class="w-32 h-32 object-contain mb-3 rounded">
+  <form method="post" action="/admin/members/{{ member.id }}/logo/delete" class="mb-3">
+    <button type="submit" class="btn-secondary text-sm">Eliminar logo</button>
+  </form>
+  {% else %}
+  <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Sin logo</p>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" action="/admin/members/{{ member.id }}/logo">
+    <label class="block text-sm font-medium mb-1">Subir logo (JPG, PNG, WebP, máx 2MB)</label>
+    <input type="file" name="file" accept="image/jpeg,image/png,image/webp" class="block text-sm mb-2">
+    <button type="submit" class="btn-primary text-sm">Subir</button>
+  </form>
+</div>
+
 {# Info card #}
 <div class="card mb-6">
   <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
@@ -28,7 +46,11 @@
     </div>
     <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">ASN</p>
-      <p class="font-medium">AS{{ member.asn }}</p>
+      <p class="font-medium">
+        <span hx-get="/admin/members/{{ member.id }}/asn-name"
+              hx-trigger="load"
+              hx-swap="outerHTML">AS{{ member.asn }}</span>
+      </p>
     </div>
     <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">Politica de Peering</p>
@@ -50,7 +72,58 @@
       <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
       <p class="font-medium">{{ member.created_at[:10] if member.created_at else "-" }}</p>
     </div>
+    {% if member.member_type %}
+    <div>
+      <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo</p>
+      <p>{{ member.member_type }}</p>
+    </div>
+    {% endif %}
+    {% if member.city or member.country %}
+    <div>
+      <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ubicacion</p>
+      <p>{{ [member.city, member.country] | select | join(", ") }}</p>
+    </div>
+    {% endif %}
   </div>
+  {% if member.description %}
+  <div class="mt-4">
+    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Descripcion</p>
+    <p class="mt-1">{{ member.description }}</p>
+  </div>
+  {% endif %}
+</div>
+
+{# Contrato #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Contrato</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Fecha de conexion</p>
+      <p class="font-medium">{{ member.connection_date or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Inicio contrato</p>
+      <p class="font-medium">{{ member.contract_start or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Renovacion contrato</p>
+      <p class="font-medium">{{ member.contract_renewal or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Tipo de contrato</p>
+      <p class="font-medium capitalize">{{ member.contract_type or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Excluir de IXF</p>
+      <p class="font-medium">{{ "Si" if member.skip_ixf_export else "No" }}</p>
+    </div>
+  </div>
+  {% if member.notes %}
+  <div class="mt-4">
+    <p class="text-sm text-gray-500 dark:text-gray-400">Notas</p>
+    <p class="font-medium mt-1 whitespace-pre-line">{{ member.notes }}</p>
+  </div>
+  {% endif %}
 </div>
 
 {# State transitions #}
@@ -117,6 +190,17 @@
     </div>
   </div>
 </div>
+
+{% if member.state == "terminated" %}
+<div class="card mb-6 border border-red-200 dark:border-red-800">
+  <h2 class="text-lg font-semibold mb-2 text-red-700 dark:text-red-400">Zona de peligro</h2>
+  <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Esta accion es permanente e irreversible.</p>
+  <form method="post" action="/admin/members/{{ member.id }}/delete"
+        onsubmit="return confirm('¿Eliminar permanentemente este miembro?')">
+    <button type="submit" class="btn-danger text-sm">Eliminar miembro</button>
+  </form>
+</div>
+{% endif %}
 
 {# Contacts #}
 <div class="card mb-6" x-data="{ showForm: false, editId: null }">

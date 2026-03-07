@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.switch import Switch
 from ixforge.models.user import User
 
@@ -128,6 +129,58 @@ class TestSwitchCRUD:
         resp = await client.get(f"/api/v1/switches/{sw.id}", headers=auth_headers)
         assert resp.status_code == 404
 
+    async def test_create_switch_with_location(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        loc = Location(ixp_id=ixp.id, name="DC-sw-loc")
+        db_session.add(loc)
+        await db_session.flush()
+
+        resp = await client.post(
+            "/api/v1/switches",
+            headers=auth_headers,
+            json={
+                "name": "sw-loc-01",
+                "hostname": "sw-loc-01.ixp.example.net",
+                "location_id": str(loc.id),
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["location_id"] == str(loc.id)
+
+    async def test_update_switch_location(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        loc = Location(ixp_id=ixp.id, name="DC-sw-upd")
+        db_session.add(loc)
+        await db_session.flush()
+
+        sw = Switch(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="sw-loc-upd",
+            hostname="sw-loc-upd.example.net",
+            is_active=True,
+        )
+        db_session.add(sw)
+        await db_session.flush()
+
+        resp = await client.patch(
+            f"/api/v1/switches/{sw.id}",
+            headers=auth_headers,
+            json={"location_id": str(loc.id)},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["location_id"] == str(loc.id)
+
     async def test_member_cannot_access_switches(
         self,
         client: AsyncClient,
@@ -137,3 +190,42 @@ class TestSwitchCRUD:
     ):
         resp = await client.get("/api/v1/switches", headers=member_auth_headers)
         assert resp.status_code == 403
+
+
+class TestSwitchSNMP:
+    async def test_update_switch_clear_snmp_community(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        # Create switch with SNMP community
+        resp = await client.post(
+            "/api/v1/switches",
+            headers=auth_headers,
+            json={
+                "name": "sw-snmp-clear",
+                "hostname": "sw-snmp-clear.example.net",
+                "snmp_community": "public",
+            },
+        )
+        assert resp.status_code == 201
+        switch_id = resp.json()["id"]
+
+        # Verify the switch was created (snmp_community is not in SwitchRead)
+        sw = await db_session.get(Switch, uuid.UUID(switch_id))
+        assert sw is not None
+        assert sw.snmp_community_encrypted is not None
+
+        # Clear SNMP community by sending null
+        resp = await client.patch(
+            f"/api/v1/switches/{switch_id}",
+            headers=auth_headers,
+            json={"snmp_community": None},
+        )
+        assert resp.status_code == 200
+
+        # Verify it was cleared
+        await db_session.refresh(sw)
+        assert sw.snmp_community_encrypted is None

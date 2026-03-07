@@ -23,6 +23,9 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8)
     full_name: str = Field(min_length=1, max_length=255)
     role: UserRole = UserRole.member
+    phone: str | None = Field(default=None, max_length=50)
+    position: str | None = Field(default=None, max_length=255)
+    pgp_key: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -30,6 +33,9 @@ class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=255)
     is_active: bool | None = None
     role: UserRole | None = None
+    phone: str | None = Field(default=None, max_length=50)
+    position: str | None = Field(default=None, max_length=255)
+    pgp_key: str | None = None
 
 
 class UserRead(BaseModel):
@@ -39,6 +45,9 @@ class UserRead(BaseModel):
     role: UserRole
     member_id: uuid.UUID | None
     is_active: bool
+    phone: str | None
+    position: str | None
+    pgp_key: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

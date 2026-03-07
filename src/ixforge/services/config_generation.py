@@ -46,6 +46,15 @@ class RouteServerContext:
     router_id: str
 
 
+@dataclass(frozen=True)
+class DiffResult:
+    """Result of comparing two config versions"""
+
+    diff: str
+    from_hash: str
+    to_hash: str
+
+
 def _sanitize_protocol_name(name: str, peer_ip: str) -> str:
     """Build a valid BIRD protocol name from member name and peer IP.
 
@@ -229,14 +238,19 @@ async def get_diff(
     session: AsyncSession,
     version_a_id: uuid.UUID,
     version_b_id: uuid.UUID,
-) -> str:
+    route_server_id: uuid.UUID | None = None,
+) -> DiffResult:
     """Return a unified diff between two config versions."""
     version_a = await session.get(ConfigVersion, version_a_id)
     if version_a is None:
         raise NotFoundError("ConfigVersion", str(version_a_id))
+    if route_server_id is not None and version_a.route_server_id != route_server_id:
+        raise NotFoundError("ConfigVersion", str(version_a_id))
 
     version_b = await session.get(ConfigVersion, version_b_id)
     if version_b is None:
+        raise NotFoundError("ConfigVersion", str(version_b_id))
+    if route_server_id is not None and version_b.route_server_id != route_server_id:
         raise NotFoundError("ConfigVersion", str(version_b_id))
 
     diff_lines = difflib.unified_diff(
@@ -245,4 +259,8 @@ async def get_diff(
         fromfile=f"config @ {version_a.generated_at.isoformat()}",
         tofile=f"config @ {version_b.generated_at.isoformat()}",
     )
-    return "".join(diff_lines)
+    return DiffResult(
+        diff="".join(diff_lines),
+        from_hash=version_a.config_hash,
+        to_hash=version_b.config_hash,
+    )

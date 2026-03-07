@@ -41,9 +41,9 @@ class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Ba
         comment="Speed in Mbps",
     )
 
-    # Relationships for eager loading display names
-    member: Mapped["Member"] = relationship(lazy="raise")  # type: ignore[name-defined]
-    port: Mapped["Port | None"] = relationship(lazy="raise")  # type: ignore[name-defined]
+    # Relationships for eager loading display names — forward refs resolved by SQLAlchemy
+    member: Mapped["Member"] = relationship(lazy="raise")  # type: ignore[name-defined]  # noqa: F821
+    port: Mapped["Port | None"] = relationship(lazy="raise")  # type: ignore[name-defined]  # noqa: F821
 
 
 class ConnectionVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):

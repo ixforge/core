@@ -3,7 +3,16 @@
   <td class="py-3">
     <a href="/admin/members/{{ m.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ m.name }}</a>
   </td>
-  <td class="py-3">AS{{ m.asn }}</td>
+  <td class="py-3">
+    <span hx-get="/admin/members/{{ m.id }}/asn-name"
+          hx-trigger="load"
+          hx-swap="outerHTML">AS{{ m.asn }}</span>
+  </td>
+  <td class="py-3">
+    {% if m.member_type %}
+      <span class="badge badge-blue capitalize">{{ m.member_type }}</span>
+    {% else %}-{% endif %}
+  </td>
   <td class="py-3 capitalize">{{ m.peering_policy }}</td>
   <td class="py-3">
     {% if m.state == "active" %}<span class="badge badge-green">Activo</span>

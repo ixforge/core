@@ -4,7 +4,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class IXPUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    website: str | None = None
+    country: str | None = Field(default=None, min_length=2, max_length=2)
+    city: str | None = None
+    peeringdb_id: int | None = None
 
 
 class IXPRead(BaseModel):

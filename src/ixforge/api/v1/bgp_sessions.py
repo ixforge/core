@@ -1,17 +1,17 @@
-"""BGP session endpoints: list, detail, admin state update."""
+"""BGP session endpoints: CRUD, admin state update, delete."""
 
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 
-from ixforge.api.deps import AdminUser, CurrentUser, DBSession
+from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
 from ixforge.enums import BGPAdminState
 from ixforge.exceptions import ForbiddenError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
 from ixforge.models.user import UserRole
-from ixforge.schemas.bgp_session import BGPSessionRead
+from ixforge.schemas.bgp_session import BGPSessionCreate, BGPSessionRead
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.services import bgp_sessions as bgp_svc
 
@@ -22,9 +22,21 @@ class BGPAdminStateUpdate(BaseModel):
     admin_state: BGPAdminState
 
 
+@bgp_sessions_router.post("", response_model=BGPSessionRead, status_code=201)
+async def create_bgp_session(
+    body: BGPSessionCreate,
+    db: DBSession,
+    ixp_id: IXPId,
+    _admin: AdminUser,
+) -> BGPSession:
+    """Create a new BGP session."""
+    return await bgp_svc.create(db, ixp_id, body)
+
+
 @bgp_sessions_router.get("", response_model=CursorPage[BGPSessionRead])
 async def list_bgp_sessions(
     db: DBSession,
+    _ixp_id: IXPId,
     user: CurrentUser,
     route_server_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
@@ -45,10 +57,11 @@ async def list_bgp_sessions(
 async def get_bgp_session(
     session_id: uuid.UUID,
     db: DBSession,
+    ixp_id: IXPId,
     user: CurrentUser,
 ) -> BGPSession:
     """Get BGP session details."""
-    bgp_session = await bgp_svc.get(db, session_id)
+    bgp_session = await bgp_svc.get(db, ixp_id, session_id)
 
     if user.role == UserRole.member:
         if user.member_id is None:
@@ -65,7 +78,20 @@ async def update_bgp_session(
     session_id: uuid.UUID,
     body: BGPAdminStateUpdate,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> BGPSession:
     """Update BGP session admin state (up/down)."""
-    return await bgp_svc.update_admin_state(db, session_id, body.admin_state.value)
+    return await bgp_svc.update_admin_state(db, ixp_id, session_id, body.admin_state.value)
+
+
+@bgp_sessions_router.delete("/{session_id}", status_code=204)
+async def delete_bgp_session(
+    session_id: uuid.UUID,
+    db: DBSession,
+    ixp_id: IXPId,
+    _admin: AdminUser,
+) -> Response:
+    """Delete a BGP session."""
+    await bgp_svc.delete(db, ixp_id, session_id)
+    return Response(status_code=204)

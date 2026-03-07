@@ -27,6 +27,7 @@ FAKE_CONFIG_VERSION = {
 def app():
     app = create_ui_app()
     app.state.api.login = AsyncMock(return_value="test-jwt")
+    app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "admin", "member_id": None})
     return app
 
 

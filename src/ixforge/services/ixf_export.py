@@ -132,10 +132,14 @@ async def _get_vlans(session: AsyncSession, ixp_id: uuid.UUID) -> list[VLAN]:
 
 
 async def _get_active_members(session: AsyncSession, ixp_id: uuid.UUID) -> list[Member]:
-    """Fetch active members for an IXP."""
+    """Fetch active members for an IXP, excluding those flagged to skip IXF export."""
     stmt = (
         select(Member)
-        .where(Member.ixp_id == ixp_id, Member.state == MemberState.active)
+        .where(
+            Member.ixp_id == ixp_id,
+            Member.state == MemberState.active,
+            Member.skip_ixf_export == False,  # noqa: E712
+        )
         .order_by(Member.asn)
     )
     result = await session.execute(stmt)

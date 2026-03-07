@@ -31,6 +31,7 @@ async def list_contacts(
     member_id: uuid.UUID,
     db: DBSession,
     user: CurrentUser,
+    _ixp_id: IXPId,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ContactRead]:
@@ -63,11 +64,12 @@ async def update_contact(
     body: ContactUpdate,
     db: DBSession,
     user: CurrentUser,
+    ixp_id: IXPId,
 ) -> Contact:
     """Update a contact."""
-    contact = await contact_svc.get(db, contact_id)
+    contact = await contact_svc.get(db, ixp_id, contact_id)
     _check_member_access(user, contact.member_id)
-    return await contact_svc.update(db, contact_id, body)
+    return await contact_svc.update(db, ixp_id, contact_id, body)
 
 
 @contacts_router.delete("/contacts/{contact_id}", status_code=204)
@@ -75,9 +77,10 @@ async def delete_contact(
     contact_id: uuid.UUID,
     db: DBSession,
     user: CurrentUser,
+    ixp_id: IXPId,
 ) -> Response:
     """Delete a contact."""
-    contact = await contact_svc.get(db, contact_id)
+    contact = await contact_svc.get(db, ixp_id, contact_id)
     _check_member_access(user, contact.member_id)
-    await contact_svc.delete(db, contact_id)
+    await contact_svc.delete(db, ixp_id, contact_id)
     return Response(status_code=204)

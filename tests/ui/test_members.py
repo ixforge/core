@@ -30,6 +30,7 @@ FAKE_MEMBER = {
 def app():
     app = create_ui_app()
     app.state.api.login = AsyncMock(return_value="test-jwt")
+    app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "admin", "member_id": None})
     return app
 
 
@@ -119,6 +120,74 @@ class TestMemberForm:
         )
         assert resp.status_code == 302
         assert FAKE_MEMBER["id"] in resp.headers["location"]
+
+
+class TestAsnNameFragment:
+    def test_valid_asn_returns_name(self, authed_client, app):
+        app.state.api.get = AsyncMock(return_value={"asn": 64512, "name": "Acme Networks"})
+        resp = authed_client.get("/admin/asn-name?asn=64512")
+        assert resp.status_code == 200
+        assert "AS64512" in resp.text
+        assert "Acme Networks" in resp.text
+
+    def test_invalid_asn_returns_fallback(self, authed_client, app):
+        resp = authed_client.get("/admin/asn-name?asn=abc")
+        assert resp.status_code == 200
+        assert "ASabc" in resp.text
+
+    def test_empty_asn_returns_question_mark(self, authed_client, app):
+        resp = authed_client.get("/admin/asn-name?asn=")
+        assert resp.status_code == 200
+        assert "AS?" in resp.text
+
+    def test_xss_in_asn_is_escaped(self, authed_client, app):
+        resp = authed_client.get("/admin/asn-name?asn=<script>alert(1)</script>")
+        assert resp.status_code == 200
+        assert "<script>" not in resp.text
+        assert "&lt;script&gt;" in resp.text
+
+    def test_xss_in_api_name_is_escaped(self, authed_client, app):
+        app.state.api.get = AsyncMock(return_value={
+            "asn": 64512, "name": '<img src=x onerror="alert(1)">',
+        })
+        resp = authed_client.get("/admin/asn-name?asn=64512")
+        assert resp.status_code == 200
+        assert "<img" not in resp.text
+        assert "&lt;img" in resp.text
+
+    def test_api_error_returns_fallback(self, authed_client, app):
+        app.state.api.get = AsyncMock(side_effect=APIError(500))
+        resp = authed_client.get("/admin/asn-name?asn=64512")
+        assert resp.status_code == 200
+        assert "AS64512" in resp.text
+
+
+class TestMemberAsnName:
+    def test_returns_asn_name(self, authed_client, app):
+        member_id = FAKE_MEMBER["id"]
+        app.state.api.get = AsyncMock(return_value={"asn": 64512, "name": "Acme Networks"})
+        resp = authed_client.get(f"/admin/members/{member_id}/asn-name")
+        assert resp.status_code == 200
+        assert "AS64512" in resp.text
+        assert "Acme Networks" in resp.text
+
+    def test_api_error_returns_fallback(self, authed_client, app):
+        member_id = FAKE_MEMBER["id"]
+        app.state.api.get = AsyncMock(side_effect=APIError(404))
+        resp = authed_client.get(f"/admin/members/{member_id}/asn-name")
+        assert resp.status_code == 200
+        assert "AS?" in resp.text
+
+    def test_xss_in_api_response_is_escaped(self, authed_client, app):
+        member_id = FAKE_MEMBER["id"]
+        app.state.api.get = AsyncMock(return_value={
+            "asn": "<script>alert(1)</script>",
+            "name": '<img src=x onerror="alert(1)">',
+        })
+        resp = authed_client.get(f"/admin/members/{member_id}/asn-name")
+        assert resp.status_code == 200
+        assert "<script>" not in resp.text
+        assert "<img" not in resp.text
 
 
 class TestMemberTransition:

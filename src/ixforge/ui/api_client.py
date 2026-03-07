@@ -73,5 +73,14 @@ class APIClient:
         token: str = resp.json()["access_token"]
         return token
 
+    async def post_file(self, path: str, token: str, *, field: str, upload: Any) -> Any:
+        await upload.seek(0)
+        files = {field: (upload.filename, await upload.read(), upload.content_type)}
+        resp = await self._client.post(path, files=files, headers=self._headers(token))
+        self._check(resp)
+        if resp.status_code == 204:
+            return None
+        return resp.json()
+
     async def close(self) -> None:
         await self._client.aclose()

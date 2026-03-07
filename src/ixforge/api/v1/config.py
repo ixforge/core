@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
-from ixforge.api.deps import AdminUser, DBSession
+from ixforge.api.deps import AdminUser, DBSession, IXPId
 from ixforge.exceptions import NotFoundError
 from ixforge.models.config import ConfigVersion
 from ixforge.models.route_server import RouteServer
@@ -32,6 +32,7 @@ async def trigger_generation(
     route_server_id: uuid.UUID,
     db: DBSession,
     admin: AdminUser,
+    _ixp_id: IXPId,
 ) -> ConfigVersion:
     await _ensure_route_server_exists(db, route_server_id)
     return await generate_config(db, route_server_id, generated_by_id=admin.id)
@@ -42,6 +43,7 @@ async def list_config_history(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    _ixp_id: IXPId,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ConfigVersionRead]:
@@ -84,6 +86,7 @@ async def get_current_config(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    _ixp_id: IXPId,
 ) -> ConfigVersion:
     await _ensure_route_server_exists(db, route_server_id)
 
@@ -106,18 +109,16 @@ async def diff_config_versions(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    _ixp_id: IXPId,
     from_version: uuid.UUID = Query(alias="from"),
     to_version: uuid.UUID = Query(alias="to"),
 ) -> ConfigDiff:
     await _ensure_route_server_exists(db, route_server_id)
 
-    diff_text = await get_diff(db, from_version, to_version)
-
-    from_config = await db.get(ConfigVersion, from_version)
-    to_config = await db.get(ConfigVersion, to_version)
+    diff_result = await get_diff(db, from_version, to_version, route_server_id=route_server_id)
 
     return ConfigDiff(
-        current_hash=from_config.config_hash if from_config else None,
-        new_hash=to_config.config_hash if to_config else "",
-        diff=diff_text,
+        current_hash=diff_result.from_hash,
+        new_hash=diff_result.to_hash,
+        diff=diff_result.diff,
     )

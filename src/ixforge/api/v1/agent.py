@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.api.deps import DBSession
+from ixforge.database import tenant_context as _tenant_context
 from ixforge.enums import BGPOperState
 from ixforge.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from ixforge.metrics import bgp_sessions_active
@@ -69,7 +70,12 @@ async def _get_agent_key(
     x_api_key: Annotated[str | None, Header()] = None,
 ) -> APIKey:
     """FastAPI dependency: resolve and validate agent API key."""
-    return await _resolve_agent_api_key(db, route_server_id, x_api_key)
+    api_key = await _resolve_agent_api_key(db, route_server_id, x_api_key)
+    rs = await db.get(RouteServer, route_server_id)
+    if rs is None:
+        raise NotFoundError("RouteServer", str(route_server_id))
+    _tenant_context.set(rs.ixp_id)
+    return api_key
 
 
 AgentKey = Annotated[APIKey, Depends(_get_agent_key)]
@@ -141,17 +147,19 @@ async def report_agent_status(
     if rs is None:
         raise NotFoundError("RouteServer", str(route_server_id))
 
-    # Load all BGP sessions for this route server, keyed by peer_ip
+    # Load all BGP sessions for this route server, keyed by (peer_ip, af)
     stmt = select(BGPSession).where(BGPSession.route_server_id == route_server_id)
     result = await db.execute(stmt)
-    sessions_by_ip: dict[str, BGPSession] = {s.peer_ip: s for s in result.scalars().all()}
+    sessions_by_peer: dict[tuple[str, int], BGPSession] = {
+        (s.peer_ip, s.af): s for s in result.scalars().all()
+    }
 
     updated = 0
     unchanged = 0
     not_found = 0
 
     for report in body.sessions:
-        session = sessions_by_ip.get(report.peer_ip)
+        session = sessions_by_peer.get((report.peer_ip, report.af))
         if session is None:
             not_found += 1
             continue
@@ -203,8 +211,8 @@ async def report_agent_status(
             )
 
     # Update Prometheus gauge: count all sessions currently "up" for this RS
-    active_count = sum(1 for s in sessions_by_ip.values() if s.oper_state == BGPOperState.up)
-    bgp_sessions_active.set(active_count)
+    active_count = sum(1 for s in sessions_by_peer.values() if s.oper_state == BGPOperState.up)
+    bgp_sessions_active.labels(route_server_id=str(route_server_id)).set(active_count)
 
     await db.flush()
 

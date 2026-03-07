@@ -1,0 +1,45 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/locations/new" class="btn-primary">Nueva Location</a>
+</div>
+
+{% if locations %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Nombre</th>
+          <th class="pb-3 font-medium">Ciudad</th>
+          <th class="pb-3 font-medium">País</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for loc in locations %}
+        <tr>
+          <td class="py-3 font-medium">{{ loc.name }}</td>
+          <td class="py-3 text-gray-600 dark:text-gray-400">{{ loc.city or "—" }}</td>
+          <td class="py-3 text-gray-600 dark:text-gray-400">{{ loc.country or "—" }}</td>
+          <td class="py-3">
+            <div class="flex gap-2">
+              <a href="/admin/locations/{{ loc.id }}/edit" class="btn-secondary text-sm">Editar</a>
+              <form method="post" action="/admin/locations/{{ loc.id }}/delete" onsubmit="return confirm('Eliminar location?')">
+                <button type="submit" class="btn-secondary text-sm text-red-600 dark:text-red-400">Eliminar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay locations", "/admin/locations/new", "Crear location") }}
+{% endif %}
+{% endblock %}

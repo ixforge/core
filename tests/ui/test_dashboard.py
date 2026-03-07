@@ -11,17 +11,18 @@ from ixforge.ui.app import create_ui_app
 @pytest.fixture
 def app():
     app = create_ui_app()
-    # Mock all API calls the dashboard makes
-    app.state.api.get = AsyncMock(return_value={"items": [], "next_cursor": None, "has_more": False})
     app.state.api.login = AsyncMock(return_value="test-jwt")
+    app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "admin", "member_id": None})
     return app
 
 
 @pytest.fixture
 def authed_client(app):
-    """Client with an active session (logged in)."""
+    """Client with an active session (logged in as admin)."""
     client = TestClient(app, base_url="https://testserver")
     client.post("/login", data={"email": "a@b.com", "password": "p"}, follow_redirects=False)
+    # Reset api.get mock after login so dashboard can use its own mocks
+    app.state.api.get = AsyncMock(return_value={"items": [], "next_cursor": None, "has_more": False})
     return client
 
 
@@ -50,12 +51,10 @@ class TestDashboard:
         resp = authed_client.get("/admin")
         assert resp.status_code == 200
 
-    def test_dashboard_expired_token_redirects(self, app):
+    def test_dashboard_expired_token_redirects(self, authed_client, app):
         """If API returns 401, dashboard redirects to login."""
         from ixforge.ui.api_client import AuthenticationError
         app.state.api.get = AsyncMock(side_effect=AuthenticationError())
-        client = TestClient(app, base_url="https://testserver")
-        client.post("/login", data={"email": "a@b.com", "password": "p"}, follow_redirects=False)
-        resp = client.get("/admin", follow_redirects=False)
+        resp = authed_client.get("/admin", follow_redirects=False)
         assert resp.status_code == 302
         assert resp.headers["location"] == "/login"

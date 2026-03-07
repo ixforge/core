@@ -3,7 +3,7 @@
 import re
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -67,7 +67,7 @@ class ConnectionRead(BaseModel):
     @model_validator(mode="wrap")
     @classmethod
     def _populate_names(cls, values: Any, handler: Any) -> "ConnectionRead":
-        obj = handler(values)
+        obj = cast("ConnectionRead", handler(values))
         # Extract display names from loaded relationships (joinedload)
         # Gracefully skip if relationships are not loaded (lazy="raise")
         try:

@@ -20,6 +20,9 @@ from ixforge.models.member import Member
 from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
+from ixforge.enums import CustomFieldEntityType, CustomFieldType as CFType
+from ixforge.models.custom_field import CustomFieldDefinition
+from ixforge.schemas.member import MemberCreate, MemberUpdate
 
 # ---------------------------------------------------------------------------
 # CRUD
@@ -166,6 +169,104 @@ class TestMemberCRUD:
             },
         )
         assert resp.status_code == 409
+
+    async def test_create_member_country_uppercase(
+        self, client: AsyncClient, auth_headers: dict, ixp: IXP
+    ):
+        """Country should be auto-uppercased"""
+        resp = await client.post(
+            "/api/v1/members",
+            headers=auth_headers,
+            json={
+                "name": "Country Test Net",
+                "short_name": "CTN",
+                "asn": 64550,
+                "country": "ar",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["country"] == "AR"
+
+    async def test_create_member_country_invalid_rejected(self) -> None:
+        """Country with non-alpha characters should be rejected at schema level"""
+        import pytest
+
+        with pytest.raises(Exception):
+            MemberCreate(name="Bad", short_name="B", asn=1, country="1X")
+
+    async def test_update_member_country_uppercase(self) -> None:
+        """MemberUpdate country should also auto-uppercase"""
+        data = MemberUpdate(country="us")
+        assert data.country == "US"
+
+    async def test_create_member_required_custom_field_without_extra_data(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Creating a member without extra_data when a required custom field exists should fail"""
+        cf = CustomFieldDefinition(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            entity_type=CustomFieldEntityType.member,
+            field_name="contract_id",
+            field_type=CFType.string,
+            is_required=True,
+        )
+        db_session.add(cf)
+        await db_session.flush()
+
+        resp = await client.post(
+            "/api/v1/members",
+            headers=auth_headers,
+            json={
+                "name": "No Extra Data Net",
+                "short_name": "NEDN",
+                "asn": 64513,
+            },
+        )
+        assert resp.status_code == 422
+
+    async def test_update_member_extra_data_null_with_required_field(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Updating a member with extra_data=null when a required custom field exists should fail"""
+        member = Member(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Extra Data Net",
+            short_name="EDN",
+            asn=64514,
+            state=MemberState.prospect,
+            peering_policy=PeeringPolicy.open,
+            extra_data={"contract_id": "C-001"},
+        )
+        db_session.add(member)
+        await db_session.flush()
+
+        cf = CustomFieldDefinition(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            entity_type=CustomFieldEntityType.member,
+            field_name="contract_id",
+            field_type=CFType.string,
+            is_required=True,
+        )
+        db_session.add(cf)
+        await db_session.flush()
+
+        resp = await client.patch(
+            f"/api/v1/members/{member.id}",
+            headers=auth_headers,
+            json={"extra_data": None},
+        )
+        assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------

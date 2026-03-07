@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from starlette.responses import RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -128,6 +129,88 @@ async def vlan_delete(request: Request) -> Response:
         await api.delete(f"/api/v1/vlans/{vlan_id}", token)
         add_flash(request, "VLAN eliminada", "success")
     except APIError as e:
-        add_flash(request, f"Error eliminando VLAN: {e.detail}", "error")
+        add_flash(request, f"Error eliminando VLAN: {safe_detail(e)}", "error")
 
     return RedirectResponse("/admin/vlans", status_code=302)
+
+
+@require_auth
+async def vlan_detail(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    vlan_id = request.path_params["vlan_id"]
+
+    try:
+        vlan = await api.get(f"/api/v1/vlans/{vlan_id}", token)
+    except APIError as e:
+        if e.status_code == 404:
+            add_flash(request, "VLAN no encontrada", "error")
+            return RedirectResponse("/admin/vlans", status_code=302)
+        raise
+
+    vlan_members: list[Any] = []
+    all_members: list[Any] = []
+    if vlan.get("type") == "private":
+        with contextlib.suppress(APIError):
+            vm_data = await api.get(f"/api/v1/vlans/{vlan_id}/members", token, params={"limit": 200})
+            vlan_members = vm_data.get("items", [])
+        with contextlib.suppress(APIError):
+            m_data = await api.get("/api/v1/members", token, params={"limit": 200})
+            all_members = m_data.get("items", [])
+
+    associated_member_ids = {str(vm["member_id"]) for vm in vlan_members}
+    available_members = [m for m in all_members if m["id"] not in associated_member_ids]
+
+    member_map = {str(m["id"]): m for m in all_members}
+    vlan_members_enriched = [
+        {
+            **vm,
+            "member_name": member_map.get(str(vm["member_id"]), {}).get("name", str(vm["member_id"])),
+            "member_asn": member_map.get(str(vm["member_id"]), {}).get("asn", ""),
+        }
+        for vm in vlan_members
+    ]
+
+    return render(request, "vlans/detail.html", {
+        "vlan": vlan,
+        "vlan_members": vlan_members_enriched,
+        "available_members": available_members,
+        "page_title": vlan.get("name", "VLAN"),
+    })
+
+
+@require_auth
+async def vlan_member_add(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    vlan_id = request.path_params["vlan_id"]
+    form = await request.form()
+    member_id = str(form.get("member_id", "")).strip()
+
+    if not member_id:
+        add_flash(request, "Debe seleccionar un miembro", "error")
+        return RedirectResponse(f"/admin/vlans/{vlan_id}", status_code=302)
+
+    try:
+        await api.post(f"/api/v1/vlans/{vlan_id}/members", token, json={"member_id": member_id})
+        add_flash(request, "Miembro asociado a la VLAN", "success")
+    except APIError as e:
+        add_flash(request, f"Error asociando miembro: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/vlans/{vlan_id}", status_code=302)
+
+
+@require_auth
+async def vlan_member_remove(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    vlan_id = request.path_params["vlan_id"]
+    member_id = request.path_params["member_id"]
+
+    try:
+        await api.delete(f"/api/v1/vlans/{vlan_id}/members/{member_id}", token)
+        add_flash(request, "Miembro desasociado de la VLAN", "success")
+    except APIError as e:
+        add_flash(request, f"Error desasociando miembro: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/vlans/{vlan_id}", status_code=302)

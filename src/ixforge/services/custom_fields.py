@@ -43,17 +43,16 @@ async def create(
     try:
         await session.flush()
     except IntegrityError as exc:
-        await session.rollback()
         raise ConflictError(
             f"Custom field '{data.field_name}' already exists for entity type '{data.entity_type}'"
         ) from exc
     return definition
 
 
-async def get(session: AsyncSession, definition_id: uuid.UUID) -> CustomFieldDefinition:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, definition_id: uuid.UUID) -> CustomFieldDefinition:
     """Get a custom field definition by id or raise NotFoundError."""
     definition = await session.get(CustomFieldDefinition, definition_id)
-    if definition is None:
+    if definition is None or definition.ixp_id != ixp_id:
         raise NotFoundError("CustomFieldDefinition", str(definition_id))
     return definition
 
@@ -81,11 +80,12 @@ async def list_definitions(
 
 async def update(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     definition_id: uuid.UUID,
     data: CustomFieldDefinitionUpdate,
 ) -> CustomFieldDefinition:
     """Update a custom field definition."""
-    definition = await get(session, definition_id)
+    definition = await get(session, ixp_id, definition_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(definition, field, value)
     await session.flush()
@@ -93,9 +93,9 @@ async def update(
     return definition
 
 
-async def delete(session: AsyncSession, definition_id: uuid.UUID) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, definition_id: uuid.UUID) -> None:
     """Delete a custom field definition."""
-    definition = await get(session, definition_id)
+    definition = await get(session, ixp_id, definition_id)
     await session.delete(definition)
     await session.flush()
 
@@ -149,6 +149,12 @@ async def validate_extra_data(
     definitions = list(result.scalars().all())
 
     if not definitions:
+        provided = extra_data or {}
+        if provided:
+            raise ValidationError(
+                f"No custom fields defined for entity type '{entity_type}'; "
+                f"extra_data must be empty"
+            )
         return
 
     definitions_by_name = {d.field_name: d for d in definitions}
