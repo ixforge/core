@@ -11,6 +11,7 @@ from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.member import Member
+from ixforge.models.rs_ip_assignment import RSIPAssignment
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.ip import IPAssignmentRead, IPPoolCreate, IPPoolRead
@@ -35,6 +36,21 @@ async def create_pool(
             f"Address family mismatch: network is IPv{network.version} but af={data.af}"
         )
 
+    # Check for overlapping pools within the same IXP
+    existing_pools_result = await session.execute(
+        select(IPPool).where(IPPool.ixp_id == ixp_id)
+    )
+    for existing_pool in existing_pools_result.scalars():
+        existing_net = ipaddress.ip_network(existing_pool.network, strict=False)
+        if network.overlaps(existing_net):
+            raise ConflictError(
+                f"Network {data.network} overlaps with existing pool {existing_pool.network}"
+            )
+
+    vlan = await session.get(VLAN, data.vlan_id)
+    if vlan is None or vlan.ixp_id != ixp_id:
+        raise NotFoundError("VLAN", str(data.vlan_id))
+
     pool = IPPool(
         ixp_id=ixp_id,
         vlan_id=data.vlan_id,
@@ -46,10 +62,10 @@ async def create_pool(
     return pool
 
 
-async def get_pool(session: AsyncSession, pool_id: uuid.UUID) -> IPPool:
+async def get_pool(session: AsyncSession, pool_id: uuid.UUID, ixp_id: uuid.UUID) -> IPPool:
     """Get an IP pool by id or raise NotFoundError."""
     pool = await session.get(IPPool, pool_id)
-    if pool is None:
+    if pool is None or pool.ixp_id != ixp_id:
         raise NotFoundError("IPPool", str(pool_id))
     return pool
 
@@ -71,9 +87,9 @@ async def list_pools(
     )
 
 
-async def delete_pool(session: AsyncSession, pool_id: uuid.UUID) -> None:
+async def delete_pool(session: AsyncSession, pool_id: uuid.UUID, ixp_id: uuid.UUID) -> None:
     """Delete an IP pool."""
-    pool = await get_pool(session, pool_id)
+    pool = await get_pool(session, pool_id, ixp_id)
 
     has_assignments = await session.scalar(
         select(IPAssignment.id)
@@ -83,6 +99,16 @@ async def delete_pool(session: AsyncSession, pool_id: uuid.UUID) -> None:
     if has_assignments is not None:
         raise ConflictError(
             "Cannot delete pool: release all IP assignments first"
+        )
+
+    has_rs_assignments = await session.scalar(
+        select(RSIPAssignment.id)
+        .where(RSIPAssignment.pool_id == pool_id)
+        .limit(1)
+    )
+    if has_rs_assignments is not None:
+        raise ConflictError(
+            "Cannot delete pool: release all RS IP assignments first"
         )
 
     await session.delete(pool)
@@ -108,14 +134,18 @@ async def _get_used_addresses(
 ) -> set[str]:
     """Return all addresses currently assigned in a pool.
 
+    Includes both member IP assignments and route server IP assignments.
     When lock=True, uses FOR UPDATE to prevent concurrent allocations
     from seeing the same set of available addresses.
     """
-    stmt = select(IPAssignment.address).where(IPAssignment.pool_id == pool_id)
+    stmt_ia = select(IPAssignment.address).where(IPAssignment.pool_id == pool_id)
+    stmt_rs = select(RSIPAssignment.address).where(RSIPAssignment.pool_id == pool_id)
     if lock:
-        stmt = stmt.with_for_update()
-    result = await session.execute(stmt)
-    return {row[0] for row in result.all()}
+        stmt_ia = stmt_ia.with_for_update()
+        stmt_rs = stmt_rs.with_for_update()
+    result_ia = await session.execute(stmt_ia)
+    result_rs = await session.execute(stmt_rs)
+    return {str(r) for r in result_ia.scalars()} | {str(r) for r in result_rs.scalars()}
 
 
 async def _validate_pool_connection_same_tenant(
@@ -161,11 +191,17 @@ async def _check_global_uniqueness(
     session: AsyncSession,
     address_str: str,
 ) -> None:
-    """Ensure the address is not assigned anywhere in the system."""
+    """Ensure the address is not already assigned within the current tenant context."""
     existing = await session.scalar(
         select(IPAssignment.id).where(IPAssignment.address == address_str).limit(1)
     )
     if existing is not None:
+        raise ConflictError(f"Address {address_str} is already assigned")
+
+    existing_rs = await session.scalar(
+        select(RSIPAssignment.id).where(RSIPAssignment.address == address_str).limit(1)
+    )
+    if existing_rs is not None:
         raise ConflictError(f"Address {address_str} is already assigned")
 
 
@@ -193,7 +229,7 @@ async def allocate_sequential(
         if address_str in used:
             continue
 
-        # Found an available address; verify global uniqueness.
+        # Found an available address; verify global uniqueness
         await _check_global_uniqueness(session, address_str)
 
         assignment = IPAssignment(
@@ -233,26 +269,27 @@ async def allocate_manual(
         raise ValidationError(f"Invalid IP address: {address}") from exc
 
     _validate_address_in_pool(addr, network)
-    await _check_global_uniqueness(session, address)
+    address_str = str(addr)
+    await _check_global_uniqueness(session, address_str)
 
     assignment = IPAssignment(
         ixp_id=ixp_id,
         pool_id=pool_id,
         connection_id=connection_id,
-        address=address,
+        address=address_str,
     )
     session.add(assignment)
     try:
         await session.flush()
     except IntegrityError:
-        raise ConflictError(f"Address {address} was allocated concurrently") from None
+        raise ConflictError(f"Address {address_str} was allocated concurrently") from None
     return assignment
 
 
-async def release(session: AsyncSession, assignment_id: uuid.UUID) -> None:
+async def release(session: AsyncSession, assignment_id: uuid.UUID, ixp_id: uuid.UUID) -> None:
     """Release an IP assignment."""
     assignment = await session.get(IPAssignment, assignment_id)
-    if assignment is None:
+    if assignment is None or assignment.ixp_id != ixp_id:
         raise NotFoundError("IPAssignment", str(assignment_id))
     await session.delete(assignment)
     await session.flush()

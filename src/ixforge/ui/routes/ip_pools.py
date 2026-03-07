@@ -8,7 +8,7 @@ from starlette.responses import RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -151,7 +151,7 @@ async def ip_pool_delete(request: Request) -> Response:
         await api.delete(f"/api/v1/ip-pools/{pool_id}", token)
         add_flash(request, "Pool eliminado", "success")
     except APIError as e:
-        add_flash(request, f"Error eliminando pool: {e.detail}", "error")
+        add_flash(request, f"Error eliminando pool: {safe_detail(e)}", "error")
 
     redirect_url = f"/admin/ip-pools?vlan_id={vlan_id}" if vlan_id else "/admin/ip-pools"
     return RedirectResponse(redirect_url, status_code=302)

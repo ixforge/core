@@ -29,20 +29,28 @@ class RequestIDMiddleware:
             await self.app(scope, receive, send)
             return
 
-        headers = dict(scope.get("headers", []))
-        request_id = headers.get(b"x-request-id", b"").decode() or str(uuid.uuid4())
+        # Reset tenant context for this request
+        from ixforge.database import tenant_context
 
-        structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+        tenant_token = tenant_context.set(None)
 
-        async def send_with_request_id(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                headers = list(message.get("headers", []))
-                headers.append((b"x-request-id", request_id.encode()))
-                message["headers"] = headers
-            await send(message)
+        try:
+            headers = dict(scope.get("headers", []))
+            request_id = headers.get(b"x-request-id", b"").decode() or str(uuid.uuid4())
 
-        await self.app(scope, receive, send_with_request_id)
+            structlog.contextvars.clear_contextvars()
+            structlog.contextvars.bind_contextvars(request_id=request_id)
+
+            async def send_with_request_id(message: Message) -> None:
+                if message["type"] == "http.response.start":
+                    headers = list(message.get("headers", []))
+                    headers.append((b"x-request-id", request_id.encode()))
+                    message["headers"] = headers
+                await send(message)
+
+            await self.app(scope, receive, send_with_request_id)
+        finally:
+            tenant_context.reset(tenant_token)
 
 
 class MetricsMiddleware:
@@ -69,10 +77,37 @@ class MetricsMiddleware:
             await self.app(scope, receive, send_with_metrics)
         finally:
             duration = time.perf_counter() - start
-            path = scope.get("path", "")
+            # Use normalized route template to avoid unbounded cardinality
+            route = scope.get("route")
+            path = route.path if route and hasattr(route, "path") else scope.get("path", "unknown")
             method = scope.get("method", "")
             http_requests_total.labels(method=method, path=path, status=status_code).inc()
             http_request_duration_seconds.labels(method=method, path=path).observe(duration)
+
+
+class SecurityHeadersMiddleware:
+    """Pure ASGI middleware that adds security headers to all HTTP responses."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend([
+                    (b"x-content-type-options", b"nosniff"),
+                    (b"x-frame-options", b"DENY"),
+                    (b"referrer-policy", b"strict-origin-when-cross-origin"),
+                ])
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 @asynccontextmanager
@@ -127,6 +162,7 @@ def create_app(*, enable_rate_limit: bool = True) -> FastAPI:
     # Pure ASGI middlewares (no BaseHTTPMiddleware, safe with asyncpg)
     app.add_middleware(RequestIDMiddleware)
     app.add_middleware(MetricsMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Exception handlers
     @app.exception_handler(IXForgeError)

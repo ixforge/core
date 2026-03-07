@@ -91,7 +91,7 @@ async def regenerate_configs_for_member(
     session_factory = get_session_factory()
     async with session_factory() as session:
         # Find all distinct route servers that have BGP sessions linked to
-        # connections owned by this member.
+        # connections owned by this member
         stmt = (
             select(RouteServer.id)
             .join(BGPSession, BGPSession.route_server_id == RouteServer.id)

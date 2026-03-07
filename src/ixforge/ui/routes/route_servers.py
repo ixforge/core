@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -70,10 +70,56 @@ async def route_server_detail(request: Request) -> Response:
     with contextlib.suppress(APIError):
         config_current = await api.get(f"/api/v1/route-servers/{rs_id}/config/current", token)
 
+    # Fetch RS VLANs and all available VLANs
+    rs_vlans: list[Any] = []
+    all_vlans: list[Any] = []
+    with contextlib.suppress(APIError):
+        rs_vlans_data = await api.get(f"/api/v1/route-servers/{rs_id}/vlans", token, params={"limit": 200})
+        rs_vlans = rs_vlans_data.get("items", [])
+    with contextlib.suppress(APIError):
+        all_vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
+        all_vlans = all_vlans_data.get("items", [])
+
+    # Build set of already-associated vlan IDs to filter dropdown
+    associated_vlan_ids = {v["vlan_id"] for v in rs_vlans}
+    available_vlans = [v for v in all_vlans if v["id"] not in associated_vlan_ids]
+
+    vlan_map = {v["id"]: v for v in all_vlans}
+    rs_vlans_enriched = [
+        {
+            **rv,
+            "vlan_name": vlan_map.get(rv["vlan_id"], {}).get("name", str(rv["vlan_id"])),
+            "vlan_vid": vlan_map.get(rv["vlan_id"], {}).get("vid", ""),
+        }
+        for rv in rs_vlans
+    ]
+
+    # Fetch RS IP assignments
+    rs_ips: list[Any] = []
+    with contextlib.suppress(APIError):
+        rs_ips = await api.get(f"/api/v1/route-servers/{rs_id}/ips", token)
+
+    # Fetch all pools for dropdown (iterate over VLANs since ip-pools requires vlan_id)
+    all_pools: list[Any] = []
+    for vlan in all_vlans:
+        with contextlib.suppress(APIError):
+            pools_data = await api.get(
+                "/api/v1/ip-pools", token,
+                params={"vlan_id": vlan["id"], "limit": 200},
+            )
+            for pool in pools_data.get("items", []):
+                pool["vlan_name"] = vlan.get("name", "")
+                pool["vlan_vid"] = vlan.get("vid", "")
+            all_pools.extend(pools_data.get("items", []))
+
     return render(request, "route_servers/detail.html", {
         "rs": rs,
         "bgp_sessions": bgp_sessions,
         "config_current": config_current,
+        "rs_vlans": rs_vlans_enriched,
+        "available_vlans": available_vlans,
+        "rs_ips": rs_ips,
+        "all_pools": all_pools,
         "page_title": rs.get("name", "Route Server"),
     })
 
@@ -168,7 +214,7 @@ async def route_server_delete(request: Request) -> Response:
         await api.delete(f"/api/v1/route-servers/{rs_id}", token)
         add_flash(request, "Route Server eliminado", "success")
     except APIError as e:
-        add_flash(request, f"Error eliminando Route Server: {e.detail}", "error")
+        add_flash(request, f"Error eliminando Route Server: {safe_detail(e)}", "error")
 
     return RedirectResponse("/admin/route-servers", status_code=302)
 
@@ -183,7 +229,7 @@ async def route_server_config_generate(request: Request) -> Response:
         await api.post(f"/api/v1/route-servers/{rs_id}/config/generate", token)
         add_flash(request, "Configuracion generada", "success")
     except APIError as e:
-        add_flash(request, f"Error generando configuracion: {e.detail}", "error")
+        add_flash(request, f"Error generando configuracion: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
 
@@ -240,3 +286,82 @@ async def route_server_config_diff(request: Request) -> Response:
         "diff": diff,
         "page_title": f"Config Diff - {rs.get('name', '')}",
     })
+
+
+@require_auth
+async def rs_vlan_add(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    rs_id = request.path_params["rs_id"]
+    form = await request.form()
+    vlan_id = str(form.get("vlan_id", "")).strip()
+
+    if not vlan_id:
+        add_flash(request, "Debe seleccionar una VLAN", "error")
+        return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
+
+    try:
+        await api.post(f"/api/v1/route-servers/{rs_id}/vlans", token, json={"vlan_id": vlan_id})
+        add_flash(request, "VLAN asociada al Route Server", "success")
+    except APIError as e:
+        add_flash(request, f"Error asociando VLAN: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
+
+
+@require_auth
+async def rs_vlan_remove(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    rs_id = request.path_params["rs_id"]
+    vlan_id = request.path_params["vlan_id"]
+
+    try:
+        await api.delete(f"/api/v1/route-servers/{rs_id}/vlans/{vlan_id}", token)
+        add_flash(request, "VLAN desasociada del Route Server", "success")
+    except APIError as e:
+        add_flash(request, f"Error desasociando VLAN: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
+
+
+@require_auth
+async def rs_ip_assign(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    rs_id = request.path_params["rs_id"]
+    form = await request.form()
+
+    pool_id = str(form.get("pool_id", "")).strip()
+    if not pool_id:
+        add_flash(request, "Debe seleccionar un pool", "error")
+        return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
+
+    payload: dict[str, Any] = {"pool_id": pool_id}
+    address = str(form.get("address", "")).strip()
+    if address:
+        payload["address"] = address
+
+    try:
+        await api.post(f"/api/v1/route-servers/{rs_id}/ips", token, json=payload)
+        add_flash(request, "IP asignada al Route Server", "success")
+    except APIError as e:
+        add_flash(request, f"Error asignando IP: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
+
+
+@require_auth
+async def rs_ip_release(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    rs_id = request.path_params["rs_id"]
+    assignment_id = request.path_params["assignment_id"]
+
+    try:
+        await api.delete(f"/api/v1/route-servers/{rs_id}/ips/{assignment_id}", token)
+        add_flash(request, "IP liberada", "success")
+    except APIError as e:
+        add_flash(request, f"Error liberando IP: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)

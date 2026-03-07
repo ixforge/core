@@ -16,6 +16,7 @@ class SwitchCreate(BaseModel):
     snmp_community: str | None = None
     is_active: bool = True
     extra_data: dict[str, Any] | None = None
+    location_id: uuid.UUID | None = None
 
 
 class SwitchUpdate(BaseModel):
@@ -27,11 +28,13 @@ class SwitchUpdate(BaseModel):
     snmp_community: str | None = None
     is_active: bool | None = None
     extra_data: dict[str, Any] | None = None
+    location_id: uuid.UUID | None = None
 
 
 class SwitchRead(BaseModel):
     id: uuid.UUID
     ixp_id: uuid.UUID
+    location_id: uuid.UUID | None
     name: str
     hostname: str
     vendor: str | None

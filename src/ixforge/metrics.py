@@ -17,6 +17,7 @@ http_request_duration_seconds = Histogram(
 bgp_sessions_active = Gauge(
     "ixforge_bgp_sessions_active",
     "Number of active BGP sessions",
+    ["route_server_id"],
 )
 
 task_queue_enqueued = Gauge(

@@ -22,7 +22,10 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_ui_app() -> Starlette:
-    settings = get_settings()
+    config = get_settings()
+
+    _media_dir = Path(config.media_root)
+    _media_dir.mkdir(parents=True, exist_ok=True)
 
     from ixforge.ui.routes import (
         auth,
@@ -33,9 +36,12 @@ def create_ui_app() -> Starlette:
         events,
         ip_pools,
         ixf_export,
+        locations,
         members,
+        portal,
         ports,
         route_servers,
+        settings,
         switches,
         users,
         vlans,
@@ -51,12 +57,17 @@ def create_ui_app() -> Starlette:
         # Dashboard
         Route("/admin", dashboard.index),
         # Members
+        Route("/admin/asn-name", members.asn_name_fragment),
         Route("/admin/members", members.member_list),
         Route("/admin/members/new", members.member_new, methods=["GET", "POST"]),
+        Route("/admin/members/{member_id}/asn-name", members.member_asn_name),
         Route("/admin/members/{member_id}", members.member_detail),
         Route("/admin/members/{member_id}/edit", members.member_edit, methods=["GET", "POST"]),
         Route("/admin/members/{member_id}/transition", members.member_transition, methods=["POST"]),
+        Route("/admin/members/{member_id}/logo", members.member_logo_upload, methods=["POST"]),
+        Route("/admin/members/{member_id}/logo/delete", members.member_logo_delete, methods=["POST"]),
         Route("/admin/members/{member_id}/contacts/new", members.contact_new, methods=["POST"]),
+        Route("/admin/members/{member_id}/delete", members.member_delete, methods=["POST"]),
         # Contacts (top-level for edit/delete)
         Route("/admin/contacts/{contact_id}/edit", members.contact_edit, methods=["POST"]),
         Route("/admin/contacts/{contact_id}/delete", members.contact_delete, methods=["POST"]),
@@ -66,6 +77,12 @@ def create_ui_app() -> Starlette:
         Route("/admin/users/{user_id}", users.user_detail),
         Route("/admin/users/{user_id}/edit", users.user_edit, methods=["POST"]),
         Route("/admin/users/{user_id}/api-keys", users.user_create_api_key, methods=["POST"]),
+        Route("/admin/users/{user_id}/delete", users.user_delete, methods=["POST"]),
+        # Locations
+        Route("/admin/locations", locations.location_list),
+        Route("/admin/locations/new", locations.location_new, methods=["GET", "POST"]),
+        Route("/admin/locations/{location_id}/edit", locations.location_edit, methods=["GET", "POST"]),
+        Route("/admin/locations/{location_id}/delete", locations.location_delete, methods=["POST"]),
         # Switches
         Route("/admin/switches", switches.switch_list),
         Route("/admin/switches/new", switches.switch_new, methods=["GET", "POST"]),
@@ -85,6 +102,10 @@ def create_ui_app() -> Starlette:
         Route("/admin/route-servers/new", route_servers.route_server_new, methods=["GET", "POST"]),
         Route("/admin/route-servers/{rs_id}", route_servers.route_server_detail),
         Route("/admin/route-servers/{rs_id}/edit", route_servers.route_server_edit, methods=["GET", "POST"]),
+        Route("/admin/route-servers/{rs_id}/vlans/add", route_servers.rs_vlan_add, methods=["POST"]),
+        Route("/admin/route-servers/{rs_id}/vlans/{vlan_id}/remove", route_servers.rs_vlan_remove, methods=["POST"]),
+        Route("/admin/route-servers/{rs_id}/ips/assign", route_servers.rs_ip_assign, methods=["POST"]),
+        Route("/admin/route-servers/{rs_id}/ips/{assignment_id}/release", route_servers.rs_ip_release, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/delete", route_servers.route_server_delete, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/config/generate", route_servers.route_server_config_generate, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/config/history", route_servers.route_server_config_history),
@@ -92,8 +113,11 @@ def create_ui_app() -> Starlette:
         # VLANs
         Route("/admin/vlans", vlans.vlan_list),
         Route("/admin/vlans/new", vlans.vlan_new, methods=["GET", "POST"]),
+        Route("/admin/vlans/{vlan_id}", vlans.vlan_detail),
         Route("/admin/vlans/{vlan_id}/edit", vlans.vlan_edit, methods=["GET", "POST"]),
         Route("/admin/vlans/{vlan_id}/delete", vlans.vlan_delete, methods=["POST"]),
+        Route("/admin/vlans/{vlan_id}/members/add", vlans.vlan_member_add, methods=["POST"]),
+        Route("/admin/vlans/{vlan_id}/members/{member_id}/remove", vlans.vlan_member_remove, methods=["POST"]),
         # IP Pools
         Route("/admin/ip-pools", ip_pools.ip_pool_list),
         Route("/admin/ip-pools/new", ip_pools.ip_pool_new, methods=["GET", "POST"]),
@@ -122,8 +146,18 @@ def create_ui_app() -> Starlette:
         Route("/admin/custom-fields/{field_id}/delete", custom_fields.custom_field_delete, methods=["POST"]),
         # IX-F Export
         Route("/admin/ixf-export", ixf_export.ixf_export_view),
+        # Settings
+        Route("/admin/settings", settings.settings_edit, methods=["GET", "POST"]),
+        # Portal (member-only)
+        Route("/portal", portal.portal_redirect),
+        Route("/portal/dashboard", portal.portal_dashboard),
+        Route("/portal/profile", portal.portal_profile),
+        Route("/portal/connections", portal.portal_connections),
+        Route("/portal/bgp-sessions", portal.portal_bgp_sessions),
+        Route("/portal/contacts", portal.portal_contacts),
         # Static
         Mount("/static", app=StaticFiles(directory=str(_STATIC_DIR)), name="static"),
+        Mount("/media", app=StaticFiles(directory=str(_media_dir)), name="media"),
     ]
 
     @asynccontextmanager
@@ -134,12 +168,12 @@ def create_ui_app() -> Starlette:
     app = Starlette(routes=routes, lifespan=lifespan)
     app.add_middleware(
         SessionMiddleware,
-        secret_key=settings.secret_key,
+        secret_key=config.secret_key,
         session_cookie="ixforge_session",
         same_site="lax",
-        https_only=not settings.debug,
+        https_only=not config.debug,
     )
 
-    app.state.api = APIClient(base_url=settings.core_url)
+    app.state.api = APIClient(base_url=config.core_url)
 
     return app

@@ -20,6 +20,7 @@ class BGPSessionState(BaseModel):
 
     peer_ip: str
     oper_state: str = Field(pattern=r"^(up|down|unknown)$")
+    af: int
 
 
 class AgentStatusReport(BaseModel):

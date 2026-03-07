@@ -23,6 +23,7 @@ class IPAllocateRequest(BaseModel):
 async def list_ip_pools(
     db: DBSession,
     _admin: AdminUser,
+    _ixp_id: IXPId,
     vlan_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -48,9 +49,10 @@ async def get_ip_pool(
     pool_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> IPPool:
     """Get IP pool details."""
-    return await ipam.get_pool(db, pool_id)
+    return await ipam.get_pool(db, pool_id, ixp_id)
 
 
 @ip_pools_router.delete("/ip-pools/{pool_id}", status_code=204)
@@ -58,9 +60,10 @@ async def delete_ip_pool(
     pool_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> Response:
     """Delete an IP pool."""
-    await ipam.delete_pool(db, pool_id)
+    await ipam.delete_pool(db, pool_id, ixp_id)
     return Response(status_code=204)
 
 
@@ -72,6 +75,7 @@ async def list_ip_assignments(
     pool_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    _ixp_id: IXPId,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[IPAssignmentRead]:
@@ -107,7 +111,8 @@ async def release_ip(
     assignment_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> Response:
     """Release an IP assignment."""
-    await ipam.release(db, assignment_id)
+    await ipam.release(db, assignment_id, ixp_id)
     return Response(status_code=204)

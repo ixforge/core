@@ -69,6 +69,32 @@
       </label>
     </div>
 
+    {# Phone #}
+    <div class="mb-4">
+      <label for="phone" class="block text-sm font-medium mb-1">Telefono <span class="text-gray-400 font-normal">(opcional)</span></label>
+      <input type="text" id="phone" name="phone"
+             value="{{ user.phone if user and user.phone else '' }}"
+             class="input-field w-full"
+             placeholder="+54 11 1234-5678">
+    </div>
+
+    {# Position #}
+    <div class="mb-4">
+      <label for="position" class="block text-sm font-medium mb-1">Cargo <span class="text-gray-400 font-normal">(opcional)</span></label>
+      <input type="text" id="position" name="position"
+             value="{{ user.position if user and user.position else '' }}"
+             class="input-field w-full"
+             placeholder="NOC Engineer">
+    </div>
+
+    {# PGP Key #}
+    <div class="mb-6">
+      <label for="pgp_key" class="block text-sm font-medium mb-1">PGP Key <span class="text-gray-400 font-normal">(opcional)</span></label>
+      <textarea id="pgp_key" name="pgp_key" rows="4"
+                class="input-field w-full font-mono text-sm"
+                placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----">{{ user.pgp_key if user and user.pgp_key else '' }}</textarea>
+    </div>
+
     {# Botones #}
     <div class="flex gap-3">
       <button type="submit" class="btn-primary">Crear</button>

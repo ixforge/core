@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.config import get_settings
 from ixforge.exceptions import NotFoundError, ValidationError
+from ixforge.models.location import Location
 from ixforge.models.switch import Switch
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.switch import SwitchCreate, SwitchRead, SwitchUpdate
@@ -54,6 +55,11 @@ async def create(
     if data.snmp_community is not None:
         encrypted_community = encrypt_snmp(data.snmp_community)
 
+    if data.location_id is not None:
+        location = await session.get(Location, data.location_id)
+        if location is None or location.ixp_id != ixp_id:
+            raise NotFoundError("Location", str(data.location_id))
+
     switch = Switch(
         ixp_id=ixp_id,
         name=data.name,
@@ -64,16 +70,17 @@ async def create(
         snmp_community_encrypted=encrypted_community,
         is_active=data.is_active,
         extra_data=data.extra_data,
+        location_id=data.location_id,
     )
     session.add(switch)
     await session.flush()
     return switch
 
 
-async def get(session: AsyncSession, switch_id: uuid.UUID) -> Switch:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, switch_id: uuid.UUID) -> Switch:
     """Get a switch by id or raise NotFoundError."""
     switch = await session.get(Switch, switch_id)
-    if switch is None:
+    if switch is None or switch.ixp_id != ixp_id:
         raise NotFoundError("Switch", str(switch_id))
     return switch
 
@@ -97,16 +104,22 @@ async def list_switches(
 
 async def update(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     switch_id: uuid.UUID,
     data: SwitchUpdate,
 ) -> Switch:
     """Update a switch. Handles SNMP community encryption on change."""
-    switch = await get(session, switch_id)
+    switch = await get(session, ixp_id, switch_id)
     update_fields = data.model_dump(exclude_unset=True)
 
-    snmp_community = update_fields.pop("snmp_community", None)
-    if snmp_community is not None:
-        switch.snmp_community_encrypted = encrypt_snmp(snmp_community)
+    if "location_id" in update_fields and update_fields["location_id"] is not None:
+        location = await session.get(Location, update_fields["location_id"])
+        if location is None or location.ixp_id != ixp_id:
+            raise NotFoundError("Location", str(update_fields["location_id"]))
+
+    if "snmp_community" in update_fields:
+        snmp_community = update_fields.pop("snmp_community")
+        switch.snmp_community_encrypted = encrypt_snmp(snmp_community) if snmp_community else None
 
     for field, value in update_fields.items():
         setattr(switch, field, value)
@@ -116,8 +129,8 @@ async def update(
     return switch
 
 
-async def delete(session: AsyncSession, switch_id: uuid.UUID) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, switch_id: uuid.UUID) -> None:
     """Delete a switch."""
-    switch = await get(session, switch_id)
+    switch = await get(session, ixp_id, switch_id)
     await session.delete(switch)
     await session.flush()

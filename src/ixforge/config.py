@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Rate limiting
     rate_limit_per_minute: int = 60
 
+    # Media
+    media_root: str = "./media"
+    media_url: str = "/media"
+
     # UI
     core_url: str = "http://localhost:8000"
     ui_port: int = 8001
@@ -63,7 +67,12 @@ class Settings(BaseSettings):
                 stacklevel=2,
             )
         if self.debug and not self.cors_origins:
-            self.cors_origins = ["*"]
+            self.cors_origins = [
+                "http://localhost:3000",
+                "http://localhost:8001",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:8001",
+            ]
         return self
 
 

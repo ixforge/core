@@ -8,7 +8,7 @@ from starlette.responses import RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -80,6 +80,9 @@ async def user_new(request: Request) -> Response:
         "password": str(form.get("password", "")),
         "role": str(form.get("role", "member")),
         "is_active": form.get("is_active") == "on",
+        "phone": str(form.get("phone", "")) or None,
+        "position": str(form.get("position", "")) or None,
+        "pgp_key": str(form.get("pgp_key", "")) or None,
     }
 
     try:
@@ -114,7 +117,7 @@ async def user_edit(request: Request) -> Response:
         await api.patch(f"/api/v1/users/{user_id}", token, json=payload)
         add_flash(request, "Usuario actualizado", "success")
     except APIError as e:
-        add_flash(request, f"Error actualizando usuario: {e.detail}", "error")
+        add_flash(request, f"Error actualizando usuario: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
@@ -140,6 +143,20 @@ async def user_create_api_key(request: Request) -> Response:
         add_flash(request, "API Key creada", "success")
         return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
     except APIError as e:
-        add_flash(request, f"Error creando API key: {e.detail}", "error")
+        add_flash(request, f"Error creando API key: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+@require_auth
+async def user_delete(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    user_id = request.path_params["user_id"]
+    try:
+        await api.delete(f"/api/v1/users/{user_id}", token)
+        add_flash(request, "Usuario eliminado", "success")
+        return RedirectResponse("/admin/users", status_code=302)
+    except APIError as e:
+        add_flash(request, f"Error: {safe_detail(e)}", "error")
+        return RedirectResponse(f"/admin/users/{user_id}", status_code=302)

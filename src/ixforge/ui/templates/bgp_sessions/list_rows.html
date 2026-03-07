@@ -5,7 +5,11 @@
       <code class="text-sm">{{ s.peer_ip or "-" }}</code>
     </a>
   </td>
-  <td class="py-3 text-sm">AS{{ s.peer_asn or "-" }}</td>
+  <td class="py-3 text-sm">
+    <span hx-get="/admin/asn-name?asn={{ s.peer_asn }}"
+          hx-trigger="load"
+          hx-swap="outerHTML">AS{{ s.peer_asn or "-" }}</span>
+  </td>
   <td class="py-3">
     {% if s.admin_state == "up" %}<span class="badge badge-green">Up</span>
     {% else %}<span class="badge badge-red">Down</span>{% endif %}

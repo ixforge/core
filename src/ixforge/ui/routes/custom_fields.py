@@ -8,7 +8,7 @@ from starlette.responses import RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -106,7 +106,7 @@ async def custom_field_edit(request: Request) -> Response:
         await api.patch(f"/api/v1/custom-fields/{field_id}", token, json=payload)
         add_flash(request, "Custom field actualizado", "success")
     except APIError as e:
-        add_flash(request, f"Error actualizando custom field: {e.detail}", "error")
+        add_flash(request, f"Error actualizando custom field: {safe_detail(e)}", "error")
 
     return RedirectResponse("/admin/custom-fields", status_code=302)
 
@@ -121,6 +121,6 @@ async def custom_field_delete(request: Request) -> Response:
         await api.delete(f"/api/v1/custom-fields/{field_id}", token)
         add_flash(request, "Custom field eliminado", "success")
     except APIError as e:
-        add_flash(request, f"Error eliminando custom field: {e.detail}", "error")
+        add_flash(request, f"Error eliminando custom field: {safe_detail(e)}", "error")
 
     return RedirectResponse("/admin/custom-fields", status_code=302)

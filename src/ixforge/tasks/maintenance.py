@@ -82,7 +82,7 @@ async def cleanup_config_versions(
     session_factory = get_session_factory()
     async with session_factory() as session:
         try:
-            # Get all distinct route server IDs that have config versions.
+            # Get all distinct route server IDs that have config versions
             rs_stmt = select(ConfigVersion.route_server_id).distinct()
             rs_result = await session.execute(rs_stmt)
             rs_ids = [row[0] for row in rs_result.all()]
@@ -91,7 +91,7 @@ async def cleanup_config_versions(
 
             for rs_id in rs_ids:
                 # Find the IDs of the most recent `keep_last` versions for
-                # this route server (these are always preserved).
+                # this route server (these are always preserved)
                 latest_stmt = (
                     select(ConfigVersion.id)
                     .where(ConfigVersion.route_server_id == rs_id)
@@ -101,7 +101,7 @@ async def cleanup_config_versions(
                 latest_result = await session.execute(latest_stmt)
                 keep_ids = {row[0] for row in latest_result.all()}
 
-                # Also protect any version that has been applied.
+                # Also protect any version that has been applied
                 applied_stmt = select(ConfigVersion.id).where(
                     ConfigVersion.route_server_id == rs_id,
                     ConfigVersion.applied_at.isnot(None),
@@ -109,19 +109,7 @@ async def cleanup_config_versions(
                 applied_result = await session.execute(applied_stmt)
                 keep_ids.update(row[0] for row in applied_result.all())
 
-                # Proteger la version mas reciente independientemente de applied_at
-                newest_stmt = (
-                    select(ConfigVersion.id)
-                    .where(ConfigVersion.route_server_id == rs_id)
-                    .order_by(ConfigVersion.generated_at.desc())
-                    .limit(1)
-                )
-                newest_result = await session.execute(newest_stmt)
-                newest_row = newest_result.first()
-                if newest_row is not None:
-                    keep_ids.add(newest_row[0])
-
-                # Count how many versions exist for this route server.
+                # Count how many versions exist for this route server
                 count_stmt = (
                     select(func.count())
                     .select_from(ConfigVersion)
@@ -130,11 +118,11 @@ async def cleanup_config_versions(
                 count_result = await session.execute(count_stmt)
                 total_for_rs = count_result.scalar_one()
 
-                # Only delete if there are more versions than we want to keep.
+                # Only delete if there are more versions than we want to keep
                 if total_for_rs <= keep_last:
                     continue
 
-                # Delete versions that are not in the keep set.
+                # Delete versions that are not in the keep set
                 del_stmt = delete(ConfigVersion).where(
                     ConfigVersion.route_server_id == rs_id,
                     ConfigVersion.id.notin_(keep_ids),

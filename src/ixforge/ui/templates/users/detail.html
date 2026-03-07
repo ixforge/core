@@ -38,6 +38,17 @@
   </form>
 </div>
 
+{% if not user.is_active %}
+<div class="card mb-6 border border-red-200 dark:border-red-800">
+  <h2 class="text-lg font-semibold mb-2 text-red-700 dark:text-red-400">Zona de peligro</h2>
+  <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Esta accion es permanente e irreversible.</p>
+  <form method="post" action="/admin/users/{{ user.id }}/delete"
+        onsubmit="return confirm('¿Eliminar permanentemente este usuario?')">
+    <button type="submit" class="btn-danger text-sm">Eliminar usuario</button>
+  </form>
+</div>
+{% endif %}
+
 {# Info card #}
 <div class="card mb-6">
   <h2 class="text-lg font-semibold mb-4">Informacion</h2>
@@ -54,6 +65,20 @@
     <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">Ultimo Login</p>
       <p class="font-medium">{{ user.last_login[:16] }}</p>
+    </div>
+    {% endif %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Telefono</p>
+      <p class="font-medium">{{ user.phone or "-" }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Cargo</p>
+      <p class="font-medium">{{ user.position or "-" }}</p>
+    </div>
+    {% if user.pgp_key %}
+    <div class="col-span-full">
+      <p class="text-sm text-gray-500 dark:text-gray-400">PGP Key</p>
+      <pre class="mt-1 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono break-all whitespace-pre-wrap">{{ user.pgp_key }}</pre>
     </div>
     {% endif %}
   </div>

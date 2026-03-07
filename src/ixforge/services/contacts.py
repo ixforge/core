@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import NotFoundError
 from ixforge.models.contact import Contact
+from ixforge.models.member import Member
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.contact import ContactCreate, ContactRead, ContactUpdate
 from ixforge.services.base import paginate
@@ -19,6 +20,10 @@ async def create(
     data: ContactCreate,
 ) -> Contact:
     """Create a contact for a member."""
+    member = await session.get(Member, member_id)
+    if member is None or member.ixp_id != ixp_id:
+        raise NotFoundError("Member", str(member_id))
+
     contact = Contact(
         ixp_id=ixp_id,
         member_id=member_id,
@@ -32,10 +37,10 @@ async def create(
     return contact
 
 
-async def get(session: AsyncSession, contact_id: uuid.UUID) -> Contact:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, contact_id: uuid.UUID) -> Contact:
     """Get a contact by id or raise NotFoundError."""
     contact = await session.get(Contact, contact_id)
-    if contact is None:
+    if contact is None or contact.ixp_id != ixp_id:
         raise NotFoundError("Contact", str(contact_id))
     return contact
 
@@ -59,11 +64,12 @@ async def list_contacts(
 
 async def update(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     contact_id: uuid.UUID,
     data: ContactUpdate,
 ) -> Contact:
     """Update a contact."""
-    contact = await get(session, contact_id)
+    contact = await get(session, ixp_id, contact_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(contact, field, value)
     await session.flush()
@@ -71,8 +77,8 @@ async def update(
     return contact
 
 
-async def delete(session: AsyncSession, contact_id: uuid.UUID) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, contact_id: uuid.UUID) -> None:
     """Delete a contact."""
-    contact = await get(session, contact_id)
+    contact = await get(session, ixp_id, contact_id)
     await session.delete(contact)
     await session.flush()

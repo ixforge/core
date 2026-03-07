@@ -1,6 +1,8 @@
 """Switch model."""
 
-from sqlalchemy import Boolean, String, Text, UniqueConstraint, text
+import uuid
+
+from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import (
@@ -25,4 +27,7 @@ class Switch(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     snmp_community_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
+    )
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )

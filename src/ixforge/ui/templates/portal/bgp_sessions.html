@@ -1,0 +1,31 @@
+{% extends "layouts/portal.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">{{ page_title }}</h1>
+{% if sessions %}
+<div class="card overflow-hidden">
+  <table class="w-full">
+    <thead>
+      <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+        <th class="pb-3 font-medium">IP Peer</th>
+        <th class="pb-3 font-medium">AF</th>
+        <th class="pb-3 font-medium">Estado Admin</th>
+        <th class="pb-3 font-medium">Estado Oper</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y dark:divide-gray-700">
+      {% for s in sessions %}
+      <tr>
+        <td class="py-3 font-mono text-sm">{{ s.peer_ip }}</td>
+        <td class="py-3">{{ s.af }}</td>
+        <td class="py-3">{{ s.admin_state }}</td>
+        <td class="py-3">{{ s.oper_state }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-gray-500">Sin sesiones BGP.</p>
+{% endif %}
+{% endblock %}

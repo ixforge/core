@@ -6,6 +6,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import (
+    BGPAdminState,
+    BGPOperState,
     ConnectionState,
     ConnectionType,
     MemberState,
@@ -13,11 +15,13 @@ from ixforge.enums import (
     PortType,
     VLANType,
 )
+from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.port import Port
+from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
 
@@ -439,7 +443,53 @@ class TestConnectionStateMachine:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """disabled -> active should work (re-enable)."""
+        """disabled -> active requires complete setup (port + VLAN + IP)."""
+        member = await _create_member(db_session, ixp)
+        _switch, port = await _create_switch_and_port(db_session, ixp)
+        vlan = await _create_vlan(db_session, ixp)
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            port_id=port.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.disabled,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        # Assign VLAN
+        conn_vlan = ConnectionVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            connection_id=conn.id,
+            vlan_id=vlan.id,
+            tagged=False,
+        )
+        db_session.add(conn_vlan)
+        await db_session.flush()
+
+        # Assign IP
+        await _create_pool_and_assign_ip(db_session, ixp, vlan, conn)
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/transition",
+            headers=auth_headers,
+            json={"state": "active"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "active"
+
+    async def test_disabled_to_active_without_setup_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """disabled -> active without port/VLAN/IP should be rejected."""
         member = await _create_member(db_session, ixp)
         conn = Connection(
             id=uuid.uuid4(),
@@ -457,8 +507,7 @@ class TestConnectionStateMachine:
             headers=auth_headers,
             json={"state": "active"},
         )
-        assert resp.status_code == 200
-        assert resp.json()["state"] == "active"
+        assert resp.status_code == 422
 
     async def test_invalid_transition_draft_to_active(
         self,
@@ -509,6 +558,57 @@ class TestConnectionStateMachine:
             f"/api/v1/connections/{conn.id}/transition",
             headers=auth_headers,
             json={"state": "provisioning"},
+        )
+        assert resp.status_code == 422
+
+    async def test_decommission_with_bgp_sessions_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Cannot decommission a connection that still has BGP sessions."""
+        member = await _create_member(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.disabled,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        rs = RouteServer(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="rs-decomm",
+            hostname="rs-decomm.example.net",
+            asn=65000,
+        )
+        db_session.add(rs)
+        await db_session.flush()
+
+        bgp = BGPSession(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            connection_id=conn.id,
+            peer_ip="192.0.2.10",
+            peer_asn=64600,
+            admin_state=BGPAdminState.up,
+            oper_state=BGPOperState.unknown,
+            af=4,
+        )
+        db_session.add(bgp)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/transition",
+            headers=auth_headers,
+            json={"state": "decommissioned"},
         )
         assert resp.status_code == 422
 
@@ -760,6 +860,49 @@ class TestConnectionIP:
         )
         assert resp.status_code == 204
 
+    async def test_release_ip_wrong_connection_id_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Releasing an IP with wrong connection_id should return 404 (IDOR prevention)."""
+        member = await _create_member(db_session, ixp)
+        vlan = await _create_vlan(db_session, ixp)
+
+        # Connection A owns the IP
+        conn_a = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
+            speed=10000,
+        )
+        db_session.add(conn_a)
+
+        # Connection B is the attacker
+        conn_b = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
+            speed=10000,
+        )
+        db_session.add(conn_b)
+        await db_session.flush()
+
+        assignment = await _create_pool_and_assign_ip(db_session, ixp, vlan, conn_a)
+
+        # Try to release A's IP using B's connection_id
+        resp = await client.delete(
+            f"/api/v1/connections/{conn_b.id}/ips/{assignment.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # Business logic validation
@@ -887,3 +1030,130 @@ class TestConnectionBusinessLogic:
             },
         )
         assert resp.status_code == 422
+
+    async def test_assign_vlan_from_other_ixp_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Assigning a VLAN that belongs to a different IXP must fail."""
+        other_ixp = IXP(name="Other IXP", short_name="OIXP", asn=65999, country="AR", city="X")
+        db_session.add(other_ixp)
+        await db_session.flush()
+
+        foreign_vlan = await _create_vlan(db_session, other_ixp, vid=500)
+
+        member = await _create_member(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/connections/{conn.id}/vlans",
+            headers=auth_headers,
+            json={"vlan_id": str(foreign_vlan.id), "tagged": False},
+        )
+        assert resp.status_code == 404
+
+    async def test_create_connection_with_member_from_other_ixp_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Creating a connection with a member from a different IXP must fail."""
+        other_ixp = IXP(name="Other IXP 2", short_name="OIX2", asn=65998, country="AR", city="X")
+        db_session.add(other_ixp)
+        await db_session.flush()
+
+        foreign_member = await _create_member(db_session, other_ixp)
+
+        resp = await client.post(
+            "/api/v1/connections",
+            headers=auth_headers,
+            json={
+                "member_id": str(foreign_member.id),
+                "type": "physical",
+                "speed": 10000,
+            },
+        )
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Connection deletion
+# ---------------------------------------------------------------------------
+
+
+class TestConnectionDelete:
+    async def test_delete_decommissioned_connection(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.decommissioned,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.delete(
+            f"/api/v1/connections/{conn.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 204
+
+    async def test_delete_active_connection_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp)
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.active,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.delete(
+            f"/api/v1/connections/{conn.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_delete_nonexistent_connection(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        ixp: IXP,
+    ):
+        resp = await client.delete(
+            f"/api/v1/connections/{uuid.uuid4()}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404

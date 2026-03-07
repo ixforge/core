@@ -243,7 +243,7 @@ class TestAgentStatusReport:
             headers={"X-API-Key": raw_key},
             json={
                 "sessions": [
-                    {"peer_ip": "192.0.2.10", "oper_state": "up"},
+                    {"peer_ip": "192.0.2.10", "oper_state": "up", "af": 4},
                 ]
             },
         )
@@ -268,7 +268,7 @@ class TestAgentStatusReport:
             headers={"X-API-Key": raw_key},
             json={
                 "sessions": [
-                    {"peer_ip": "10.99.99.99", "oper_state": "up"},
+                    {"peer_ip": "10.99.99.99", "oper_state": "up", "af": 4},
                 ]
             },
         )
@@ -328,7 +328,7 @@ class TestAgentStatusReport:
             headers={"X-API-Key": raw_key},
             json={
                 "sessions": [
-                    {"peer_ip": "192.0.2.20", "oper_state": "up"},
+                    {"peer_ip": "192.0.2.20", "oper_state": "up", "af": 4},
                 ]
             },
         )

@@ -489,3 +489,134 @@ class TestPortAssignment:
             json={"type": "infra"},
         )
         assert resp.status_code == 422
+
+
+class TestPortDelete:
+    async def test_delete_port_with_active_connection_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetDelConn",
+            speed=10000,
+            type=PortType.member,
+            member_id=member.id,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            port_id=port.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.draft,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.delete(f"/api/v1/ports/{port.id}", headers=auth_headers)
+        assert resp.status_code == 409
+
+    async def test_delete_decommissioned_connection_port_allowed(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        sw = await _create_switch(db_session, ixp)
+        member = await _create_member(db_session, ixp)
+        port = Port(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            switch_id=sw.id,
+            name="EthernetDelDecom",
+            speed=10000,
+            type=PortType.member,
+            member_id=member.id,
+            is_active=True,
+        )
+        db_session.add(port)
+        await db_session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            port_id=port.id,
+            type=ConnectionType.physical,
+            state=ConnectionState.decommissioned,
+            speed=10000,
+        )
+        db_session.add(conn)
+        await db_session.flush()
+
+        resp = await client.delete(f"/api/v1/ports/{port.id}", headers=auth_headers)
+        assert resp.status_code == 204
+
+    async def test_delete_port_not_found(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        ixp: IXP,
+    ):
+        resp = await client.delete(
+            f"/api/v1/ports/{uuid.uuid4()}", headers=auth_headers
+        )
+        assert resp.status_code == 404
+
+
+class TestPortCreateValidation:
+    async def test_create_port_wrong_ixp_switch_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        # Create a second IXP and a switch in it
+        other_ixp = IXP(
+            id=uuid.uuid4(),
+            name="Other IXP",
+            short_name="OIXP",
+            asn=65001,
+            country="AR",
+            city="Buenos Aires",
+        )
+        db_session.add(other_ixp)
+        await db_session.flush()
+
+        other_sw = Switch(
+            id=uuid.uuid4(),
+            ixp_id=other_ixp.id,
+            name="sw-other-ixp",
+            hostname="sw-other.example.net",
+            is_active=True,
+        )
+        db_session.add(other_sw)
+        await db_session.flush()
+
+        # Try to create a port using the switch from the other IXP
+        resp = await client.post(
+            "/api/v1/ports",
+            headers=auth_headers,
+            json={
+                "switch_id": str(other_sw.id),
+                "name": "EthernetCrossIXP",
+                "speed": 10000,
+                "type": "member",
+            },
+        )
+        assert resp.status_code == 404

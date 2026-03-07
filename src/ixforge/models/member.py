@@ -1,9 +1,21 @@
 """Member model."""
 
-from sqlalchemy import CheckConstraint, Enum, Integer, String, Text, UniqueConstraint
+from datetime import date
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    Enum,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ixforge.enums import MemberState, PeeringPolicy
+from ixforge.enums import ContractType, MemberState, MemberType, PeeringPolicy
 from ixforge.models.base import (
     Base,
     ExtraDataMixin,
@@ -18,6 +30,10 @@ class Member(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     __table_args__ = (
         UniqueConstraint("ixp_id", "asn", name="uq_members_ixp_id_asn"),
         CheckConstraint("asn > 0", name="ck_members_asn_positive"),
+        CheckConstraint(
+            "country IS NULL OR country ~ '^[A-Z]{2}$'",
+            name="ck_members_country_iso",
+        ),
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -36,3 +52,21 @@ class Member(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     peering_policy_details: Mapped[str | None] = mapped_column(Text, nullable=True)
     website: Mapped[str | None] = mapped_column(String(512), nullable=True)
     peeringdb_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    member_type: Mapped[MemberType | None] = mapped_column(
+        Enum(MemberType, name="member_type"),
+        nullable=True,
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    connection_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contract_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contract_renewal: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contract_type: Mapped[ContractType | None] = mapped_column(
+        Enum(ContractType, name="contract_type"),
+        nullable=True,
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skip_ixf_export: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )

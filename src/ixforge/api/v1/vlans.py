@@ -42,9 +42,10 @@ async def get_vlan(
     vlan_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> VLAN:
     """Get VLAN details."""
-    return await vlan_svc.get(db, vlan_id)
+    return await vlan_svc.get(db, ixp_id, vlan_id)
 
 
 @vlans_router.patch("/{vlan_id}", response_model=VLANRead)
@@ -53,9 +54,10 @@ async def update_vlan(
     body: VLANUpdate,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> VLAN:
     """Update a VLAN."""
-    return await vlan_svc.update(db, vlan_id, body)
+    return await vlan_svc.update(db, ixp_id, vlan_id, body)
 
 
 @vlans_router.delete("/{vlan_id}", status_code=204)
@@ -63,7 +65,8 @@ async def delete_vlan(
     vlan_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> Response:
     """Delete a VLAN."""
-    await vlan_svc.delete(db, vlan_id)
+    await vlan_svc.delete(db, ixp_id, vlan_id)
     return Response(status_code=204)
