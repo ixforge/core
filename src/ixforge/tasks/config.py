@@ -151,6 +151,12 @@ async def regenerate_configs_for_connection(
 
     session_factory = get_session_factory()
     async with session_factory() as session:
+        conn = await session.get(Connection, conn_uuid)
+        if conn is None:
+            log.warning("regenerate_configs_for_connection.connection_not_found")
+            return []
+        tenant_context.set(conn.ixp_id)
+
         stmt = (
             select(BGPSession.route_server_id)
             .where(BGPSession.connection_id == conn_uuid)
