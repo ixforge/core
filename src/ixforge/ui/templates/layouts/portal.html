@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es" x-data x-init="$store.darkMode.init()">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Portal - IXForge{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script defer src="/static/js/vendor/alpine-collapse.min.js"></script>
+  <script defer src="/static/js/vendor/alpine.min.js"></script>
+  <script src="/static/js/vendor/htmx.min.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: true }">
+    <aside class="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col" x-show="sidebarOpen">
+      <div class="p-4 border-b dark:border-gray-700">
+        <h2 class="text-lg font-bold">Portal Miembro</h2>
+      </div>
+      <nav class="flex-1 p-4 space-y-1">
+        <a href="/portal/dashboard" class="block px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.url.path == '/portal/dashboard' %}bg-gray-100 dark:bg-gray-700{% endif %}">Dashboard</a>
+        <a href="/portal/profile" class="block px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.url.path == '/portal/profile' %}bg-gray-100 dark:bg-gray-700{% endif %}">Mi Perfil</a>
+        <a href="/portal/connections" class="block px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.url.path == '/portal/connections' %}bg-gray-100 dark:bg-gray-700{% endif %}">Conexiones</a>
+        <a href="/portal/bgp-sessions" class="block px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.url.path == '/portal/bgp-sessions' %}bg-gray-100 dark:bg-gray-700{% endif %}">Sesiones BGP</a>
+        <a href="/portal/contacts" class="block px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.url.path == '/portal/contacts' %}bg-gray-100 dark:bg-gray-700{% endif %}">Contactos</a>
+      </nav>
+      <div class="p-4 border-t dark:border-gray-700">
+        <form method="POST" action="/logout">
+          <button type="submit" class="w-full text-left px-3 py-2 text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Cerrar sesion</button>
+        </form>
+      </div>
+    </aside>
+    <div class="flex flex-col flex-1 overflow-hidden">
+      <header class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-3 flex items-center justify-between">
+        <button @click="sidebarOpen = !sidebarOpen" class="text-gray-500 hover:text-gray-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <span class="text-sm text-gray-500">Portal Miembro</span>
+      </header>
+      <main class="flex-1 overflow-y-auto p-6">
+        {% include "components/flash.html" %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

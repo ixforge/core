@@ -2,13 +2,16 @@
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import CustomFieldEntityType, CustomFieldType
+from ixforge.exceptions import ValidationError
 from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.models.ixp import IXP
 from ixforge.models.user import User
+from ixforge.services.custom_fields import validate_extra_data
 
 
 class TestCustomFieldCRUD:
@@ -179,3 +182,72 @@ class TestCustomFieldCRUD:
             },
         )
         assert resp.status_code == 403
+
+
+class TestValidateExtraData:
+    async def test_validate_extra_data_no_definitions_with_data(
+        self,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Providing extra_data when no custom fields are defined should raise ValidationError"""
+        with pytest.raises(ValidationError, match="No custom fields defined"):
+            await validate_extra_data(db_session, ixp.id, "member", {"key": "val"})
+
+    async def test_validate_extra_data_required_field_missing(
+        self,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Missing a required custom field should raise ValidationError"""
+        cf = CustomFieldDefinition(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            entity_type=CustomFieldEntityType.member,
+            field_name="required_field",
+            field_type=CustomFieldType.string,
+            is_required=True,
+        )
+        db_session.add(cf)
+        await db_session.flush()
+
+        with pytest.raises(ValidationError, match="required_field"):
+            await validate_extra_data(db_session, ixp.id, "member", None)
+
+    async def test_validate_extra_data_unknown_field(
+        self,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Providing an unknown custom field should raise ValidationError"""
+        cf = CustomFieldDefinition(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            entity_type=CustomFieldEntityType.member,
+            field_name="field_a",
+            field_type=CustomFieldType.string,
+        )
+        db_session.add(cf)
+        await db_session.flush()
+
+        with pytest.raises(ValidationError, match="Unknown custom field 'unknown'"):
+            await validate_extra_data(db_session, ixp.id, "member", {"unknown": "value"})
+
+    async def test_validate_extra_data_valid_pass(
+        self,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Valid extra_data matching definitions should not raise"""
+        cf = CustomFieldDefinition(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            entity_type=CustomFieldEntityType.member,
+            field_name="notes",
+            field_type=CustomFieldType.string,
+        )
+        db_session.add(cf)
+        await db_session.flush()
+
+        # Should not raise
+        await validate_extra_data(db_session, ixp.id, "member", {"notes": "hello"})

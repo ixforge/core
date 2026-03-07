@@ -1,0 +1,31 @@
+{% extends "layouts/portal.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">{{ page_title }}</h1>
+{% if contacts %}
+<div class="card overflow-hidden">
+  <table class="w-full">
+    <thead>
+      <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+        <th class="pb-3 font-medium">Nombre</th>
+        <th class="pb-3 font-medium">Email</th>
+        <th class="pb-3 font-medium">Telefono</th>
+        <th class="pb-3 font-medium">Rol</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y dark:divide-gray-700">
+      {% for c in contacts %}
+      <tr>
+        <td class="py-3">{{ c.name }}</td>
+        <td class="py-3">{{ c.email or "-" }}</td>
+        <td class="py-3">{{ c.phone or "-" }}</td>
+        <td class="py-3">{{ c.role or "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-gray-500">Sin contactos registrados.</p>
+{% endif %}
+{% endblock %}

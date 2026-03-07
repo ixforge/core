@@ -30,7 +30,7 @@ async def test_engine():
     await engine.dispose()
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(scope="session")
 async def _create_tables(test_engine):
     """Create all tables once per test session, drop them at the end."""
     async with test_engine.begin() as conn:
@@ -41,7 +41,7 @@ async def _create_tables(test_engine):
 
 
 @pytest.fixture
-async def db_session(test_engine) -> AsyncGenerator[AsyncSession]:
+async def db_session(test_engine, _create_tables) -> AsyncGenerator[AsyncSession]:
     """Provide a transactional database session that rolls back after each test.
 
     Uses nested transactions (savepoints) so that service code calling

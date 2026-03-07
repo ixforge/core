@@ -28,6 +28,15 @@ class CursorParams(BaseModel):
     limit: int = Field(default=50, ge=1, le=200)
 
 
+def validate_country_code(v: str | None) -> str | None:
+    """Validate and normalize a 2-letter ISO country code."""
+    if v is not None:
+        v = v.upper()
+        if len(v) != 2 or not v.isalpha():
+            raise ValueError("country must be a 2-letter ISO code (e.g. AR, US)")
+    return v
+
+
 def encode_cursor(sort_value: str, record_id: uuid.UUID) -> str:
     raw = f"{sort_value}|{record_id}"
     return base64.urlsafe_b64encode(raw.encode()).decode()

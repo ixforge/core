@@ -8,9 +8,11 @@ from sqlalchemy.orm import joinedload
 
 from ixforge.enums import MemberState
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
+from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment
 from ixforge.models.member import Member
+from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.connection import (
     ConnectionCreate,
@@ -41,7 +43,7 @@ async def create(
 ) -> Connection:
     """Create a new connection in draft state."""
     member = await session.get(Member, data.member_id)
-    if member is None:
+    if member is None or member.ixp_id != ixp_id:
         raise NotFoundError("Member", str(data.member_id))
     if member.state == MemberState.terminated:
         raise ValidationError("Cannot create connection for a terminated member")
@@ -178,10 +180,9 @@ async def transition(
             details={"current_state": current, "target_state": target_state},
         )
 
-    # provisioning -> active requires port + VLAN + IP.
+    # Activating a connection requires port + VLAN + IP
     if (
-        current == ConnectionState.provisioning
-        and target_state == ConnectionState.active
+        target_state == ConnectionState.active
         and not await _has_complete_setup(session, connection_id)
     ):
         raise ValidationError("Cannot activate connection: port, VLAN, and IP must be assigned")
@@ -200,6 +201,16 @@ async def transition(
         if has_vlan is not None or has_ip is not None:
             raise ValidationError(
                 "Cannot decommission connection: release all VLANs and IPs first"
+            )
+
+        has_bgp = await session.scalar(
+            select(BGPSession.id)
+            .where(BGPSession.connection_id == connection_id)
+            .limit(1)
+        )
+        if has_bgp is not None:
+            raise ValidationError(
+                "Cannot decommission connection: delete all BGP sessions first"
             )
 
     old_state = connection.state
@@ -247,6 +258,11 @@ async def assign_vlan(
         raise ValidationError(
             f"Cannot assign resources to a {connection.state} connection"
         )
+
+    # Validate that the VLAN belongs to the same IXP
+    vlan = await session.get(VLAN, data.vlan_id)
+    if vlan is None or vlan.ixp_id != ixp_id:
+        raise NotFoundError("VLAN", str(data.vlan_id))
 
     # Check for duplicate assignment.
     existing = await session.scalar(
@@ -316,8 +332,26 @@ async def assign_ip(
     return await ipam.allocate_sequential(session, ixp_id, pool_id, connection_id)
 
 
-async def release_ip(session: AsyncSession, assignment_id: uuid.UUID) -> None:
-    """Release an IP assignment from a connection, delegating to IPAM service."""
+async def delete(session: AsyncSession, connection_id: uuid.UUID) -> None:
+    """Delete a decommissioned connection."""
+    connection = await get(session, connection_id)
+    if connection.state != ConnectionState.decommissioned:
+        raise ValidationError("Connection must be decommissioned before deletion")
+    await session.delete(connection)
+    await session.flush()
+
+
+async def release_ip(
+    session: AsyncSession, connection_id: uuid.UUID, assignment_id: uuid.UUID
+) -> None:
+    """Release an IP assignment from a connection, delegating to IPAM service.
+
+    Validates that the assignment belongs to the given connection to prevent IDOR.
+    """
     from ixforge.services import ipam
 
-    await ipam.release(session, assignment_id)
+    assignment = await session.get(IPAssignment, assignment_id)
+    if assignment is None or assignment.connection_id != connection_id:
+        raise NotFoundError("IPAssignment")
+
+    await ipam.release(session, assignment_id, assignment.ixp_id)

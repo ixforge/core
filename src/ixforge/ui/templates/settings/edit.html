@@ -1,0 +1,69 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
+    {% if errors is mapping and errors.detail %}
+      {% for err in errors.detail %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% elif errors is iterable and errors is not string %}
+      {% for err in errors %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Read-only info #}
+  <div class="mb-4 grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+    <div>
+      <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Short Name</span>
+      <p class="font-mono">{{ ixp.short_name }}</p>
+    </div>
+    <div>
+      <span class="text-sm font-medium text-gray-500 dark:text-gray-400">ASN</span>
+      <p class="font-mono">AS{{ ixp.asn }}</p>
+    </div>
+  </div>
+
+  <form method="post" action="/admin/settings">
+    <div class="mb-4">
+      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
+      <input type="text" id="name" name="name" value="{{ ixp.name if ixp else '' }}"
+             required class="input-field w-full">
+    </div>
+    <div class="mb-4">
+      <label for="website" class="block text-sm font-medium mb-1">Website</label>
+      <input type="text" id="website" name="website" value="{{ ixp.website if ixp and ixp.website else '' }}"
+             class="input-field w-full" placeholder="https://example.net">
+    </div>
+    <div class="mb-4">
+      <label for="country" class="block text-sm font-medium mb-1">País (ISO 3166-1 alpha-2)</label>
+      <input type="text" id="country" name="country" value="{{ ixp.country if ixp and ixp.country else '' }}"
+             maxlength="2" class="input-field w-full" placeholder="AR">
+    </div>
+    <div class="mb-4">
+      <label for="city" class="block text-sm font-medium mb-1">Ciudad</label>
+      <input type="text" id="city" name="city" value="{{ ixp.city if ixp and ixp.city else '' }}"
+             class="input-field w-full">
+    </div>
+    <div class="mb-6">
+      <label for="peeringdb_id" class="block text-sm font-medium mb-1">PeeringDB ID</label>
+      <input type="number" id="peeringdb_id" name="peeringdb_id"
+             value="{{ ixp.peeringdb_id if ixp and ixp.peeringdb_id else '' }}"
+             class="input-field w-full" placeholder="12345">
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">Guardar</button>
+      <a href="/admin/settings" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

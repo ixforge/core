@@ -26,6 +26,7 @@ FAKE_VLAN = {
 def app():
     app = create_ui_app()
     app.state.api.login = AsyncMock(return_value="test-jwt")
+    app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "admin", "member_id": None})
     return app
 
 
@@ -109,6 +110,96 @@ class TestVlanForm:
         )
         assert resp.status_code == 302
         assert "/admin/vlans" in resp.headers["location"]
+
+
+class TestVlanDetail:
+    def test_detail_renders(self, authed_client, app):
+        vlan = {**FAKE_VLAN, "type": "private"}
+
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/vlans/{FAKE_VLAN['id']}":
+                return vlan
+            if path == f"/api/v1/vlans/{FAKE_VLAN['id']}/members":
+                return {"items": []}
+            if path == "/api/v1/members":
+                return {"items": []}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(f"/admin/vlans/{FAKE_VLAN['id']}")
+        assert resp.status_code == 200
+        assert "Production Peering" in resp.text
+
+    def test_detail_404_redirects(self, authed_client, app):
+        app.state.api.get = AsyncMock(side_effect=APIError(404))
+        resp = authed_client.get(f"/admin/vlans/{uuid.uuid4()}", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_detail_production_vlan_skips_members(self, authed_client, app):
+        """Production VLANs don't fetch vlan_members (only private ones do)."""
+        vlan = {**FAKE_VLAN, "type": "production"}
+        app.state.api.get = AsyncMock(return_value=vlan)
+        resp = authed_client.get(f"/admin/vlans/{FAKE_VLAN['id']}")
+        assert resp.status_code == 200
+
+
+class TestVlanMemberAdd:
+    def test_member_add_redirects(self, authed_client, app):
+        app.state.api.post = AsyncMock(return_value=None)
+        member_id = str(uuid.uuid4())
+        resp = authed_client.post(
+            f"/admin/vlans/{FAKE_VLAN['id']}/members/add",
+            data={"member_id": member_id},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/vlans/{FAKE_VLAN['id']}" in resp.headers["location"]
+        app.state.api.post.assert_called_once_with(
+            f"/api/v1/vlans/{FAKE_VLAN['id']}/members",
+            "test-jwt",
+            json={"member_id": member_id},
+        )
+
+    def test_member_add_empty_flashes_error(self, authed_client, app):
+        resp = authed_client.post(
+            f"/admin/vlans/{FAKE_VLAN['id']}/members/add",
+            data={"member_id": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_member_add_api_error_flashes(self, authed_client, app):
+        app.state.api.post = AsyncMock(side_effect=APIError(409, "Ya asociado"))
+        resp = authed_client.post(
+            f"/admin/vlans/{FAKE_VLAN['id']}/members/add",
+            data={"member_id": str(uuid.uuid4())},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+
+class TestVlanMemberRemove:
+    def test_member_remove_redirects(self, authed_client, app):
+        member_id = str(uuid.uuid4())
+        app.state.api.delete = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/vlans/{FAKE_VLAN['id']}/members/{member_id}/remove",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/vlans/{FAKE_VLAN['id']}" in resp.headers["location"]
+        app.state.api.delete.assert_called_once_with(
+            f"/api/v1/vlans/{FAKE_VLAN['id']}/members/{member_id}",
+            "test-jwt",
+        )
+
+    def test_member_remove_api_error_flashes(self, authed_client, app):
+        app.state.api.delete = AsyncMock(side_effect=APIError(404, "No encontrado"))
+        resp = authed_client.post(
+            f"/admin/vlans/{FAKE_VLAN['id']}/members/{uuid.uuid4()}/remove",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
 
 
 class TestVlanDelete:

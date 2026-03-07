@@ -48,9 +48,10 @@ async def update_custom_field(
     body: CustomFieldDefinitionUpdate,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> CustomFieldDefinition:
     """Update a custom field definition (admin only)."""
-    return await cf_svc.update(db, definition_id, body)
+    return await cf_svc.update(db, ixp_id, definition_id, body)
 
 
 @custom_fields_router.delete("/{definition_id}", status_code=204)
@@ -58,7 +59,8 @@ async def delete_custom_field(
     definition_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> Response:
     """Delete a custom field definition (admin only)."""
-    await cf_svc.delete(db, definition_id)
+    await cf_svc.delete(db, ixp_id, definition_id)
     return Response(status_code=204)

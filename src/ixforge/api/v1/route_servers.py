@@ -46,9 +46,10 @@ async def get_route_server(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> RouteServer:
     """Get route server details."""
-    return await rs_svc.get(db, route_server_id)
+    return await rs_svc.get(db, ixp_id, route_server_id)
 
 
 @route_servers_router.patch("/{route_server_id}", response_model=RouteServerRead)
@@ -57,9 +58,10 @@ async def update_route_server(
     body: RouteServerUpdate,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> RouteServer:
     """Update a route server."""
-    return await rs_svc.update(db, route_server_id, body)
+    return await rs_svc.update(db, ixp_id, route_server_id, body)
 
 
 @route_servers_router.delete("/{route_server_id}", status_code=204)
@@ -67,7 +69,8 @@ async def delete_route_server(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
+    ixp_id: IXPId,
 ) -> Response:
     """Delete a route server."""
-    await rs_svc.delete(db, route_server_id)
+    await rs_svc.delete(db, ixp_id, route_server_id)
     return Response(status_code=204)

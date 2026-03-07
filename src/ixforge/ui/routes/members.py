@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import html as _html
 from typing import TYPE_CHECKING, Any
 
-from starlette.responses import RedirectResponse, Response
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -107,6 +109,16 @@ async def member_new(request: Request) -> Response:
     if peeringdb_id and str(peeringdb_id).strip():
         payload["peeringdb_id"] = int(str(peeringdb_id))
 
+    # Extended fields
+    for field in ("member_type", "description", "city", "country",
+                  "connection_date", "contract_start", "contract_renewal",
+                  "contract_type", "notes"):
+        val = str(form.get(field, "")).strip()
+        if val:
+            payload[field] = val
+
+    payload["skip_ixf_export"] = form.get("skip_ixf_export") == "true"
+
     try:
         member = await api.post("/api/v1/members", token, json=payload)
     except APIError as e:
@@ -138,10 +150,14 @@ async def member_edit(request: Request) -> Response:
 
     form = await request.form()
     payload: dict[str, Any] = {}
-    for field in ("name", "short_name", "peering_policy", "website"):
+    for field in ("name", "short_name", "peering_policy", "website",
+                  "member_type", "description", "city", "country",
+                  "connection_date", "contract_start", "contract_renewal",
+                  "contract_type", "notes"):
         val = form.get(field)
         if val is not None:
-            payload[field] = str(val)
+            payload[field] = str(val) if str(val).strip() else None
+    payload["skip_ixf_export"] = form.get("skip_ixf_export") == "true"
     peeringdb_id = form.get("peeringdb_id")
     if peeringdb_id and str(peeringdb_id).strip():
         payload["peeringdb_id"] = int(str(peeringdb_id))
@@ -173,7 +189,7 @@ async def member_transition(request: Request) -> Response:
         await api.post(f"/api/v1/members/{member_id}/transition", token, json={"state": new_state})
         add_flash(request, f"Estado cambiado a {new_state}", "success")
     except APIError as e:
-        add_flash(request, f"Error en transicion: {e.detail}", "error")
+        add_flash(request, f"Error en transicion: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
 
@@ -196,7 +212,7 @@ async def contact_new(request: Request) -> Response:
         await api.post(f"/api/v1/members/{member_id}/contacts", token, json=payload)
         add_flash(request, "Contacto creado", "success")
     except APIError as e:
-        add_flash(request, f"Error creando contacto: {e.detail}", "error")
+        add_flash(request, f"Error creando contacto: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
 
@@ -220,7 +236,7 @@ async def contact_edit(request: Request) -> Response:
         await api.patch(f"/api/v1/contacts/{contact_id}", token, json=payload)
         add_flash(request, "Contacto actualizado", "success")
     except APIError as e:
-        add_flash(request, f"Error actualizando contacto: {e.detail}", "error")
+        add_flash(request, f"Error actualizando contacto: {safe_detail(e)}", "error")
 
     if member_id:
         return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
@@ -239,8 +255,98 @@ async def contact_delete(request: Request) -> Response:
         await api.delete(f"/api/v1/contacts/{contact_id}", token)
         add_flash(request, "Contacto eliminado", "success")
     except APIError as e:
-        add_flash(request, f"Error eliminando contacto: {e.detail}", "error")
+        add_flash(request, f"Error eliminando contacto: {safe_detail(e)}", "error")
 
     if member_id:
         return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
     return RedirectResponse("/admin/members", status_code=302)
+
+
+@require_auth
+async def member_logo_upload(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    member_id = request.path_params["member_id"]
+    form = await request.form()
+    file = form.get("file")
+    if not isinstance(file, StarletteUploadFile):
+        add_flash(request, "No se seleccionó archivo", "error")
+        return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
+    try:
+        await api.post_file(f"/api/v1/members/{member_id}/logo", token, field="file", upload=file)
+        add_flash(request, "Logo actualizado", "success")
+    except APIError as e:
+        add_flash(request, f"Error: {safe_detail(e)}", "error")
+    return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
+
+
+@require_auth
+async def member_logo_delete(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    member_id = request.path_params["member_id"]
+    try:
+        await api.delete(f"/api/v1/members/{member_id}/logo", token)
+        add_flash(request, "Logo eliminado", "success")
+    except APIError as e:
+        add_flash(request, f"Error: {safe_detail(e)}", "error")
+    return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
+
+
+@require_auth
+async def member_delete(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    member_id = request.path_params["member_id"]
+    try:
+        await api.delete(f"/api/v1/members/{member_id}", token)
+        add_flash(request, "Miembro eliminado", "success")
+        return RedirectResponse("/admin/members", status_code=302)
+    except APIError as e:
+        add_flash(request, f"Error: {safe_detail(e)}", "error")
+        return RedirectResponse(f"/admin/members/{member_id}", status_code=302)
+
+
+@require_auth
+async def asn_name_fragment(request: Request) -> Response:
+    """HTMX fragment: looks up ASN name by ASN number."""
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    asn_str = request.query_params.get("asn", "")
+
+    if not asn_str or not asn_str.isdigit():
+        return HTMLResponse(f"AS{_html.escape(asn_str or '?')}")
+
+    try:
+        data = await api.get("/api/v1/members/asn-lookup", token, params={"asn": asn_str})
+        name = _html.escape(data.get("name") or "")
+        asn = _html.escape(str(data.get("asn", asn_str)))
+        if name:
+            html = f'AS{asn} <span class="text-gray-500 text-xs">({name})</span>'
+        else:
+            html = f"AS{asn}"
+    except APIError:
+        html = f"AS{_html.escape(asn_str)}"
+
+    return HTMLResponse(html)
+
+
+@require_auth
+async def member_asn_name(request: Request) -> Response:
+    """HTMX fragment: returns ASN name for a member."""
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    member_id = request.path_params["member_id"]
+
+    try:
+        data = await api.get(f"/api/v1/members/{member_id}/asn-name", token)
+        name = _html.escape(data.get("name") or "")
+        asn = _html.escape(str(data.get("asn", "")))
+        if name:
+            html = f'AS{asn} <span class="text-gray-500 text-xs">({name})</span>'
+        else:
+            html = f"AS{asn}"
+    except APIError:
+        html = "AS?"
+
+    return HTMLResponse(html)

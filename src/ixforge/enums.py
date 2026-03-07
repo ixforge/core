@@ -8,9 +8,11 @@ __all__ = [
     "ConnectionState",
     "ConnectionType",
     "ContactRole",
+    "ContractType",
     "CustomFieldEntityType",
     "CustomFieldType",
     "MemberState",
+    "MemberType",
     "PeeringPolicy",
     "PortType",
     "UserRole",
@@ -34,6 +36,21 @@ class PeeringPolicy(StrEnum):
     selective = "selective"
     restrictive = "restrictive"
     no = "no"
+
+
+class MemberType(StrEnum):
+    isp = "isp"
+    cdn = "cdn"
+    ixp = "ixp"
+    academic = "academic"
+    government = "government"
+    corporate = "corporate"
+    other = "other"
+
+
+class ContractType(StrEnum):
+    free = "free"
+    standard = "standard"
 
 
 # -- Connections --
@@ -68,6 +85,7 @@ class VLANType(StrEnum):
     production = "production"
     quarantine = "quarantine"
     management = "management"
+    private = "private"
     other = "other"
 
 

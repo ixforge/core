@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Uuid, text
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import UserRole as UserRole
@@ -28,3 +28,6 @@ class User(UUIDPrimaryKey, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
     )
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    position: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pgp_key: Mapped[str | None] = mapped_column(Text, nullable=True)

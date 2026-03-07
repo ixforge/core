@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Header
@@ -68,6 +69,8 @@ async def _resolve_api_key_user(db: AsyncSession, raw_key: str) -> User:
     if api_key.user_id is None:
         raise UnauthorizedError("API key is not associated with a user")
 
+    api_key.last_used_at = datetime.now(UTC)
+
     user = await db.get(User, api_key.user_id)
     if user is None or not user.is_active:
         raise UnauthorizedError("User not found or inactive")
@@ -130,6 +133,8 @@ async def require_monitoring_scope(
 
     if "monitoring:read" not in api_key.scopes:
         raise ForbiddenError("API key missing 'monitoring:read' scope")
+
+    api_key.last_used_at = datetime.now(UTC)
 
     # Resolve the IXP id and set tenant context
     ixp_stmt = select(IXP.id).limit(1)

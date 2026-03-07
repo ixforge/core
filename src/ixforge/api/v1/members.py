@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
 from ixforge.exceptions import ForbiddenError
@@ -10,12 +10,14 @@ from ixforge.models.member import Member
 from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.member import (
+    ASNLookupResponse,
     MemberCreate,
     MemberRead,
     MemberStateTransition,
     MemberUpdate,
 )
 from ixforge.services import members as member_svc
+from ixforge.services.asn_lookup import lookup
 
 members_router = APIRouter(prefix="/members", tags=["members"])
 
@@ -56,6 +58,29 @@ async def create_member(
     return await member_svc.create(db, ixp_id, body, actor_id=admin.id)
 
 
+@members_router.get("/asn-lookup", response_model=ASNLookupResponse)
+async def get_asn_name(
+    db: DBSession,
+    _ixp_id: IXPId,
+    _user: CurrentUser,
+    asn: int = Query(ge=1, le=4294967295),
+) -> dict[str, object]:
+    name = await lookup(db, asn)
+    return {"asn": asn, "name": name}
+
+
+@members_router.get("/{member_id}/asn-name", response_model=ASNLookupResponse)
+async def get_member_asn_name(
+    member_id: uuid.UUID, db: DBSession, _ixp_id: IXPId, user: CurrentUser
+) -> dict[str, object]:
+    """Return ASN name for a member (best-effort, may return null)."""
+    if user.role != UserRole.admin and user.member_id != member_id:
+        raise ForbiddenError("You can only view your own member record")
+    member = await member_svc.get(db, member_id)
+    name = await lookup(db, member.asn)
+    return {"asn": member.asn, "name": name}
+
+
 @members_router.get("/{member_id}", response_model=MemberRead)
 async def get_member(
     member_id: uuid.UUID,
@@ -75,6 +100,7 @@ async def update_member(
     body: MemberUpdate,
     db: DBSession,
     admin: AdminUser,
+    _ixp_id: IXPId,
 ) -> Member:
     """Update a member (admin only)."""
     return await member_svc.update(db, member_id, body, actor_id=admin.id)
@@ -86,6 +112,19 @@ async def transition_member(
     body: MemberStateTransition,
     db: DBSession,
     admin: AdminUser,
+    _ixp_id: IXPId,
 ) -> Member:
     """Transition a member to a new state (admin only)."""
     return await member_svc.transition(db, member_id, body.state, actor_id=admin.id)
+
+
+@members_router.delete("/{member_id}", status_code=204)
+async def delete_member(
+    member_id: uuid.UUID,
+    db: DBSession,
+    admin: AdminUser,
+    _ixp_id: IXPId,
+) -> Response:
+    """Hard delete a terminated member (admin only)."""
+    await member_svc.delete(db, member_id, actor_id=admin.id)
+    return Response(status_code=204)

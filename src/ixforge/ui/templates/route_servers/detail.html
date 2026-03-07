@@ -79,6 +79,77 @@
   </div>
 </div>
 
+{# IP Addresses card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Direcciones IP</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {# IPv4 #}
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">IPv4</h3>
+      {% set ip_v4_assignment = rs_ips | selectattr("af", "equalto", 4) | first | default(none) %}
+      {% if ip_v4_assignment %}
+      <div class="flex items-center gap-3">
+        <code class="text-sm">{{ ip_v4_assignment.address }}</code>
+        <form method="post" action="/admin/route-servers/{{ rs.id }}/ips/{{ ip_v4_assignment.id }}/release">
+          <button type="submit" class="btn-danger btn-sm">Liberar</button>
+        </form>
+      </div>
+      {% elif all_pools | selectattr("af", "equalto", 4) | list %}
+      <form method="post" action="/admin/route-servers/{{ rs.id }}/ips/assign" class="space-y-2">
+        <input type="hidden" name="af" value="4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pool IPv4</label>
+          <select name="pool_id" class="input w-full">
+            {% for pool in all_pools | selectattr("af", "equalto", 4) | list %}
+            <option value="{{ pool.id }}">{{ pool.vlan_name }} (VID {{ pool.vlan_vid }}) — {{ pool.network }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Direccion especifica (opcional)</label>
+          <input type="text" name="address" class="input w-full" placeholder="Dejar vacio para asignar automaticamente">
+        </div>
+        <button type="submit" class="btn-primary btn-sm">Asignar IPv4</button>
+      </form>
+      {% else %}
+      <p class="text-sm text-gray-500 dark:text-gray-400">No hay pools IPv4 disponibles</p>
+      {% endif %}
+    </div>
+    {# IPv6 #}
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">IPv6</h3>
+      {% set ip_v6_assignment = rs_ips | selectattr("af", "equalto", 6) | first | default(none) %}
+      {% if ip_v6_assignment %}
+      <div class="flex items-center gap-3">
+        <code class="text-sm">{{ ip_v6_assignment.address }}</code>
+        <form method="post" action="/admin/route-servers/{{ rs.id }}/ips/{{ ip_v6_assignment.id }}/release">
+          <button type="submit" class="btn-danger btn-sm">Liberar</button>
+        </form>
+      </div>
+      {% elif all_pools | selectattr("af", "equalto", 6) | list %}
+      <form method="post" action="/admin/route-servers/{{ rs.id }}/ips/assign" class="space-y-2">
+        <input type="hidden" name="af" value="6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pool IPv6</label>
+          <select name="pool_id" class="input w-full">
+            {% for pool in all_pools | selectattr("af", "equalto", 6) | list %}
+            <option value="{{ pool.id }}">{{ pool.vlan_name }} (VID {{ pool.vlan_vid }}) — {{ pool.network }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Direccion especifica (opcional)</label>
+          <input type="text" name="address" class="input w-full" placeholder="Dejar vacio para asignar automaticamente">
+        </div>
+        <button type="submit" class="btn-primary btn-sm">Asignar IPv6</button>
+      </form>
+      {% else %}
+      <p class="text-sm text-gray-500 dark:text-gray-400">No hay pools IPv6 disponibles</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 {# Config status #}
 <div class="card mb-6">
   <div class="flex justify-between items-center mb-4">
@@ -157,6 +228,55 @@
   </div>
   {% else %}
   <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay sesiones BGP</p>
+  {% endif %}
+</div>
+
+{# RS VLANs #}
+<div class="card mt-6">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">VLANs</h2>
+  </div>
+  {% if rs_vlans %}
+  <div class="overflow-x-auto mb-4">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">VLAN</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for rv in rs_vlans %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3 text-sm">
+            {% if rv.vlan_vid %}{{ rv.vlan_name }} <span class="text-gray-400">(VID {{ rv.vlan_vid }})</span>
+            {% else %}{{ rv.vlan_name }}{% endif %}
+          </td>
+          <td class="py-3">
+            <form method="post" action="/admin/route-servers/{{ rs.id }}/vlans/{{ rv.vlan_id }}/remove">
+              <button type="submit" class="btn-danger btn-sm">Quitar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4 mb-4">No hay VLANs asociadas</p>
+  {% endif %}
+  {% if available_vlans %}
+  <form method="post" action="/admin/route-servers/{{ rs.id }}/vlans/add" class="flex gap-2 items-end">
+    <div class="flex-1">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agregar VLAN</label>
+      <select name="vlan_id" class="input w-full">
+        {% for v in available_vlans %}
+        <option value="{{ v.id }}">{{ v.name }} (VID {{ v.vid }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">Agregar</button>
+  </form>
   {% endif %}
 </div>
 {% endblock %}

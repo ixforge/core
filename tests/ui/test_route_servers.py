@@ -48,6 +48,7 @@ FAKE_CONFIG = {
 def app():
     app = create_ui_app()
     app.state.api.login = AsyncMock(return_value="test-jwt")
+    app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "admin", "member_id": None})
     return app
 
 
@@ -155,6 +156,123 @@ class TestRouteServerForm:
         resp = authed_client.post(
             f"/admin/route-servers/{FAKE_RS['id']}/edit",
             data={"name": "rs1-updated", "hostname": "rs1.example.net", "asn": "65000", "software": "bird"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+
+class TestRouteServerVlans:
+    def test_vlan_add_redirects(self, authed_client, app):
+        app.state.api.post = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/vlans/add",
+            data={"vlan_id": str(uuid.uuid4())},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/route-servers/{FAKE_RS['id']}" in resp.headers["location"]
+
+    def test_vlan_add_empty_vlan_flashes_error(self, authed_client, app):
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/vlans/add",
+            data={"vlan_id": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_vlan_add_api_error_flashes(self, authed_client, app):
+        app.state.api.post = AsyncMock(side_effect=APIError(409, "Ya asociada"))
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/vlans/add",
+            data={"vlan_id": str(uuid.uuid4())},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_vlan_remove_redirects(self, authed_client, app):
+        vlan_id = str(uuid.uuid4())
+        app.state.api.delete = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/vlans/{vlan_id}/remove",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/route-servers/{FAKE_RS['id']}" in resp.headers["location"]
+        app.state.api.delete.assert_called_once_with(
+            f"/api/v1/route-servers/{FAKE_RS['id']}/vlans/{vlan_id}",
+            "test-jwt",
+        )
+
+    def test_vlan_remove_api_error_flashes(self, authed_client, app):
+        app.state.api.delete = AsyncMock(side_effect=APIError(404, "No encontrada"))
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/vlans/{uuid.uuid4()}/remove",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+
+class TestRouteServerIps:
+    def test_ip_assign_redirects(self, authed_client, app):
+        app.state.api.post = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/ips/assign",
+            data={"pool_id": str(uuid.uuid4())},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/route-servers/{FAKE_RS['id']}" in resp.headers["location"]
+
+    def test_ip_assign_with_address(self, authed_client, app):
+        app.state.api.post = AsyncMock(return_value=None)
+        pool_id = str(uuid.uuid4())
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/ips/assign",
+            data={"pool_id": pool_id, "address": "10.0.0.5"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        app.state.api.post.assert_called_once_with(
+            f"/api/v1/route-servers/{FAKE_RS['id']}/ips",
+            "test-jwt",
+            json={"pool_id": pool_id, "address": "10.0.0.5"},
+        )
+
+    def test_ip_assign_empty_pool_flashes_error(self, authed_client, app):
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/ips/assign",
+            data={"pool_id": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_ip_assign_api_error_flashes(self, authed_client, app):
+        app.state.api.post = AsyncMock(side_effect=APIError(400, "Pool agotado"))
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/ips/assign",
+            data={"pool_id": str(uuid.uuid4())},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_ip_release_redirects(self, authed_client, app):
+        assignment_id = str(uuid.uuid4())
+        app.state.api.delete = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/ips/{assignment_id}/release",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/route-servers/{FAKE_RS['id']}" in resp.headers["location"]
+        app.state.api.delete.assert_called_once_with(
+            f"/api/v1/route-servers/{FAKE_RS['id']}/ips/{assignment_id}",
+            "test-jwt",
+        )
+
+    def test_ip_release_api_error_flashes(self, authed_client, app):
+        app.state.api.delete = AsyncMock(side_effect=APIError(404, "No encontrada"))
+        resp = authed_client.post(
+            f"/admin/route-servers/{FAKE_RS['id']}/ips/{uuid.uuid4()}/release",
             follow_redirects=False,
         )
         assert resp.status_code == 302

@@ -15,6 +15,7 @@ from ixforge.exceptions import UnauthorizedError
 _ALGORITHM = "HS256"
 _TOKEN_EXPIRE_MINUTES = 30
 _API_KEY_PREFIX = "ixf_"
+_ISSUER = "ixforge-core"
 
 
 def hash_password(password: str) -> str:
@@ -28,7 +29,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(subject: str) -> str:
     settings = get_settings()
     expire = datetime.now(UTC) + timedelta(minutes=_TOKEN_EXPIRE_MINUTES)
-    payload: dict[str, str | datetime] = {"sub": subject, "exp": expire}
+    payload: dict[str, str | datetime] = {"sub": subject, "exp": expire, "iss": _ISSUER}
     return cast("str", jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM))
 
 
@@ -36,7 +37,12 @@ def decode_access_token(token: str) -> str:
     """Decode a JWT and return the subject (user ID). Raises UnauthorizedError on failure."""
     settings = get_settings()
     try:
-        payload: dict[str, str] = jwt.decode(token, settings.secret_key, algorithms=[_ALGORITHM])
+        payload: dict[str, str] = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[_ALGORITHM],
+            issuer=_ISSUER,
+        )
     except JWTError as exc:
         raise UnauthorizedError("Invalid or expired token") from exc
 

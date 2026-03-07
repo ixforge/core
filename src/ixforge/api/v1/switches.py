@@ -41,10 +41,11 @@ async def create_switch(
 async def get_switch(
     switch_id: uuid.UUID,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Switch:
     """Get switch details."""
-    return await switch_svc.get(db, switch_id)
+    return await switch_svc.get(db, ixp_id, switch_id)
 
 
 @switches_router.patch("/{switch_id}", response_model=SwitchRead)
@@ -52,18 +53,20 @@ async def update_switch(
     switch_id: uuid.UUID,
     body: SwitchUpdate,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Switch:
     """Update a switch."""
-    return await switch_svc.update(db, switch_id, body)
+    return await switch_svc.update(db, ixp_id, switch_id, body)
 
 
 @switches_router.delete("/{switch_id}", status_code=204)
 async def delete_switch(
     switch_id: uuid.UUID,
     db: DBSession,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Response:
     """Delete a switch."""
-    await switch_svc.delete(db, switch_id)
+    await switch_svc.delete(db, ixp_id, switch_id)
     return Response(status_code=204)

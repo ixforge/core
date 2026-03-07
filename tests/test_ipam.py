@@ -16,6 +16,8 @@ from ixforge.models.connection import Connection
 from ixforge.models.ip import IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
+from ixforge.models.route_server import RouteServer
+from ixforge.models.rs_ip_assignment import RSIPAssignment
 from ixforge.models.vlan import VLAN
 
 # ---------------------------------------------------------------------------
@@ -630,3 +632,176 @@ class TestPoolDeletion:
             headers=auth_headers,
         )
         assert resp.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Global uniqueness: member cannot get RS IP (FIX 1)
+# ---------------------------------------------------------------------------
+
+
+class TestGlobalUniquenessWithRS:
+    async def test_sequential_skips_rs_assigned_ip(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Sequential allocation must skip IPs already assigned to a route server."""
+        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="192.0.2.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        # Pre-assign .1 to a route server
+        rs = RouteServer(ixp_id=ixp.id, name="RS-uniq", hostname="rs-uniq.ex.com", asn=65000)
+        db_session.add(rs)
+        await db_session.flush()
+        rs_assign = RSIPAssignment(
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            pool_id=pool.id,
+            address="192.0.2.1",
+            af=4,
+        )
+        db_session.add(rs_assign)
+        await db_session.flush()
+
+        # Sequential allocation should skip .1 (RS) and return .2
+        resp = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn.id)},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["address"] == "192.0.2.2"
+
+    async def test_manual_assign_rs_ip_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Manual allocation of an IP already assigned to a route server must be rejected."""
+        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="198.51.100.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        rs = RouteServer(ixp_id=ixp.id, name="RS-manual", hostname="rs-manual.ex.com", asn=65000)
+        db_session.add(rs)
+        await db_session.flush()
+        rs_assign = RSIPAssignment(
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            pool_id=pool.id,
+            address="198.51.100.50",
+            af=4,
+        )
+        db_session.add(rs_assign)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn.id), "address": "198.51.100.50"},
+        )
+        assert resp.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Pool creation: vlan_id cross-IXP validation (FIX 9)
+# ---------------------------------------------------------------------------
+
+
+class TestPoolOverlapValidation:
+    async def test_create_pool_overlapping_network_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Creating a pool that overlaps with an existing pool should return 409."""
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Overlap Test VLAN",
+            vid=350,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        # Create first pool
+        resp1 = await client.post(
+            "/api/v1/ip-pools",
+            headers=auth_headers,
+            json={
+                "vlan_id": str(vlan.id),
+                "network": "203.0.113.0/24",
+                "af": 4,
+            },
+        )
+        assert resp1.status_code == 201
+
+        # Create overlapping pool (subnet of the first)
+        resp2 = await client.post(
+            "/api/v1/ip-pools",
+            headers=auth_headers,
+            json={
+                "vlan_id": str(vlan.id),
+                "network": "203.0.113.0/25",
+                "af": 4,
+            },
+        )
+        assert resp2.status_code == 409
+
+
+class TestPoolCreationVLANValidation:
+    async def test_create_pool_wrong_ixp_vlan_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Creating a pool with a vlan_id belonging to a different IXP must fail."""
+        other_ixp = IXP(name="Other IXP Pool", short_name="OIP", asn=65200, country="AR", city="X")
+        db_session.add(other_ixp)
+        await db_session.flush()
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=other_ixp.id,
+            name="Foreign VLAN",
+            vid=999,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        resp = await client.post(
+            "/api/v1/ip-pools",
+            headers=auth_headers,
+            json={
+                "vlan_id": str(vlan.id),
+                "network": "198.51.100.0/24",
+                "af": 4,
+            },
+        )
+        assert resp.status_code == 404

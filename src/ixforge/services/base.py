@@ -37,7 +37,7 @@ async def paginate[T: BaseModel](
             tuple_(sort_column, id_column) > tuple_(literal(cursor_value), literal(cursor_id))
         )
 
-    # Fetch one extra row to determine has_more.
+    # Fetch one extra row to determine has_more
     stmt = stmt.limit(params.limit + 1)
 
     result = await session.execute(stmt)

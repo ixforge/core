@@ -3,9 +3,13 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.exceptions import NotFoundError
+from ixforge.exceptions import ConflictError, NotFoundError
+from ixforge.models.connection import ConnectionVLAN
+from ixforge.models.ip import IPPool
+from ixforge.models.route_server_vlan import RouteServerVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.vlan import VLANCreate, VLANRead, VLANUpdate
@@ -27,14 +31,17 @@ async def create(
         extra_data=data.extra_data,
     )
     session.add(vlan)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ConflictError(f"VLAN with VID {data.vid} already exists in this IXP") from exc
     return vlan
 
 
-async def get(session: AsyncSession, vlan_id: uuid.UUID) -> VLAN:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, vlan_id: uuid.UUID) -> VLAN:
     """Get a VLAN by id or raise NotFoundError."""
     vlan = await session.get(VLAN, vlan_id)
-    if vlan is None:
+    if vlan is None or vlan.ixp_id != ixp_id:
         raise NotFoundError("VLAN", str(vlan_id))
     return vlan
 
@@ -58,11 +65,12 @@ async def list_vlans(
 
 async def update(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     vlan_id: uuid.UUID,
     data: VLANUpdate,
 ) -> VLAN:
     """Update a VLAN."""
-    vlan = await get(session, vlan_id)
+    vlan = await get(session, ixp_id, vlan_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(vlan, field, value)
     await session.flush()
@@ -70,8 +78,27 @@ async def update(
     return vlan
 
 
-async def delete(session: AsyncSession, vlan_id: uuid.UUID) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, vlan_id: uuid.UUID) -> None:
     """Delete a VLAN."""
-    vlan = await get(session, vlan_id)
+    vlan = await get(session, ixp_id, vlan_id)
+
+    has_pool = await session.scalar(
+        select(IPPool.id).where(IPPool.vlan_id == vlan_id).limit(1)
+    )
+    if has_pool is not None:
+        raise ConflictError("Cannot delete VLAN: IP pools are still associated")
+
+    has_cv = await session.scalar(
+        select(ConnectionVLAN.id).where(ConnectionVLAN.vlan_id == vlan_id).limit(1)
+    )
+    if has_cv is not None:
+        raise ConflictError("Cannot delete VLAN: connections are still using it")
+
+    has_rs_vlan = await session.scalar(
+        select(RouteServerVLAN.id).where(RouteServerVLAN.vlan_id == vlan_id).limit(1)
+    )
+    if has_rs_vlan is not None:
+        raise ConflictError("Cannot delete VLAN: route servers are still associated. Remove RS-VLAN associations first")
+
     await session.delete(vlan)
     await session.flush()

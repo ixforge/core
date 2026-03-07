@@ -416,3 +416,39 @@ class TestConfigDiff:
         assert "diff" in body
         # The diff should contain the new peer IP
         assert "192.0.2.20" in body["diff"]
+
+    async def test_diff_rejects_versions_from_other_route_server(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """GET /route-servers/{rs_id}/config/diff returns 404 when version IDs belong to another RS."""
+        rs1 = await _setup_route_server(db_session, ixp, name="rs1", hostname="rs1.test.net")
+        rs2 = await _setup_route_server(
+            db_session, ixp, name="rs2", hostname="rs2.test.net", ip_v4="192.0.2.251"
+        )
+
+        # Generate configs on rs1
+        resp1 = await client.post(
+            f"/api/v1/route-servers/{rs1.id}/config/generate",
+            headers=auth_headers,
+        )
+        assert resp1.status_code == 201
+        v1_id = resp1.json()["id"]
+
+        resp2 = await client.post(
+            f"/api/v1/route-servers/{rs1.id}/config/generate",
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 201
+        v2_id = resp2.json()["id"]
+
+        # Try to diff rs1 versions via rs2 endpoint -- should be 404
+        resp = await client.get(
+            f"/api/v1/route-servers/{rs2.id}/config/diff",
+            headers=auth_headers,
+            params={"from": v1_id, "to": v2_id},
+        )
+        assert resp.status_code == 404

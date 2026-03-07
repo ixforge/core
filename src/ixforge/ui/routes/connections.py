@@ -8,7 +8,7 @@ from starlette.responses import RedirectResponse
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -223,7 +223,7 @@ async def connection_transition(request: Request) -> Response:
         )
         add_flash(request, f"Estado cambiado a {new_state}", "success")
     except APIError as e:
-        add_flash(request, f"Error en transicion: {e.detail}", "error")
+        add_flash(request, f"Error en transicion: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/connections/{connection_id}", status_code=302)
 
@@ -244,7 +244,7 @@ async def connection_assign_vlan(request: Request) -> Response:
         await api.post(f"/api/v1/connections/{connection_id}/vlans", token, json=payload)
         add_flash(request, "VLAN asignada", "success")
     except APIError as e:
-        add_flash(request, f"Error asignando VLAN: {e.detail}", "error")
+        add_flash(request, f"Error asignando VLAN: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/connections/{connection_id}", status_code=302)
 
@@ -260,7 +260,7 @@ async def connection_unassign_vlan(request: Request) -> Response:
         await api.delete(f"/api/v1/connections/{connection_id}/vlans/{vlan_id}", token)
         add_flash(request, "VLAN desasignada", "success")
     except APIError as e:
-        add_flash(request, f"Error desasignando VLAN: {e.detail}", "error")
+        add_flash(request, f"Error desasignando VLAN: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/connections/{connection_id}", status_code=302)
 
@@ -281,7 +281,7 @@ async def connection_assign_ip(request: Request) -> Response:
         await api.post(f"/api/v1/connections/{connection_id}/ips", token, json=payload)
         add_flash(request, "IP asignada", "success")
     except APIError as e:
-        add_flash(request, f"Error asignando IP: {e.detail}", "error")
+        add_flash(request, f"Error asignando IP: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/connections/{connection_id}", status_code=302)
 
@@ -299,6 +299,6 @@ async def connection_release_ip(request: Request) -> Response:
         )
         add_flash(request, "IP liberada", "success")
     except APIError as e:
-        add_flash(request, f"Error liberando IP: {e.detail}", "error")
+        add_flash(request, f"Error liberando IP: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/connections/{connection_id}", status_code=302)

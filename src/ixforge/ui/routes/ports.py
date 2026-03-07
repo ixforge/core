@@ -8,7 +8,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, require_token
+from ixforge.ui.session import add_flash, require_token, safe_detail
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
@@ -193,7 +193,7 @@ async def port_delete(request: Request) -> Response:
         await api.delete(f"/api/v1/ports/{port_id}", token)
         add_flash(request, "Puerto eliminado", "success")
     except APIError as e:
-        add_flash(request, f"Error eliminando puerto: {e.detail}", "error")
+        add_flash(request, f"Error eliminando puerto: {safe_detail(e)}", "error")
 
     redirect_url = f"/admin/ports?switch_id={switch_id}" if switch_id else "/admin/ports"
     return RedirectResponse(redirect_url, status_code=302)
@@ -212,7 +212,7 @@ async def port_assign(request: Request) -> Response:
         await api.post(f"/api/v1/ports/{port_id}/assign", token, json={"member_id": member_id})
         add_flash(request, "Puerto asignado", "success")
     except APIError as e:
-        add_flash(request, f"Error asignando puerto: {e.detail}", "error")
+        add_flash(request, f"Error asignando puerto: {safe_detail(e)}", "error")
 
     redirect_url = f"/admin/ports?switch_id={switch_id}" if switch_id else "/admin/ports"
     return RedirectResponse(redirect_url, status_code=302)
@@ -230,7 +230,7 @@ async def port_release(request: Request) -> Response:
         await api.post(f"/api/v1/ports/{port_id}/release", token)
         add_flash(request, "Puerto liberado", "success")
     except APIError as e:
-        add_flash(request, f"Error liberando puerto: {e.detail}", "error")
+        add_flash(request, f"Error liberando puerto: {safe_detail(e)}", "error")
 
     redirect_url = f"/admin/ports?switch_id={switch_id}" if switch_id else "/admin/ports"
     return RedirectResponse(redirect_url, status_code=302)

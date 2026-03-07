@@ -46,6 +46,7 @@ class ConnectionIPRequest(BaseModel):
 async def list_connections(
     db: DBSession,
     user: CurrentUser,
+    _ixp_id: IXPId,
     member_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -80,6 +81,7 @@ async def create_connection(
 async def get_connection(
     connection_id: uuid.UUID,
     db: DBSession,
+    _ixp_id: IXPId,
     user: CurrentUser,
 ) -> Connection:
     """Get connection details.
@@ -102,10 +104,23 @@ async def update_connection(
     connection_id: uuid.UUID,
     body: ConnectionUpdate,
     db: DBSession,
+    _ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Connection:
     """Update a connection."""
     return await conn_svc.update(db, connection_id, body)
+
+
+@connections_router.delete("/{connection_id}", status_code=204)
+async def delete_connection(
+    connection_id: uuid.UUID,
+    db: DBSession,
+    _ixp_id: IXPId,
+    _admin: AdminUser,
+) -> Response:
+    """Delete a decommissioned connection."""
+    await conn_svc.delete(db, connection_id)
+    return Response(status_code=204)
 
 
 @connections_router.post("/{connection_id}/transition", response_model=ConnectionRead)
@@ -143,6 +158,7 @@ async def unassign_vlan(
     connection_id: uuid.UUID,
     vlan_id: uuid.UUID,
     db: DBSession,
+    _ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Response:
     """Remove a VLAN from a connection."""
@@ -171,8 +187,9 @@ async def release_ip(
     connection_id: uuid.UUID,
     assignment_id: uuid.UUID,
     db: DBSession,
+    _ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Response:
     """Release an IP assignment from a connection."""
-    await conn_svc.release_ip(db, assignment_id)
+    await conn_svc.release_ip(db, connection_id, assignment_id)
     return Response(status_code=204)

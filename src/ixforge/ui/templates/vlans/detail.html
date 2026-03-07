@@ -1,0 +1,110 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ vlan.name }} - IXForge{% endblock %}
+{% block content %}
+{# Header #}
+<div class="mb-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <h1 class="text-2xl font-bold">{{ vlan.name }}</h1>
+    <span class="badge badge-blue">VID {{ vlan.vid }}</span>
+    <span class="badge badge-gray capitalize">{{ vlan.type }}</span>
+  </div>
+  <div class="flex gap-2" x-data="{ confirmDelete: false }">
+    <a href="/admin/vlans/{{ vlan.id }}/edit" class="btn-secondary">Editar</a>
+    <button type="button" class="btn-danger" @click="confirmDelete = true">Eliminar</button>
+    <a href="/admin/vlans" class="btn-secondary">Volver</a>
+
+    {# Delete modal #}
+    <div x-show="confirmDelete"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+        <h3 class="text-lg font-semibold mb-2">Eliminar VLAN</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Seguro que quieres eliminar <strong>{{ vlan.name }}</strong>? Esta accion no se puede deshacer.
+        </p>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn-secondary" @click="confirmDelete = false">Cancelar</button>
+          <form method="post" action="/admin/vlans/{{ vlan.id }}/delete">
+            <button type="submit" class="btn-danger">Eliminar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Info card #}
+<div class="card mb-6">
+  <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">VID</p>
+      <p class="font-medium">{{ vlan.vid }}</p>
+    </div>
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Tipo</p>
+      <p class="font-medium capitalize">{{ vlan.type }}</p>
+    </div>
+    {% if vlan.description %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Descripcion</p>
+      <p class="font-medium">{{ vlan.description }}</p>
+    </div>
+    {% endif %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Creada</p>
+      <p class="font-medium">{{ vlan.created_at[:10] if vlan.created_at else "-" }}</p>
+    </div>
+  </div>
+</div>
+
+{# Members section - only for private VLANs #}
+{% if vlan.type == "private" %}
+<div class="card">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">Miembros</h2>
+  </div>
+  {% if vlan_members %}
+  <div class="overflow-x-auto mb-4">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Miembro</th>
+          <th class="pb-3 font-medium">ASN</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for vm in vlan_members %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="py-3 text-sm">{{ vm.member_name }}</td>
+          <td class="py-3 text-sm">AS{{ vm.member_asn }}</td>
+          <td class="py-3">
+            <form method="post" action="/admin/vlans/{{ vlan.id }}/members/{{ vm.member_id }}/remove">
+              <button type="submit" class="btn-danger btn-sm">Quitar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4 mb-4">No hay miembros asociados</p>
+  {% endif %}
+  {% if available_members %}
+  <form method="post" action="/admin/vlans/{{ vlan.id }}/members/add" class="flex gap-2 items-end">
+    <div class="flex-1">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agregar Miembro</label>
+      <select name="member_id" class="input w-full">
+        {% for m in available_members %}
+        <option value="{{ m.id }}">{{ m.name }} (AS{{ m.asn }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">Agregar</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

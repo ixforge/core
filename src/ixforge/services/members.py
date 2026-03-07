@@ -33,8 +33,7 @@ async def create(
     actor_id: uuid.UUID | None = None,
 ) -> Member:
     """Create a new member in prospect state."""
-    if data.extra_data is not None:
-        await custom_fields.validate_extra_data(session, ixp_id, "member", data.extra_data)
+    await custom_fields.validate_extra_data(session, ixp_id, "member", data.extra_data)
 
     member = Member(
         ixp_id=ixp_id,
@@ -47,12 +46,21 @@ async def create(
         website=data.website,
         peeringdb_id=data.peeringdb_id,
         extra_data=data.extra_data,
+        member_type=data.member_type,
+        description=data.description,
+        city=data.city,
+        country=data.country,
+        connection_date=data.connection_date,
+        contract_start=data.contract_start,
+        contract_renewal=data.contract_renewal,
+        contract_type=data.contract_type,
+        notes=data.notes,
+        skip_ixf_export=data.skip_ixf_export,
     )
     session.add(member)
     try:
         await session.flush()
     except IntegrityError as exc:
-        await session.rollback()
         raise ConflictError(f"Member with ASN {data.asn} already exists in this IXP") from exc
 
     await create_event(
@@ -107,7 +115,7 @@ async def update(
     if "state" in update_fields:
         raise ValidationError("Cannot modify state directly, use the transition endpoint")
 
-    if "extra_data" in update_fields and update_fields["extra_data"] is not None:
+    if "extra_data" in update_fields:
         await custom_fields.validate_extra_data(
             session, member.ixp_id, "member", update_fields["extra_data"]
         )
@@ -118,7 +126,6 @@ async def update(
     try:
         await session.flush()
     except IntegrityError as exc:
-        await session.rollback()
         raise ConflictError("Member update caused a conflict") from exc
 
     await session.refresh(member)
@@ -235,6 +242,32 @@ async def transition(
             structlog.get_logger().warning(
                 "config_regeneration.defer_failed",
                 member_id=str(member_id),
+                exc_info=True,
             )
 
     return member
+
+
+async def delete(
+    session: AsyncSession,
+    member_id: uuid.UUID,
+    *,
+    actor_id: uuid.UUID | None = None,
+) -> None:
+    """Hard delete a member. Only allowed if state == terminated."""
+    member = await get(session, member_id)
+    if member.state != MemberState.terminated:
+        raise ConflictError(
+            f"Cannot delete member in state '{member.state}'. Transition to 'terminated' first."
+        )
+    await create_event(
+        session,
+        ixp_id=member.ixp_id,
+        event_type="member.deleted",
+        actor_id=actor_id,
+        resource_type="member",
+        resource_id=member.id,
+        data={"name": member.name, "asn": member.asn},
+    )
+    await session.delete(member)
+    await session.flush()
