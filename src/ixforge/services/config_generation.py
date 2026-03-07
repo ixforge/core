@@ -115,7 +115,7 @@ async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServ
     if rs.ip_v4:
         router_id = rs.ip_v4
     elif rs.ip_v6:
-        # Derivar router ID de los ultimos 4 bytes de la IPv6
+        # Derive router ID from the last 4 bytes of the IPv6 address
         v6 = ipaddress.ip_address(rs.ip_v6)
         v6_bytes = v6.packed[-4:]
         derived = ipaddress.IPv4Address(v6_bytes)

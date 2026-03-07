@@ -44,6 +44,7 @@ def decrypt_snmp(ciphertext: str) -> str:
             "snmp_community.decrypt_failed",
             hint="This may indicate a SECRET_KEY change. "
             "Encrypted values from the old key cannot be decrypted",
+            exc_info=True,
         )
         raise ValidationError("Failed to decrypt SNMP community") from exc
 
