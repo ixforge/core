@@ -103,13 +103,14 @@ async def get(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID
 
 async def list_connections(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     member_id: uuid.UUID,
     params: CursorParams,
 ) -> CursorPage[ConnectionRead]:
     """List connections for a member with cursor-based pagination."""
     stmt = (
         select(Connection)
-        .where(Connection.member_id == member_id)
+        .where(Connection.member_id == member_id, Connection.ixp_id == ixp_id)
         .options(joinedload(Connection.member), joinedload(Connection.port))
     )
     return await paginate(
@@ -293,6 +294,20 @@ async def assign_vlan(
         raise ConflictError(
             f"VLAN {data.vlan_id} is already assigned to connection {connection_id}"
         )
+
+    # Validate private VLAN access
+    from ixforge.enums import VLANType
+    from ixforge.models.vlan_member import VLANMember
+
+    if vlan.type == VLANType.private:
+        is_authorized = await session.scalar(
+            select(VLANMember.id).where(
+                VLANMember.vlan_id == data.vlan_id,
+                VLANMember.member_id == connection.member_id,
+            ).limit(1)
+        )
+        if is_authorized is None:
+            raise ValidationError("Member is not authorized for this private VLAN")
 
     cv = ConnectionVLAN(
         ixp_id=ixp_id,

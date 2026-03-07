@@ -36,7 +36,7 @@ async def create_bgp_session(
 @bgp_sessions_router.get("", response_model=CursorPage[BGPSessionRead])
 async def list_bgp_sessions(
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     user: CurrentUser,
     route_server_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
@@ -48,9 +48,9 @@ async def list_bgp_sessions(
     if user.role == UserRole.member:
         if user.member_id is None:
             raise ForbiddenError("Member user without assigned member cannot access BGP sessions")
-        return await bgp_svc.list_sessions_for_member(db, route_server_id, user.member_id, params)
+        return await bgp_svc.list_sessions_for_member(db, ixp_id, route_server_id, user.member_id, params)
 
-    return await bgp_svc.list_sessions(db, route_server_id, params)
+    return await bgp_svc.list_sessions(db, ixp_id, route_server_id, params)
 
 
 @bgp_sessions_router.get("/{session_id}", response_model=BGPSessionRead)

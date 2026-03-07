@@ -46,7 +46,7 @@ class ConnectionIPRequest(BaseModel):
 async def list_connections(
     db: DBSession,
     user: CurrentUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     member_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -63,7 +63,7 @@ async def list_connections(
             raise ForbiddenError("You can only view your own connections")
 
     params = CursorParams(cursor=cursor, limit=limit)
-    return await conn_svc.list_connections(db, member_id, params)
+    return await conn_svc.list_connections(db, ixp_id, member_id, params)
 
 
 @connections_router.post("", response_model=ConnectionRead, status_code=201)

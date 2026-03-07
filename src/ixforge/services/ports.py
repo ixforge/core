@@ -46,7 +46,12 @@ async def create(
         extra_data=data.extra_data,
     )
     session.add(port)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ConflictError(
+            f"Port with name '{data.name}' already exists on this switch"
+        ) from exc
     return port
 
 
@@ -60,11 +65,12 @@ async def get(session: AsyncSession, ixp_id: uuid.UUID, port_id: uuid.UUID) -> P
 
 async def list_ports(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     switch_id: uuid.UUID,
     params: CursorParams,
 ) -> CursorPage[PortRead]:
     """List ports on a switch with cursor-based pagination."""
-    stmt = select(Port).where(Port.switch_id == switch_id)
+    stmt = select(Port).where(Port.switch_id == switch_id, Port.ixp_id == ixp_id)
     return await paginate(
         session,
         stmt,
@@ -102,7 +108,12 @@ async def update(
 
     for field, value in updates.items():
         setattr(port, field, value)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ConflictError(
+            "Port name already exists on this switch"
+        ) from exc
     await session.refresh(port)
     return port
 

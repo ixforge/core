@@ -23,14 +23,14 @@ class IPAllocateRequest(BaseModel):
 async def list_ip_pools(
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     vlan_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[IPPoolRead]:
     """List IP pools for a VLAN."""
     params = CursorParams(cursor=cursor, limit=limit)
-    return await ipam.list_pools(db, vlan_id, params)
+    return await ipam.list_pools(db, ixp_id, vlan_id, params)
 
 
 @ip_pools_router.post("/ip-pools", response_model=IPPoolRead, status_code=201)
@@ -75,13 +75,13 @@ async def list_ip_assignments(
     pool_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[IPAssignmentRead]:
     """List IP assignments in a pool."""
     params = CursorParams(cursor=cursor, limit=limit)
-    return await ipam.list_assignments(db, pool_id, params)
+    return await ipam.list_assignments(db, ixp_id, pool_id, params)
 
 
 @ip_pools_router.post(

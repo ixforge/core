@@ -9,9 +9,10 @@ import uuid
 import structlog
 from sqlalchemy import select
 
-from ixforge.database import get_session_factory
+from ixforge.database import get_session_factory, tenant_context
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
+from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.services.config_generation import generate_config
 from ixforge.tasks.setup import app
@@ -49,6 +50,7 @@ async def generate_route_server_config(
             if rs is None:
                 log.warning("config_generation.route_server_not_found")
                 return {"route_server_id": route_server_id, "config_version_id": None}
+            tenant_context.set(rs.ixp_id)
             config_version = await generate_config(session, rs_uuid, ixp_id=rs.ixp_id)
             await session.commit()
             log.info(
@@ -94,6 +96,12 @@ async def regenerate_configs_for_member(
 
     session_factory = get_session_factory()
     async with session_factory() as session:
+        member = await session.get(Member, member_uuid)
+        if member is None:
+            log.warning("regenerate_configs_for_member.member_not_found")
+            return []
+        tenant_context.set(member.ixp_id)
+
         # Find all distinct route servers that have BGP sessions linked to
         # connections owned by this member
         stmt = (

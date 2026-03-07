@@ -31,14 +31,14 @@ async def list_contacts(
     member_id: uuid.UUID,
     db: DBSession,
     user: CurrentUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ContactRead]:
     """List contacts for a member."""
     _check_member_access(user, member_id)
     params = CursorParams(cursor=cursor, limit=limit)
-    return await contact_svc.list_contacts(db, member_id, params)
+    return await contact_svc.list_contacts(db, ixp_id, member_id, params)
 
 
 @contacts_router.post(

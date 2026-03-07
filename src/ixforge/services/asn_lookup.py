@@ -9,6 +9,7 @@ import httpx
 import structlog
 from sqlalchemy import select
 
+from ixforge import __version__
 from ixforge.models.asn_cache import ASNCache
 from ixforge.models.member import Member
 
@@ -22,7 +23,7 @@ _log = structlog.get_logger()
 
 async def lookup(session: AsyncSession, asn: int) -> str | None:
     """Return ASN name. Best-effort: returns None on failure."""
-    # 1. Local members (tenant-agnostic: search across all IXPs)
+    # 1. Local members in the current tenant
     local = await session.scalar(select(Member.name).where(Member.asn == asn).limit(1))
     if local is not None:
         return local
@@ -41,7 +42,10 @@ async def lookup(session: AsyncSession, asn: int) -> str | None:
     # 3. PeeringDB
     name: str | None = None
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(
+            timeout=5.0,
+            headers={"User-Agent": f"IXForge/{__version__}"},
+        ) as client:
             resp = await client.get(_PEERINGDB_URL, params={"asn": asn})
             resp.raise_for_status()
             data = resp.json().get("data", [])
