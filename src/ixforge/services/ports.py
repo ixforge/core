@@ -14,6 +14,7 @@ from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.port import PortCreate, PortRead, PortUpdate
+from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 
 
@@ -32,6 +33,8 @@ async def create(
             raise NotFoundError("Member", str(data.member_id))
     if data.type != PortType.member and data.member_id is not None:
         raise ValidationError("Cannot assign a member to a non-member port")
+    if data.extra_data is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "port", data.extra_data)
     port = Port(
         ixp_id=ixp_id,
         switch_id=data.switch_id,
@@ -93,6 +96,9 @@ async def update(
         member = await session.get(Member, updates["member_id"])
         if member is None or member.ixp_id != ixp_id:
             raise NotFoundError("Member", str(updates["member_id"]))
+
+    if "extra_data" in updates and updates["extra_data"] is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "port", updates["extra_data"])
 
     for field, value in updates.items():
         setattr(port, field, value)

@@ -152,10 +152,11 @@ async def _validate_pool_connection_same_tenant(
     session: AsyncSession,
     pool_id: uuid.UUID,
     connection_id: uuid.UUID,
+    ixp_id: uuid.UUID,
 ) -> None:
-    """Validate that the pool and connection belong to the same IXP."""
+    """Validate that the pool and connection belong to the tenant IXP."""
     pool = await session.get(IPPool, pool_id)
-    if pool is None:
+    if pool is None or pool.ixp_id != ixp_id:
         raise NotFoundError("IPPool", str(pool_id))
 
     vlan = await session.get(VLAN, pool.vlan_id)
@@ -163,7 +164,7 @@ async def _validate_pool_connection_same_tenant(
         raise NotFoundError("VLAN", str(pool.vlan_id))
 
     connection = await session.get(Connection, connection_id)
-    if connection is None:
+    if connection is None or connection.ixp_id != ixp_id:
         raise NotFoundError("Connection", str(connection_id))
 
     member = await session.get(Member, connection.member_id)
@@ -190,16 +191,23 @@ def _validate_address_in_pool(
 async def _check_global_uniqueness(
     session: AsyncSession,
     address_str: str,
+    ixp_id: uuid.UUID,
 ) -> None:
-    """Ensure the address is not already assigned within the current tenant context."""
+    """Ensure the address is not already assigned within the tenant."""
     existing = await session.scalar(
-        select(IPAssignment.id).where(IPAssignment.address == address_str).limit(1)
+        select(IPAssignment.id).where(
+            IPAssignment.address == address_str,
+            IPAssignment.ixp_id == ixp_id,
+        ).limit(1)
     )
     if existing is not None:
         raise ConflictError(f"Address {address_str} is already assigned")
 
     existing_rs = await session.scalar(
-        select(RSIPAssignment.id).where(RSIPAssignment.address == address_str).limit(1)
+        select(RSIPAssignment.id).where(
+            RSIPAssignment.address == address_str,
+            RSIPAssignment.ixp_id == ixp_id,
+        ).limit(1)
     )
     if existing_rs is not None:
         raise ConflictError(f"Address {address_str} is already assigned")
@@ -212,7 +220,7 @@ async def allocate_sequential(
     connection_id: uuid.UUID,
 ) -> IPAssignment:
     """Allocate the next available IP address in a pool."""
-    await _validate_pool_connection_same_tenant(session, pool_id, connection_id)
+    await _validate_pool_connection_same_tenant(session, pool_id, connection_id, ixp_id)
 
     pool = await session.get(IPPool, pool_id, with_for_update=True)
     if pool is None:
@@ -230,7 +238,7 @@ async def allocate_sequential(
             continue
 
         # Found an available address; verify global uniqueness
-        await _check_global_uniqueness(session, address_str)
+        await _check_global_uniqueness(session, address_str, ixp_id)
 
         assignment = IPAssignment(
             ixp_id=ixp_id,
@@ -256,7 +264,7 @@ async def allocate_manual(
     address: str,
 ) -> IPAssignment:
     """Allocate a specific IP address from a pool."""
-    await _validate_pool_connection_same_tenant(session, pool_id, connection_id)
+    await _validate_pool_connection_same_tenant(session, pool_id, connection_id, ixp_id)
 
     pool = await session.get(IPPool, pool_id, with_for_update=True)
     if pool is None:
@@ -270,7 +278,7 @@ async def allocate_manual(
 
     _validate_address_in_pool(addr, network)
     address_str = str(addr)
-    await _check_global_uniqueness(session, address_str)
+    await _check_global_uniqueness(session, address_str, ixp_id)
 
     assignment = IPAssignment(
         ixp_id=ixp_id,

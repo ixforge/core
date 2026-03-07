@@ -19,8 +19,10 @@ async def health(response: Response, db: DBSession) -> dict[str, Any]:
     try:
         await db.execute(text("SELECT 1"))
         checks["database"] = {"status": "ok"}
-    except Exception as exc:
-        checks["database"] = {"status": "error", "detail": str(exc)}
+    except Exception:
+        import structlog
+        structlog.get_logger().error("health.database_check_failed", exc_info=True)
+        checks["database"] = {"status": "error", "detail": "Database connection failed"}
         overall_healthy = False
 
     # Task queue check (will be enhanced in Stage 12)

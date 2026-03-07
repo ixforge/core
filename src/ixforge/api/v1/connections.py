@@ -81,14 +81,14 @@ async def create_connection(
 async def get_connection(
     connection_id: uuid.UUID,
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     user: CurrentUser,
 ) -> Connection:
     """Get connection details.
 
     Admins can view any connection; member users can only view their own.
     """
-    connection = await conn_svc.get(db, connection_id)
+    connection = await conn_svc.get(db, ixp_id, connection_id)
 
     if user.role == UserRole.member:
         if user.member_id is None:
@@ -104,22 +104,22 @@ async def update_connection(
     connection_id: uuid.UUID,
     body: ConnectionUpdate,
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Connection:
     """Update a connection."""
-    return await conn_svc.update(db, connection_id, body)
+    return await conn_svc.update(db, ixp_id, connection_id, body)
 
 
 @connections_router.delete("/{connection_id}", status_code=204)
 async def delete_connection(
     connection_id: uuid.UUID,
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Response:
     """Delete a decommissioned connection."""
-    await conn_svc.delete(db, connection_id)
+    await conn_svc.delete(db, ixp_id, connection_id)
     return Response(status_code=204)
 
 
@@ -158,11 +158,11 @@ async def unassign_vlan(
     connection_id: uuid.UUID,
     vlan_id: uuid.UUID,
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Response:
     """Remove a VLAN from a connection."""
-    await conn_svc.unassign_vlan(db, connection_id, vlan_id)
+    await conn_svc.unassign_vlan(db, ixp_id, connection_id, vlan_id)
     return Response(status_code=204)
 
 
@@ -187,9 +187,9 @@ async def release_ip(
     connection_id: uuid.UUID,
     assignment_id: uuid.UUID,
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     _admin: AdminUser,
 ) -> Response:
     """Release an IP assignment from a connection."""
-    await conn_svc.release_ip(db, connection_id, assignment_id)
+    await conn_svc.release_ip(db, ixp_id, connection_id, assignment_id)
     return Response(status_code=204)

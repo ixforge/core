@@ -29,7 +29,7 @@ async def build_targets(
     Returns active switches with decrypted SNMP communities,
     active ports, and IP addresses for active members.
     """
-    # Active switches with decrypted SNMP communities.
+    # Active switches with decrypted SNMP communities
     switch_stmt = select(Switch).where(Switch.ixp_id == ixp_id, Switch.is_active.is_(True))
     switch_result = await session.execute(switch_stmt)
     switches_raw = list(switch_result.scalars().all())
@@ -50,7 +50,7 @@ async def build_targets(
         )
         switch_ids.append(sw.id)
 
-    # Active ports on active switches.
+    # Active ports on active switches
     port_targets: list[MonitoringPortTarget] = []
     if switch_ids:
         port_stmt = select(Port).where(Port.switch_id.in_(switch_ids), Port.is_active.is_(True))
@@ -66,7 +66,7 @@ async def build_targets(
                 )
             )
 
-    # IP addresses for active members.
+    # IP addresses for active members
     member_ip_stmt = (
         select(
             Member.id.label("member_id"),

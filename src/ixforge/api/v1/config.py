@@ -11,6 +11,7 @@ from ixforge.models.config import ConfigVersion
 from ixforge.models.route_server import RouteServer
 from ixforge.schemas.common import CursorPage, decode_cursor, encode_cursor
 from ixforge.schemas.config import ConfigDiff, ConfigVersionRead
+from ixforge.services import route_servers as rs_svc
 from ixforge.services.config_generation import generate_config, get_diff
 
 config_router = APIRouter(
@@ -19,12 +20,9 @@ config_router = APIRouter(
 )
 
 
-async def _ensure_route_server_exists(db: DBSession, route_server_id: uuid.UUID) -> RouteServer:
+async def _ensure_route_server_exists(db: DBSession, ixp_id: uuid.UUID, route_server_id: uuid.UUID) -> RouteServer:
     """Fetch a route server or raise NotFoundError."""
-    rs = await db.get(RouteServer, route_server_id)
-    if rs is None:
-        raise NotFoundError("RouteServer", str(route_server_id))
-    return rs
+    return await rs_svc.get(db, ixp_id, route_server_id)
 
 
 @config_router.post("/generate", response_model=ConfigVersionRead, status_code=201)
@@ -32,10 +30,10 @@ async def trigger_generation(
     route_server_id: uuid.UUID,
     db: DBSession,
     admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> ConfigVersion:
-    await _ensure_route_server_exists(db, route_server_id)
-    return await generate_config(db, route_server_id, generated_by_id=admin.id)
+    await _ensure_route_server_exists(db, ixp_id, route_server_id)
+    return await generate_config(db, route_server_id, ixp_id=ixp_id, generated_by_id=admin.id)
 
 
 @config_router.get("/history", response_model=CursorPage[ConfigVersionRead])
@@ -43,11 +41,11 @@ async def list_config_history(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ConfigVersionRead]:
-    await _ensure_route_server_exists(db, route_server_id)
+    await _ensure_route_server_exists(db, ixp_id, route_server_id)
 
     stmt = (
         select(ConfigVersion)
@@ -86,9 +84,9 @@ async def get_current_config(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> ConfigVersion:
-    await _ensure_route_server_exists(db, route_server_id)
+    await _ensure_route_server_exists(db, ixp_id, route_server_id)
 
     stmt = (
         select(ConfigVersion)
@@ -109,11 +107,11 @@ async def diff_config_versions(
     route_server_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     from_version: uuid.UUID = Query(alias="from"),
     to_version: uuid.UUID = Query(alias="to"),
 ) -> ConfigDiff:
-    await _ensure_route_server_exists(db, route_server_id)
+    await _ensure_route_server_exists(db, ixp_id, route_server_id)
 
     diff_result = await get_diff(db, from_version, to_version, route_server_id=route_server_id)
 

@@ -73,12 +73,12 @@ class ConnectionRead(BaseModel):
         try:
             if values.member is not None:
                 obj.member_name = values.member.name
-        except Exception:
+        except AttributeError:
             pass
         try:
             if values.port is not None:
                 obj.port_name = values.port.name
-        except Exception:
+        except AttributeError:
             pass
         return obj
 

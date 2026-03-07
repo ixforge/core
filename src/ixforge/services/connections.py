@@ -25,7 +25,7 @@ from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 from ixforge.services.events import create_event
 
-# Valid state transitions: source -> set of allowed targets.
+# Valid state transitions: source -> set of allowed targets
 _CONNECTION_TRANSITIONS: dict[str, set[str]] = {
     ConnectionState.draft: {ConnectionState.provisioning},
     ConnectionState.provisioning: {ConnectionState.active, ConnectionState.decommissioned},
@@ -47,6 +47,13 @@ async def create(
         raise NotFoundError("Member", str(data.member_id))
     if member.state == MemberState.terminated:
         raise ValidationError("Cannot create connection for a terminated member")
+
+    if data.port_id is not None:
+        from ixforge.models.port import Port
+
+        port = await session.get(Port, data.port_id)
+        if port is None or port.ixp_id != ixp_id:
+            raise NotFoundError("Port", str(data.port_id))
 
     if data.extra_data is not None:
         await custom_fields.validate_extra_data(session, ixp_id, "connection", data.extra_data)
@@ -73,10 +80,10 @@ async def create(
         resource_id=connection.id,
         data={"member_id": str(data.member_id), "type": data.type},
     )
-    return await get(session, connection.id)
+    return await get(session, ixp_id, connection.id)
 
 
-async def get(session: AsyncSession, connection_id: uuid.UUID) -> Connection:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID) -> Connection:
     """Get a connection by id or raise NotFoundError.
 
     Always loads member and port relationships so ConnectionRead
@@ -89,7 +96,7 @@ async def get(session: AsyncSession, connection_id: uuid.UUID) -> Connection:
     )
     result = await session.execute(stmt)
     connection = result.unique().scalar_one_or_none()
-    if connection is None:
+    if connection is None or connection.ixp_id != ixp_id:
         raise NotFoundError("Connection", str(connection_id))
     return connection
 
@@ -117,11 +124,12 @@ async def list_connections(
 
 async def update(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     connection_id: uuid.UUID,
     data: ConnectionUpdateSchema,
 ) -> Connection:
     """Update mutable fields on a connection (state changes use transition)."""
-    connection = await get(session, connection_id)
+    connection = await get(session, ixp_id, connection_id)
     update_fields = data.model_dump(exclude_unset=True)
 
     # Defensive: state changes must go through transition()
@@ -137,15 +145,22 @@ async def update(
                 session, member.ixp_id, "connection", update_fields["extra_data"]
             )
 
+    if "port_id" in update_fields and update_fields["port_id"] is not None:
+        from ixforge.models.port import Port
+
+        port = await session.get(Port, update_fields["port_id"])
+        if port is None or port.ixp_id != ixp_id:
+            raise NotFoundError("Port", str(update_fields["port_id"]))
+
     for field, value in update_fields.items():
         setattr(connection, field, value)
     await session.flush()
-    return await get(session, connection_id)
+    return await get(session, ixp_id, connection_id)
 
 
-async def _has_complete_setup(session: AsyncSession, connection_id: uuid.UUID) -> bool:
+async def _has_complete_setup(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID) -> bool:
     """Check whether the connection has a port, at least one VLAN, and at least one IP."""
-    connection = await get(session, connection_id)
+    connection = await get(session, ixp_id, connection_id)
     if connection.port_id is None:
         return False
 
@@ -170,7 +185,7 @@ async def transition(
     actor_id: uuid.UUID | None = None,
 ) -> Connection:
     """Transition a connection to a new state with validation."""
-    connection = await get(session, connection_id)
+    connection = await get(session, ixp_id, connection_id)
     current = connection.state
 
     allowed = _CONNECTION_TRANSITIONS.get(current, set())
@@ -183,7 +198,7 @@ async def transition(
     # Activating a connection requires port + VLAN + IP
     if (
         target_state == ConnectionState.active
-        and not await _has_complete_setup(session, connection_id)
+        and not await _has_complete_setup(session, ixp_id, connection_id)
     ):
         raise ValidationError("Cannot activate connection: port, VLAN, and IP must be assigned")
 
@@ -241,9 +256,10 @@ async def transition(
             structlog.get_logger().warning(
                 "config_regeneration.defer_failed",
                 connection_id=str(connection_id),
+                exc_info=True,
             )
 
-    return await get(session, connection_id)
+    return await get(session, ixp_id, connection_id)
 
 
 async def assign_vlan(
@@ -253,7 +269,7 @@ async def assign_vlan(
     data: ConnectionVLANCreate,
 ) -> ConnectionVLAN:
     """Assign a VLAN to a connection."""
-    connection = await get(session, connection_id)
+    connection = await get(session, ixp_id, connection_id)
     if connection.state in (ConnectionState.disabled, ConnectionState.decommissioned):
         raise ValidationError(
             f"Cannot assign resources to a {connection.state} connection"
@@ -264,7 +280,7 @@ async def assign_vlan(
     if vlan is None or vlan.ixp_id != ixp_id:
         raise NotFoundError("VLAN", str(data.vlan_id))
 
-    # Check for duplicate assignment.
+    # Check for duplicate assignment
     existing = await session.scalar(
         select(ConnectionVLAN.id)
         .where(
@@ -291,6 +307,7 @@ async def assign_vlan(
 
 async def unassign_vlan(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     connection_id: uuid.UUID,
     vlan_id: uuid.UUID,
 ) -> None:
@@ -298,6 +315,7 @@ async def unassign_vlan(
     stmt = select(ConnectionVLAN).where(
         ConnectionVLAN.connection_id == connection_id,
         ConnectionVLAN.vlan_id == vlan_id,
+        ConnectionVLAN.ixp_id == ixp_id,
     )
     result = await session.execute(stmt)
     cv = result.scalar_one_or_none()
@@ -321,7 +339,7 @@ async def assign_ip(
     """
     from ixforge.services import ipam
 
-    connection = await get(session, connection_id)
+    connection = await get(session, ixp_id, connection_id)
     if connection.state in (ConnectionState.disabled, ConnectionState.decommissioned):
         raise ValidationError(
             f"Cannot assign resources to a {connection.state} connection"
@@ -332,9 +350,9 @@ async def assign_ip(
     return await ipam.allocate_sequential(session, ixp_id, pool_id, connection_id)
 
 
-async def delete(session: AsyncSession, connection_id: uuid.UUID) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID) -> None:
     """Delete a decommissioned connection."""
-    connection = await get(session, connection_id)
+    connection = await get(session, ixp_id, connection_id)
     if connection.state != ConnectionState.decommissioned:
         raise ValidationError("Connection must be decommissioned before deletion")
     await session.delete(connection)
@@ -342,7 +360,7 @@ async def delete(session: AsyncSession, connection_id: uuid.UUID) -> None:
 
 
 async def release_ip(
-    session: AsyncSession, connection_id: uuid.UUID, assignment_id: uuid.UUID
+    session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID, assignment_id: uuid.UUID
 ) -> None:
     """Release an IP assignment from a connection, delegating to IPAM service.
 
@@ -351,7 +369,7 @@ async def release_ip(
     from ixforge.services import ipam
 
     assignment = await session.get(IPAssignment, assignment_id)
-    if assignment is None or assignment.connection_id != connection_id:
+    if assignment is None or assignment.connection_id != connection_id or assignment.ixp_id != ixp_id:
         raise NotFoundError("IPAssignment")
 
-    await ipam.release(session, assignment_id, assignment.ixp_id)
+    await ipam.release(session, assignment_id, ixp_id)
