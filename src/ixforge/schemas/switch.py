@@ -1,10 +1,21 @@
 """Switch schemas."""
 
+import ipaddress
 import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_management_ip(v: str | None) -> str | None:
+    """Validate that a value is a valid IP address (IPv4 or IPv6)."""
+    if v is not None:
+        try:
+            ipaddress.ip_address(v)
+        except ValueError as exc:
+            raise ValueError(f"Invalid IP address: {v}") from exc
+    return v
 
 
 class SwitchCreate(BaseModel):
@@ -18,6 +29,11 @@ class SwitchCreate(BaseModel):
     extra_data: dict[str, Any] | None = None
     location_id: uuid.UUID | None = None
 
+    @field_validator("management_ip")
+    @classmethod
+    def validate_management_ip(cls, v: str | None) -> str | None:
+        return _validate_management_ip(v)
+
 
 class SwitchUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
@@ -29,6 +45,11 @@ class SwitchUpdate(BaseModel):
     is_active: bool | None = None
     extra_data: dict[str, Any] | None = None
     location_id: uuid.UUID | None = None
+
+    @field_validator("management_ip")
+    @classmethod
+    def validate_management_ip(cls, v: str | None) -> str | None:
+        return _validate_management_ip(v)
 
 
 class SwitchRead(BaseModel):

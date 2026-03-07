@@ -74,7 +74,12 @@ async def update(
     rs = await get(session, ixp_id, route_server_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(rs, field, value)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ConflictError(
+            "Route server with that hostname already exists in this IXP"
+        ) from exc
     await session.refresh(rs)
     return rs
 

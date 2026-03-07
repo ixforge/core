@@ -1,6 +1,7 @@
 """Jinja2 template environment for BIRD config generation."""
 
 import ipaddress
+import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -30,6 +31,11 @@ def ipaddr(value: str, fmt: str = "") -> str:
     return value
 
 
+def bird_str(value: str) -> str:
+    """Sanitize a string for safe use in BIRD config"""
+    return re.sub(r'[^\w \t\-.]', '', value)[:255]
+
+
 def prefixlist(prefixes: list[str], name: str = "pfxlist") -> str:
     """Render a list of prefixes as a BIRD prefix list definition."""
     if not prefixes:
@@ -52,6 +58,7 @@ def get_template_env() -> Environment:
         keep_trailing_newline=True,
     )
     env.filters["ipaddr"] = ipaddr
+    env.filters["bird_str"] = bird_str
     env.filters["prefixlist"] = prefixlist
     return env
 

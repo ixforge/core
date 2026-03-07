@@ -70,11 +70,15 @@ async def get(session: AsyncSession, ixp_id: uuid.UUID, session_id: uuid.UUID) -
 
 async def list_sessions(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     route_server_id: uuid.UUID,
     params: CursorParams,
 ) -> CursorPage[BGPSessionRead]:
     """List BGP sessions for a route server with cursor-based pagination."""
-    stmt = select(BGPSession).where(BGPSession.route_server_id == route_server_id)
+    stmt = select(BGPSession).where(
+        BGPSession.route_server_id == route_server_id,
+        BGPSession.ixp_id == ixp_id,
+    )
     return await paginate(
         session,
         stmt,
@@ -87,6 +91,7 @@ async def list_sessions(
 
 async def list_sessions_for_member(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     route_server_id: uuid.UUID,
     member_id: uuid.UUID | None,
     params: CursorParams,
@@ -97,6 +102,7 @@ async def list_sessions_for_member(
         .join(Connection, BGPSession.connection_id == Connection.id)
         .where(
             BGPSession.route_server_id == route_server_id,
+            BGPSession.ixp_id == ixp_id,
             Connection.member_id == member_id,
         )
     )

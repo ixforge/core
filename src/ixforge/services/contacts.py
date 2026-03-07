@@ -47,11 +47,12 @@ async def get(session: AsyncSession, ixp_id: uuid.UUID, contact_id: uuid.UUID) -
 
 async def list_contacts(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     member_id: uuid.UUID,
     params: CursorParams,
 ) -> CursorPage[ContactRead]:
     """List contacts for a specific member."""
-    stmt = select(Contact).where(Contact.member_id == member_id)
+    stmt = select(Contact).where(Contact.member_id == member_id, Contact.ixp_id == ixp_id)
     return await paginate(
         session,
         stmt,

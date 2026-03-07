@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from ixforge.api.deps import DBSession
 from ixforge.config import get_settings
+from ixforge.database import tenant_context
 from ixforge.models.ixp import IXP
 from ixforge.rate_limit import limiter
 from ixforge.services.ixf_export import generate_ixf_member_export
@@ -69,6 +70,7 @@ async def ixf_member_export(request: Request, db: DBSession) -> dict[str, Any]:
         _set_cache(data)
         return data
 
+    tenant_context.set(ixp.id)
     data = await generate_ixf_member_export(db, ixp.id)
     _set_cache(data)
     return data

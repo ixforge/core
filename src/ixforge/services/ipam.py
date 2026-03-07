@@ -17,6 +17,9 @@ from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.ip import IPAssignmentRead, IPPoolCreate, IPPoolRead
 from ixforge.services.base import paginate
 
+# Max network size for sequential allocation (/16 IPv4, /112 IPv6)
+MAX_SEQUENTIAL_HOSTS = 65536
+
 
 async def create_pool(
     session: AsyncSession,
@@ -72,11 +75,12 @@ async def get_pool(session: AsyncSession, pool_id: uuid.UUID, ixp_id: uuid.UUID)
 
 async def list_pools(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     vlan_id: uuid.UUID,
     params: CursorParams,
 ) -> CursorPage[IPPoolRead]:
     """List IP pools for a VLAN with cursor-based pagination."""
-    stmt = select(IPPool).where(IPPool.vlan_id == vlan_id)
+    stmt = select(IPPool).where(IPPool.vlan_id == vlan_id, IPPool.ixp_id == ixp_id)
     return await paginate(
         session,
         stmt,
@@ -227,6 +231,12 @@ async def allocate_sequential(
         raise NotFoundError("IPPool", str(pool_id))
     network = ipaddress.ip_network(pool.network, strict=False)
     reserved = _reserved_addresses(network)
+    # Prevent DoS: sequential allocation requires a bounded network
+    if network.num_addresses > MAX_SEQUENTIAL_HOSTS:
+        raise ValidationError(
+            f"Network {pool.network} is too large for sequential allocation "
+            f"(max {MAX_SEQUENTIAL_HOSTS} hosts). Use manual allocation instead"
+        )
     # Lock existing assignments to prevent concurrent allocations
     used = await _get_used_addresses(session, pool_id, lock=True)
 
@@ -305,11 +315,12 @@ async def release(session: AsyncSession, assignment_id: uuid.UUID, ixp_id: uuid.
 
 async def list_assignments(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     pool_id: uuid.UUID,
     params: CursorParams,
 ) -> CursorPage[IPAssignmentRead]:
     """List IP assignments in a pool with cursor-based pagination."""
-    stmt = select(IPAssignment).where(IPAssignment.pool_id == pool_id)
+    stmt = select(IPAssignment).where(IPAssignment.pool_id == pool_id, IPAssignment.ixp_id == ixp_id)
     return await paginate(
         session,
         stmt,

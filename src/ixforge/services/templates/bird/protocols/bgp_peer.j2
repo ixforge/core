@@ -1,8 +1,8 @@
-# BGP peer: {{ peer.member_name }} (AS{{ peer.peer_asn }})
+# BGP peer: {{ peer.member_name | bird_str }} (AS{{ peer.peer_asn }})
 protocol bgp {{ peer.protocol_name }} {
     local as {{ route_server.asn }};
     neighbor {{ peer.peer_ip }} as {{ peer.peer_asn }};
-    description "{{ peer.member_name }}";
+    description "{{ peer.member_name | bird_str }}";
 
     hold time 90;
     keepalive time 30;

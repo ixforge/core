@@ -12,7 +12,11 @@ from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.route_server import RouteServer
 from ixforge.models.rs_ip_assignment import RSIPAssignment
 from ixforge.schemas.rs_ip import RSIPAssignmentCreate, RSIPAssignmentRead
-from ixforge.services.ipam import _reserved_addresses, _validate_address_in_pool
+from ixforge.services.ipam import (
+    MAX_SEQUENTIAL_HOSTS,
+    _reserved_addresses,
+    _validate_address_in_pool,
+)
 
 
 async def _get_rs_used_in_pool(session: AsyncSession, pool_id: uuid.UUID) -> set[str]:
@@ -93,6 +97,11 @@ async def assign(
         address_str = str(addr)
         await _check_address_unique(session, address_str, ixp_id)
     else:
+        if network.num_addresses > MAX_SEQUENTIAL_HOSTS:
+            raise ValidationError(
+                f"Network {pool.network} is too large for sequential allocation. "
+                f"Provide an explicit address"
+            )
         reserved = _reserved_addresses(network)
         used = await _get_rs_used_in_pool(session, data.pool_id)
         address_str = None

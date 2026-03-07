@@ -6,6 +6,7 @@ import uuid
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.config import get_settings
@@ -78,7 +79,12 @@ async def create(
         location_id=data.location_id,
     )
     session.add(switch)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ConflictError(
+            f"Switch with hostname '{data.hostname}' already exists in this IXP"
+        ) from exc
     return switch
 
 
@@ -132,7 +138,12 @@ async def update(
     for field, value in update_fields.items():
         setattr(switch, field, value)
 
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ConflictError(
+            "Switch with that hostname already exists in this IXP"
+        ) from exc
     await session.refresh(switch)
     return switch
 
