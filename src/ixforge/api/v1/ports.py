@@ -21,7 +21,7 @@ class PortAssignRequest(BaseModel):
 @ports_router.get("", response_model=CursorPage[PortRead])
 async def list_ports(
     db: DBSession,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
     _admin: AdminUser,
     switch_id: uuid.UUID = Query(),
     cursor: str | None = Query(default=None),
@@ -29,7 +29,7 @@ async def list_ports(
 ) -> CursorPage[PortRead]:
     """List ports for a switch."""
     params = CursorParams(cursor=cursor, limit=limit)
-    return await port_svc.list_ports(db, switch_id, params)
+    return await port_svc.list_ports(db, ixp_id, switch_id, params)
 
 
 @ports_router.post("", response_model=PortRead, status_code=201)
