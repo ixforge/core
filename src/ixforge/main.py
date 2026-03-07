@@ -187,6 +187,7 @@ def create_app(*, enable_rate_limit: bool = True) -> FastAPI:
             exc_message=str(exc),
             path=request.url.path,
             method=request.method,
+            exc_info=True,
         )
         return JSONResponse(
             status_code=500,

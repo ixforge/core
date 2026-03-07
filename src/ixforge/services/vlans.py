@@ -13,6 +13,7 @@ from ixforge.models.route_server_vlan import RouteServerVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.vlan import VLANCreate, VLANRead, VLANUpdate
+from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 
 
@@ -22,6 +23,8 @@ async def create(
     data: VLANCreate,
 ) -> VLAN:
     """Create a VLAN."""
+    if data.extra_data is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "vlan", data.extra_data)
     vlan = VLAN(
         ixp_id=ixp_id,
         name=data.name,
@@ -71,7 +74,10 @@ async def update(
 ) -> VLAN:
     """Update a VLAN."""
     vlan = await get(session, ixp_id, vlan_id)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    update_fields = data.model_dump(exclude_unset=True)
+    if "extra_data" in update_fields and update_fields["extra_data"] is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "vlan", update_fields["extra_data"])
+    for field, value in update_fields.items():
         setattr(vlan, field, value)
     await session.flush()
     await session.refresh(vlan)

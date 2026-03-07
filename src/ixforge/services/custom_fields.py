@@ -160,7 +160,7 @@ async def validate_extra_data(
     definitions_by_name = {d.field_name: d for d in definitions}
     provided = extra_data or {}
 
-    # Check required fields.
+    # Check required fields
     for definition in definitions:
         if definition.is_required and definition.field_name not in provided:
             raise ValidationError(
@@ -168,7 +168,7 @@ async def validate_extra_data(
                 f"for entity type '{entity_type}'"
             )
 
-    # Check provided fields against definitions.
+    # Check provided fields against definitions
     for field_name, value in provided.items():
         defn = definitions_by_name.get(field_name)
         if defn is None:

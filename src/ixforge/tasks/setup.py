@@ -13,7 +13,7 @@ def _get_conninfo() -> str:
     plain ``postgresql://`` (or empty-scheme) connection string.
     """
     url = get_settings().database_url
-    # Strip SQLAlchemy dialect prefixes so psycopg can parse the URL.
+    # Strip SQLAlchemy dialect prefixes so psycopg can parse the URL
     for prefix in ("postgresql+asyncpg://", "postgresql+psycopg://"):
         if url.startswith(prefix):
             return "postgresql://" + url[len(prefix) :]

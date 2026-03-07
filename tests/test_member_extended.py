@@ -32,7 +32,7 @@ class TestMemberExtendedFields:
 
     async def test_update_member_extended_fields(self, db_session: AsyncSession, ixp: IXP) -> None:
         member = await svc.create(db_session, ixp.id, MemberCreate(name="ISP", short_name="I", asn=65002))
-        updated = await svc.update(db_session, member.id, MemberUpdate(description="New desc", skip_ixf_export=True))
+        updated = await svc.update(db_session, ixp.id, member.id, MemberUpdate(description="New desc", skip_ixf_export=True))
         assert updated.description == "New desc"
         assert updated.skip_ixf_export is True
 

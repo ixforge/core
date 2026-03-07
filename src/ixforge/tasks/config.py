@@ -45,7 +45,11 @@ async def generate_route_server_config(
     session_factory = get_session_factory()
     async with session_factory() as session:
         try:
-            config_version = await generate_config(session, rs_uuid)
+            rs = await session.get(RouteServer, rs_uuid)
+            if rs is None:
+                log.warning("config_generation.route_server_not_found")
+                return {"route_server_id": route_server_id, "config_version_id": None}
+            config_version = await generate_config(session, rs_uuid, ixp_id=rs.ixp_id)
             await session.commit()
             log.info(
                 "config_generation.completed",

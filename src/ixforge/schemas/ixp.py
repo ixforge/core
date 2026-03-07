@@ -4,7 +4,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from ixforge.schemas.common import validate_country_code
 
 
 class IXPUpdate(BaseModel):
@@ -13,6 +15,11 @@ class IXPUpdate(BaseModel):
     country: str | None = Field(default=None, min_length=2, max_length=2)
     city: str | None = None
     peeringdb_id: int | None = None
+
+    @field_validator("country")
+    @classmethod
+    def country_must_be_uppercase(cls, v: str | None) -> str | None:
+        return validate_country_code(v)
 
 
 class IXPRead(BaseModel):

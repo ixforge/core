@@ -48,7 +48,7 @@ async def lookup(session: AsyncSession, asn: int) -> str | None:
             if data:
                 name = data[0].get("name") or None
     except Exception as exc:
-        _log.warning("asn_lookup.peeringdb_failed", asn=asn, error=str(exc))
+        _log.warning("asn_lookup.peeringdb_failed", asn=asn, error=str(exc), exc_info=True)
         return None
 
     if name is None:

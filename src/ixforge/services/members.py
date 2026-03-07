@@ -16,7 +16,7 @@ from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 from ixforge.services.events import create_event
 
-# Valid state transitions: source -> set of allowed targets.
+# Valid state transitions: source -> set of allowed targets
 _MEMBER_TRANSITIONS: dict[str, set[str]] = {
     MemberState.prospect: {MemberState.provisioning},
     MemberState.provisioning: {MemberState.active, MemberState.terminated},
@@ -75,10 +75,12 @@ async def create(
     return member
 
 
-async def get(session: AsyncSession, member_id: uuid.UUID) -> Member:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, member_id: uuid.UUID) -> Member:
     """Get a member by id or raise NotFoundError."""
-    member = await session.get(Member, member_id)
-    if member is None:
+    stmt = select(Member).where(Member.id == member_id)
+    result = await session.execute(stmt)
+    member = result.scalar_one_or_none()
+    if member is None or member.ixp_id != ixp_id:
         raise NotFoundError("Member", str(member_id))
     return member
 
@@ -102,13 +104,14 @@ async def list_members(
 
 async def update(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     member_id: uuid.UUID,
     data: MemberUpdate,
     *,
     actor_id: uuid.UUID | None = None,
 ) -> Member:
     """Update mutable fields on an existing member."""
-    member = await get(session, member_id)
+    member = await get(session, ixp_id, member_id)
     update_fields = data.model_dump(exclude_unset=True)
 
     # Defensive: state changes must go through transition()
@@ -169,13 +172,14 @@ async def _has_complete_connection(session: AsyncSession, member_id: uuid.UUID) 
 
 async def transition(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     member_id: uuid.UUID,
     target_state: MemberState,
     *,
     actor_id: uuid.UUID | None = None,
 ) -> Member:
     """Transition a member to a new state with validation."""
-    member = await get(session, member_id)
+    member = await get(session, ixp_id, member_id)
     current = member.state
 
     allowed = _MEMBER_TRANSITIONS.get(current, set())
@@ -185,7 +189,7 @@ async def transition(
             details={"current_state": current, "target_state": target_state},
         )
 
-    # provisioning -> active requires a complete connection.
+    # provisioning -> active requires a complete connection
     if (
         current == MemberState.provisioning
         and target_state == MemberState.active
@@ -250,12 +254,13 @@ async def transition(
 
 async def delete(
     session: AsyncSession,
+    ixp_id: uuid.UUID,
     member_id: uuid.UUID,
     *,
     actor_id: uuid.UUID | None = None,
 ) -> None:
     """Hard delete a member. Only allowed if state == terminated."""
-    member = await get(session, member_id)
+    member = await get(session, ixp_id, member_id)
     if member.state != MemberState.terminated:
         raise ConflictError(
             f"Cannot delete member in state '{member.state}'. Transition to 'terminated' first."

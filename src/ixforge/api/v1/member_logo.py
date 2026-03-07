@@ -40,9 +40,9 @@ async def upload_logo(
     file: UploadFile,
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> Response:
-    await get_member(db, member_id)
+    await get_member(db, ixp_id, member_id)
 
     if file.content_type not in _ALLOWED_MIME:
         raise ValidationError(
@@ -59,7 +59,7 @@ async def upload_logo(
     try:
         await asyncio.to_thread(_process_and_save, content, dest)
     except ValueError as exc:
-        raise ValidationError("El archivo no es una imagen válida") from exc
+        raise ValidationError("The file is not a valid image") from exc
 
     return Response(status_code=204)
 
@@ -69,9 +69,9 @@ async def delete_logo(
     member_id: uuid.UUID,
     db: DBSession,
     _admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> Response:
-    await get_member(db, member_id)
+    await get_member(db, ixp_id, member_id)
     settings = get_settings()
     dest = _logo_path(settings.media_root, member_id)
     if dest.exists():
