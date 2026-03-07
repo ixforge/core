@@ -255,7 +255,7 @@ async def _seed_data() -> None:
 
     session_factory = get_session_factory()
     async with session_factory() as session:
-        # Check idempotency: skip if an IXP named "Demo IXP" already exists.
+        # Check idempotency: skip if an IXP named "Demo IXP" already exists
         result = await session.execute(select(IXP).where(IXP.short_name == "DEMO"))
         if result.scalar_one_or_none() is not None:
             print("Seed data already exists, skipping.")

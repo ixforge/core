@@ -34,10 +34,10 @@ async def list_members(
     params = CursorParams(cursor=cursor, limit=limit)
 
     if user.role == UserRole.member:
-        # Member users see only their own member record.
+        # Member users see only their own member record
         if user.member_id is None:
             return CursorPage(items=[], next_cursor=None, has_more=False)
-        member = await member_svc.get(db, user.member_id)
+        member = await member_svc.get(db, ixp_id, user.member_id)
         return CursorPage(
             items=[MemberRead.model_validate(member)],
             next_cursor=None,
@@ -71,12 +71,12 @@ async def get_asn_name(
 
 @members_router.get("/{member_id}/asn-name", response_model=ASNLookupResponse)
 async def get_member_asn_name(
-    member_id: uuid.UUID, db: DBSession, _ixp_id: IXPId, user: CurrentUser
+    member_id: uuid.UUID, db: DBSession, ixp_id: IXPId, user: CurrentUser
 ) -> dict[str, object]:
     """Return ASN name for a member (best-effort, may return null)."""
     if user.role != UserRole.admin and user.member_id != member_id:
         raise ForbiddenError("You can only view your own member record")
-    member = await member_svc.get(db, member_id)
+    member = await member_svc.get(db, ixp_id, member_id)
     name = await lookup(db, member.asn)
     return {"asn": member.asn, "name": name}
 
@@ -91,7 +91,7 @@ async def get_member(
     """Get member details."""
     if user.role != UserRole.admin and user.member_id != member_id:
         raise ForbiddenError("You can only view your own member record")
-    return await member_svc.get(db, member_id)
+    return await member_svc.get(db, ixp_id, member_id)
 
 
 @members_router.patch("/{member_id}", response_model=MemberRead)
@@ -100,10 +100,10 @@ async def update_member(
     body: MemberUpdate,
     db: DBSession,
     admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> Member:
     """Update a member (admin only)."""
-    return await member_svc.update(db, member_id, body, actor_id=admin.id)
+    return await member_svc.update(db, ixp_id, member_id, body, actor_id=admin.id)
 
 
 @members_router.post("/{member_id}/transition", response_model=MemberRead)
@@ -112,10 +112,10 @@ async def transition_member(
     body: MemberStateTransition,
     db: DBSession,
     admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> Member:
     """Transition a member to a new state (admin only)."""
-    return await member_svc.transition(db, member_id, body.state, actor_id=admin.id)
+    return await member_svc.transition(db, ixp_id, member_id, body.state, actor_id=admin.id)
 
 
 @members_router.delete("/{member_id}", status_code=204)
@@ -123,8 +123,8 @@ async def delete_member(
     member_id: uuid.UUID,
     db: DBSession,
     admin: AdminUser,
-    _ixp_id: IXPId,
+    ixp_id: IXPId,
 ) -> Response:
     """Hard delete a terminated member (admin only)."""
-    await member_svc.delete(db, member_id, actor_id=admin.id)
+    await member_svc.delete(db, ixp_id, member_id, actor_id=admin.id)
     return Response(status_code=204)

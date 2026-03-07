@@ -1,6 +1,7 @@
 """IX-F Member Export public endpoint with rate limiting and caching."""
 
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -61,8 +62,9 @@ async def ixf_member_export(request: Request, db: DBSession) -> dict[str, Any]:
     if ixp is None:
         data: dict[str, Any] = {
             "version": "1.0",
-            "timestamp": "",
+            "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "ixp_list": [],
+            "member_list": [],
         }
         _set_cache(data)
         return data

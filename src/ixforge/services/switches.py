@@ -9,11 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.config import get_settings
-from ixforge.exceptions import NotFoundError, ValidationError
+from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.location import Location
+from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.switch import SwitchCreate, SwitchRead, SwitchUpdate
+from ixforge.services import custom_fields
 from ixforge.services.base import paginate
 
 
@@ -59,6 +61,9 @@ async def create(
         location = await session.get(Location, data.location_id)
         if location is None or location.ixp_id != ixp_id:
             raise NotFoundError("Location", str(data.location_id))
+
+    if data.extra_data is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "switch", data.extra_data)
 
     switch = Switch(
         ixp_id=ixp_id,
@@ -117,6 +122,9 @@ async def update(
         if location is None or location.ixp_id != ixp_id:
             raise NotFoundError("Location", str(update_fields["location_id"]))
 
+    if "extra_data" in update_fields and update_fields["extra_data"] is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "switch", update_fields["extra_data"])
+
     if "snmp_community" in update_fields:
         snmp_community = update_fields.pop("snmp_community")
         switch.snmp_community_encrypted = encrypt_snmp(snmp_community) if snmp_community else None
@@ -130,7 +138,12 @@ async def update(
 
 
 async def delete(session: AsyncSession, ixp_id: uuid.UUID, switch_id: uuid.UUID) -> None:
-    """Delete a switch."""
+    """Delete a switch. Rejects if ports are still assigned."""
     switch = await get(session, ixp_id, switch_id)
+    has_port = await session.scalar(
+        select(Port.id).where(Port.switch_id == switch_id).limit(1)
+    )
+    if has_port is not None:
+        raise ConflictError("Cannot delete switch: ports are still assigned to it")
     await session.delete(switch)
     await session.flush()

@@ -28,8 +28,8 @@ from ixforge.schemas.agent import (
 from ixforge.services.auth import hash_api_key
 from ixforge.services.events import create_event
 
-# Minimum agent version that is considered acceptable.
-# Agents older than this will receive an upgrade header.
+# Minimum agent version that is considered acceptable
+# Agents older than this will receive an upgrade header
 MINIMUM_AGENT_VERSION = "0.1.0"
 
 agent_router = APIRouter(prefix="/route-servers", tags=["agent"])

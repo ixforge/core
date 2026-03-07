@@ -26,15 +26,21 @@ async def _get_rs_used_in_pool(session: AsyncSession, pool_id: uuid.UUID) -> set
     return {row[0] for row in member_result.all()} | {row[0] for row in rs_result.all()}
 
 
-async def _check_address_unique(session: AsyncSession, address: str) -> None:
-    """Ensure the address is not already assigned within the current tenant context."""
+async def _check_address_unique(session: AsyncSession, address: str, ixp_id: uuid.UUID) -> None:
+    """Ensure the address is not already assigned within the tenant."""
     in_member = await session.scalar(
-        select(IPAssignment.id).where(IPAssignment.address == address).limit(1)
+        select(IPAssignment.id).where(
+            IPAssignment.address == address,
+            IPAssignment.ixp_id == ixp_id,
+        ).limit(1)
     )
     if in_member is not None:
         raise ConflictError(f"Address {address} is already assigned to a member connection")
     in_rs = await session.scalar(
-        select(RSIPAssignment.id).where(RSIPAssignment.address == address).limit(1)
+        select(RSIPAssignment.id).where(
+            RSIPAssignment.address == address,
+            RSIPAssignment.ixp_id == ixp_id,
+        ).limit(1)
     )
     if in_rs is not None:
         raise ConflictError(f"Address {address} is already assigned to a route server")
@@ -85,7 +91,7 @@ async def assign(
             raise ValidationError(f"Invalid IP address: {data.address}") from exc
         _validate_address_in_pool(addr, network)
         address_str = str(addr)
-        await _check_address_unique(session, address_str)
+        await _check_address_unique(session, address_str, ixp_id)
     else:
         reserved = _reserved_addresses(network)
         used = await _get_rs_used_in_pool(session, data.pool_id)
@@ -98,7 +104,7 @@ async def assign(
                 continue
             # Verify global uniqueness across all pools
             try:
-                await _check_address_unique(session, candidate)
+                await _check_address_unique(session, candidate, ixp_id)
             except ConflictError:
                 continue
             address_str = candidate

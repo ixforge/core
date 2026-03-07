@@ -165,6 +165,7 @@ async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServ
 async def generate_config(
     session: AsyncSession,
     route_server_id: uuid.UUID,
+    ixp_id: uuid.UUID,
     generated_by_id: uuid.UUID | None = None,
 ) -> ConfigVersion:
     """Generate BIRD config for a route server and store a new version.
@@ -173,7 +174,7 @@ async def generate_config(
     SHA-256 hash, and stores the result as a ConfigVersion row.
     """
     rs = await session.get(RouteServer, route_server_id)
-    if rs is None:
+    if rs is None or rs.ixp_id != ixp_id:
         raise NotFoundError("RouteServer", str(route_server_id))
 
     rs_context = await _build_rs_context(session, rs)
@@ -238,19 +239,15 @@ async def get_diff(
     session: AsyncSession,
     version_a_id: uuid.UUID,
     version_b_id: uuid.UUID,
-    route_server_id: uuid.UUID | None = None,
+    route_server_id: uuid.UUID,
 ) -> DiffResult:
     """Return a unified diff between two config versions."""
     version_a = await session.get(ConfigVersion, version_a_id)
-    if version_a is None:
-        raise NotFoundError("ConfigVersion", str(version_a_id))
-    if route_server_id is not None and version_a.route_server_id != route_server_id:
+    if version_a is None or version_a.route_server_id != route_server_id:
         raise NotFoundError("ConfigVersion", str(version_a_id))
 
     version_b = await session.get(ConfigVersion, version_b_id)
-    if version_b is None:
-        raise NotFoundError("ConfigVersion", str(version_b_id))
-    if route_server_id is not None and version_b.route_server_id != route_server_id:
+    if version_b is None or version_b.route_server_id != route_server_id:
         raise NotFoundError("ConfigVersion", str(version_b_id))
 
     diff_lines = difflib.unified_diff(
