@@ -11,9 +11,7 @@ define GRACEFUL_SHUTDOWN = (65535, 0);
 # Blackhole (RFC 7999)
 define BLACKHOLE_COMMUNITY = (65535, 666);
 
-function honor_graceful_shutdown() {
-    if (GRACEFUL_SHUTDOWN ~ bgp_community) then bgp_local_pref = 0;
-}
+# honor_graceful_shutdown() is defined in functions/common.j2
 
 function is_blackhole_request() {
     if (BLACKHOLE_COMMUNITY ~ bgp_community) then return true;
@@ -31,9 +29,7 @@ define GRACEFUL_SHUTDOWN = (65535, 0);
 # Blackhole (RFC 7999)
 define BLACKHOLE_COMMUNITY = (65535, 666);
 
-function honor_graceful_shutdown() {
-    if (GRACEFUL_SHUTDOWN ~ bgp_community) then bgp_local_pref = 0;
-}
+# honor_graceful_shutdown() is defined in functions/common.j2
 
 function is_blackhole_request() {
     if (BLACKHOLE_COMMUNITY ~ bgp_community) then return true;

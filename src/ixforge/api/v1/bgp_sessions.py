@@ -67,7 +67,7 @@ async def get_bgp_session(
         if user.member_id is None:
             raise ForbiddenError("Member user without assigned member cannot access BGP sessions")
         connection = await db.get(Connection, bgp_session.connection_id)
-        if connection is None or connection.member_id != user.member_id:
+        if connection is None or connection.ixp_id != ixp_id or connection.member_id != user.member_id:
             raise ForbiddenError("You do not have access to this BGP session")
 
     return bgp_session
