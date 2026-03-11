@@ -12,7 +12,6 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
-    PortType,
     VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
@@ -20,7 +19,6 @@ from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
@@ -29,34 +27,22 @@ from ixforge.models.vlan import VLAN
 async def _create_active_connection(
     db: AsyncSession, ixp: IXP, member: Member
 ) -> Connection:
-    """Create a connection in active state with full setup (port + VLAN + IP)."""
+    """Create a connection in active state with full setup (VLAN + IP)."""
     switch = Switch(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name=f"sw-{uuid.uuid4().hex[:6]}",
-        hostname="sw.test.example.net",
         is_active=True,
     )
     db.add(switch)
-    await db.flush()
-
-    port = Port(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        switch_id=switch.id,
-        name=f"Ethernet{uuid.uuid4().hex[:4]}",
-        speed=10000,
-        type=PortType.member,
-        is_active=True,
-    )
-    db.add(port)
     await db.flush()
 
     conn = Connection(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         member_id=member.id,
-        port_id=port.id,
+        switch_id=switch.id,
+        name=f"Ethernet{uuid.uuid4().hex[:4]}",
         type=ConnectionType.physical,
         state=ConnectionState.active,
         speed=10000,
@@ -79,7 +65,6 @@ async def _create_active_connection(
         ixp_id=ixp.id,
         connection_id=conn.id,
         vlan_id=vlan.id,
-        tagged=False,
     )
     db.add(cv)
     await db.flush()
@@ -132,10 +117,21 @@ async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, B
     db.add(member)
     await db.flush()
 
+    switch = Switch(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"sw-bgp-{uuid.uuid4().hex[:6]}",
+        is_active=True,
+    )
+    db.add(switch)
+    await db.flush()
+
     conn = Connection(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         member_id=member.id,
+        switch_id=switch.id,
+        name=f"Ethernet{uuid.uuid4().hex[:4]}",
         type=ConnectionType.physical,
         state=ConnectionState.active,
         speed=10000,
@@ -384,11 +380,22 @@ class TestBGPSessionCreate:
         db_session.add(member)
         await db_session.flush()
 
+        switch = Switch(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name=f"sw-inact-{uuid.uuid4().hex[:6]}",
+            is_active=True,
+        )
+        db_session.add(switch)
+        await db_session.flush()
+
         # Connection in draft state (not active)
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name=f"Ethernet{uuid.uuid4().hex[:4]}",
             type=ConnectionType.physical,
             state=ConnectionState.draft,
             speed=10000,
@@ -656,10 +663,21 @@ class TestBGPSessionDelete:
         db_session.add(member)
         await db_session.flush()
 
+        switch = Switch(
+            id=uuid.uuid4(),
+            ixp_id=other_ixp.id,
+            name=f"sw-other-{uuid.uuid4().hex[:6]}",
+            is_active=True,
+        )
+        db_session.add(switch)
+        await db_session.flush()
+
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=other_ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name=f"Ethernet{uuid.uuid4().hex[:4]}",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,

@@ -23,10 +23,11 @@ def _validate_mac(v: str | None) -> str | None:
 
 class ConnectionCreate(BaseModel):
     member_id: uuid.UUID
-    port_id: uuid.UUID | None = None
+    switch_id: uuid.UUID
+    name: str = Field(min_length=1, max_length=100)
     type: ConnectionType
     mac_address: str | None = Field(default=None, max_length=17)
-    speed: int | None = Field(default=None, gt=0)
+    speed: int = Field(gt=0)
     extra_data: dict[str, Any] | None = None
 
     @field_validator("mac_address")
@@ -36,7 +37,8 @@ class ConnectionCreate(BaseModel):
 
 
 class ConnectionUpdate(BaseModel):
-    port_id: uuid.UUID | None = None
+    switch_id: uuid.UUID | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     type: ConnectionType | None = None
     mac_address: str | None = Field(default=None, max_length=17)
     speed: int | None = Field(default=None, gt=0)
@@ -51,16 +53,16 @@ class ConnectionUpdate(BaseModel):
 class ConnectionRead(BaseModel):
     id: uuid.UUID
     member_id: uuid.UUID
-    port_id: uuid.UUID | None
+    switch_id: uuid.UUID
+    name: str
     type: ConnectionType
     state: ConnectionState
     mac_address: str | None
-    speed: int | None
+    speed: int
     extra_data: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
     member_name: str | None = None
-    port_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -68,16 +70,11 @@ class ConnectionRead(BaseModel):
     @classmethod
     def _populate_names(cls, values: Any, handler: Any) -> "ConnectionRead":
         obj = cast("ConnectionRead", handler(values))
-        # Extract display names from loaded relationships (joinedload)
-        # Gracefully skip if relationships are not loaded (lazy="raise")
+        # Extract display name from loaded relationship (joinedload)
+        # Gracefully skip if relationship is not loaded (lazy="raise")
         try:
             if values.member is not None:
                 obj.member_name = values.member.name
-        except AttributeError:
-            pass
-        try:
-            if values.port is not None:
-                obj.port_name = values.port.name
         except AttributeError:
             pass
         return obj
@@ -85,4 +82,3 @@ class ConnectionRead(BaseModel):
 
 class ConnectionVLANCreate(BaseModel):
     vlan_id: uuid.UUID
-    tagged: bool

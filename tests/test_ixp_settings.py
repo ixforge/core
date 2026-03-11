@@ -1,6 +1,5 @@
 """Tests for IXP settings endpoints."""
 
-import pytest
 from httpx import AsyncClient
 
 from ixforge.models.ixp import IXP

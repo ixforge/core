@@ -2,7 +2,7 @@
 
 
 def test_location_schema():
-    from ixforge.schemas.location import LocationCreate, LocationRead, LocationUpdate
+    from ixforge.schemas.location import LocationCreate
 
     loc = LocationCreate(name="DC1", city="Buenos Aires", country="AR")
     assert loc.name == "DC1"
@@ -18,26 +18,26 @@ def test_member_read_has_logo_url():
 
 
 def test_ixp_update_schema():
-    from ixforge.schemas.ixp import IXPRead, IXPUpdate
+    from ixforge.schemas.ixp import IXPUpdate
 
     upd = IXPUpdate(name="New Name")
     assert upd.name == "New Name"
 
 
 def test_rs_ip_schemas():
-    from ixforge.schemas.rs_ip import RSIPAssignmentCreate, RSIPAssignmentRead
+    from ixforge.schemas.rs_ip import RSIPAssignmentCreate
 
     assert RSIPAssignmentCreate.model_fields
 
 
 def test_vlan_member_schema():
-    from ixforge.schemas.vlan_member import VLANMemberCreate, VLANMemberRead
+    from ixforge.schemas.vlan_member import VLANMemberCreate
 
     assert VLANMemberCreate.model_fields
 
 
 def test_route_server_vlan_schema():
-    from ixforge.schemas.route_server_vlan import RouteServerVLANCreate, RouteServerVLANRead
+    from ixforge.schemas.route_server_vlan import RouteServerVLANCreate
 
     assert RouteServerVLANCreate.model_fields
 

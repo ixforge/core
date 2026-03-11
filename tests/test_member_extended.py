@@ -1,15 +1,12 @@
 """Tests for member extended fields."""
 
-import uuid
 from datetime import date
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import ContractType, MemberType
 from ixforge.models.ixp import IXP
-from ixforge.models.member import Member
 from ixforge.schemas.member import MemberCreate, MemberUpdate
 from ixforge.services import members as svc
 
@@ -21,7 +18,6 @@ class TestMemberExtendedFields:
             member_type=MemberType.isp, description="A test ISP",
             city="Buenos Aires", country="AR",
             connection_date=date(2024, 1, 1),
-            contract_start=date(2024, 1, 1), contract_renewal=date(2025, 1, 1),
             contract_type=ContractType.standard, notes="Notes here",
             skip_ixf_export=False,
         )
@@ -58,19 +54,18 @@ class TestMemberExtendedFields:
 
     async def test_skip_ixf_export_filters_member(self, db_session: AsyncSession, ixp: IXP) -> None:
         """Members with skip_ixf_export=True are excluded from IXF export."""
-        from ixforge.services.ixf_export import generate_ixf_member_export
+        from sqlalchemy import update as sa_update
+
+        from ixforge.enums import MemberState
+        from ixforge.models.member import Member
+        from ixforge.services.ixf_export import _get_active_members
+
         # Create an active member that should be exported
         m1 = await svc.create(db_session, ixp.id, MemberCreate(name="Export ISP", short_name="EX", asn=65005))
         # Create one that should be skipped
         m2 = await svc.create(db_session, ixp.id, MemberCreate(
             name="Skip ISP", short_name="SK", asn=65006, skip_ixf_export=True
         ))
-        # Both in prospect state - IXF only includes active, so export will be empty
-        # But _get_active_members should exclude the skipped one
-        from ixforge.services.ixf_export import _get_active_members
-        from ixforge.enums import MemberState
-        from sqlalchemy import update as sa_update
-        from ixforge.models.member import Member
         # Activate both members (bypass state machine for test)
         await db_session.execute(
             sa_update(Member).where(Member.id.in_([m1.id, m2.id])).values(state=MemberState.active)

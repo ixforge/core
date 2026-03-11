@@ -1,9 +1,9 @@
 """Tests for ASN lookup service."""
 
-import httpx
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 
 from ixforge.enums import MemberState
 from ixforge.models.asn_cache import ASNCache
@@ -21,14 +21,14 @@ class TestASNLookup:
         assert name == "Local ISP"
 
     async def test_lookup_from_cache(self, db_session) -> None:
-        cache_entry = ASNCache(asn=64512, name="Cached AS", fetched_at=datetime.now(tz=timezone.utc))
+        cache_entry = ASNCache(asn=64512, name="Cached AS", fetched_at=datetime.now(tz=UTC))
         db_session.add(cache_entry)
         await db_session.flush()
         name = await lookup(db_session, 64512)
         assert name == "Cached AS"
 
     async def test_lookup_expired_cache_hits_peeringdb(self, db_session) -> None:
-        old_time = datetime.now(tz=timezone.utc) - timedelta(days=8)
+        old_time = datetime.now(tz=UTC) - timedelta(days=8)
         cache_entry = ASNCache(asn=64513, name="Old Name", fetched_at=old_time)
         db_session.add(cache_entry)
         await db_session.flush()
@@ -59,7 +59,7 @@ class TestASNLookup:
 
     async def test_lookup_expired_cache_no_peeringdb_result_resets_fetched_at(self, db_session) -> None:
         """Stale cache entry with no PeeringDB data must have fetched_at reset to avoid hammering the API."""
-        old_time = datetime.now(tz=timezone.utc) - timedelta(days=8)
+        old_time = datetime.now(tz=UTC) - timedelta(days=8)
         cache_entry = ASNCache(asn=64520, name="Old Name", fetched_at=old_time)
         db_session.add(cache_entry)
         await db_session.flush()

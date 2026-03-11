@@ -10,8 +10,10 @@
   {# Validation errors #}
   {% if errors %}
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
-    {% if errors is mapping and errors.detail %}
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+    {% elif errors is mapping and errors.detail %}
+      <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
       {% for err in errors.detail %}
       <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
       {% endfor %}
@@ -72,31 +74,27 @@
              placeholder="00:11:22:33:44:55">
     </div>
 
-    {# Switch + Puerto #}
+    {# Switch #}
     <div class="mb-4">
-      <label for="switch_id" class="block text-sm font-medium mb-1">Switch (opcional)</label>
-      <select id="switch_id"
-              name="switch_id"
-              class="input-field w-full"
-              hx-get="/admin/ports/options"
-              hx-target="#port_id"
-              hx-trigger="change"
-              hx-swap="innerHTML">
-        <option value="">Sin switch</option>
+      <label for="switch_id" class="block text-sm font-medium mb-1">Switch</label>
+      <select id="switch_id" name="switch_id" class="input-field w-full" required>
+        <option value="">Seleccionar switch...</option>
         {% for s in switches %}
-        <option value="{{ s.id }}">{{ s.name }}</option>
+        <option value="{{ s.id }}" {% if connection and connection.switch_id == s.id %}selected{% endif %}>{{ s.name }}</option>
         {% endfor %}
       </select>
     </div>
 
+    {# Nombre del puerto #}
     <div class="mb-6">
-      <label for="port_id" class="block text-sm font-medium mb-1">Puerto (opcional)</label>
-      <select id="port_id" name="port_id" class="input-field w-full">
-        <option value="">Sin puerto</option>
-        {% for p in ports %}
-        <option value="{{ p.id }}" {% if connection and connection.port_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-        {% endfor %}
-      </select>
+      <label for="name" class="block text-sm font-medium mb-1">Nombre del puerto</label>
+      <input type="text"
+             id="name"
+             name="name"
+             value="{{ connection.name if connection and connection.name else '' }}"
+             required
+             class="input-field w-full"
+             placeholder="Ej: Ethernet1/1">
     </div>
 
     {# Botones #}

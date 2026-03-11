@@ -17,10 +17,9 @@ from ixforge.models.types import INET
 
 class Switch(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     __tablename__ = "switches"
-    __table_args__ = (UniqueConstraint("ixp_id", "hostname", name="uq_switches_ixp_id_hostname"),)
+    __table_args__ = (UniqueConstraint("ixp_id", "name", name="uq_switches_ixp_id_name"),)
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
     vendor: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     management_ip: Mapped[str | None] = mapped_column(INET, nullable=True)
@@ -28,6 +27,6 @@ class Switch(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
     )
-    location_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    location_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("locations.id", ondelete="RESTRICT"), nullable=False
     )

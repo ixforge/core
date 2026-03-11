@@ -23,7 +23,7 @@
       <a href="/admin/vlans/{{ v.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
       <button type="button"
               class="text-sm text-red-600 dark:text-red-400 hover:underline"
-              @click="confirmId = {{ v.id|tojson }}; confirmName = {{ v.name|tojson }}">
+              @click="$dispatch('vlan-delete', { id: '{{ v.id }}', name: '{{ v.name|e }}' })">
         Eliminar
       </button>
     </div>

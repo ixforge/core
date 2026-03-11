@@ -2,7 +2,15 @@
 
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, UniqueConstraint, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ixforge.enums import ConnectionState, ConnectionType
@@ -12,6 +20,10 @@ from ixforge.models.types import MACADDR
 
 class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     __tablename__ = "connections"
+    __table_args__ = (
+        UniqueConstraint("switch_id", "name", name="uq_connections_switch_name"),
+        CheckConstraint("speed > 0", name="ck_connections_speed_positive"),
+    )
 
     member_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
@@ -19,12 +31,13 @@ class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Ba
         nullable=False,
         index=True,
     )
-    port_id: Mapped[uuid.UUID | None] = mapped_column(
+    switch_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
-        ForeignKey("ports.id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("switches.id", ondelete="RESTRICT"),
+        nullable=False,
         index=True,
     )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     type: Mapped[ConnectionType] = mapped_column(
         Enum(ConnectionType, name="connection_type"),
         nullable=False,
@@ -35,15 +48,10 @@ class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Ba
         default=ConnectionState.draft,
     )
     mac_address: Mapped[str | None] = mapped_column(MACADDR, nullable=True)
-    speed: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="Speed in Mbps",
-    )
+    speed: Mapped[int] = mapped_column(Integer, nullable=False, comment="Speed in Mbps")
 
     # Relationships for eager loading display names — forward refs resolved by SQLAlchemy
     member: Mapped["Member"] = relationship(lazy="raise")  # type: ignore[name-defined]  # noqa: F821
-    port: Mapped["Port | None"] = relationship(lazy="raise")  # type: ignore[name-defined]  # noqa: F821
 
 
 class ConnectionVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
@@ -64,4 +72,3 @@ class ConnectionVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    tagged: Mapped[bool] = mapped_column(Boolean, nullable=False)

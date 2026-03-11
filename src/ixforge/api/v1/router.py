@@ -18,7 +18,6 @@ from ixforge.api.v1.locations import locations_router
 from ixforge.api.v1.member_logo import logo_router
 from ixforge.api.v1.members import members_router
 from ixforge.api.v1.monitoring import monitoring_router
-from ixforge.api.v1.ports import ports_router
 from ixforge.api.v1.route_server_vlans import rs_vlans_router
 from ixforge.api.v1.route_servers import route_servers_router
 from ixforge.api.v1.rs_ip import rs_ip_router
@@ -39,7 +38,6 @@ v1_router.include_router(logo_router)
 v1_router.include_router(contacts_router)
 v1_router.include_router(locations_router)
 v1_router.include_router(switches_router)
-v1_router.include_router(ports_router)
 v1_router.include_router(vlans_router)
 v1_router.include_router(vlan_members_router)
 v1_router.include_router(ip_pools_router)

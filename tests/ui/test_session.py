@@ -9,7 +9,14 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from ixforge.ui.deps import require_auth
-from ixforge.ui.session import add_flash, clear_session, get_flash_messages, get_token, set_role, set_token
+from ixforge.ui.session import (
+    add_flash,
+    clear_session,
+    get_flash_messages,
+    get_token,
+    set_role,
+    set_token,
+)
 
 
 class TestSessionHelpers:

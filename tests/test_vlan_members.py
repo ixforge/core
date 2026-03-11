@@ -1,7 +1,7 @@
 """Tests for VLANMember service and API endpoints."""
 
+
 import pytest
-import uuid
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,6 @@ from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.vlan import VLAN
-from ixforge.models.vlan_member import VLANMember
 from ixforge.services import vlan_members as svc
 
 

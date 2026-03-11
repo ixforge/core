@@ -13,7 +13,6 @@ from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.location import Location
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.route_server import RouteServer
 from ixforge.models.route_server_vlan import RouteServerVLAN
 from ixforge.models.rs_ip_assignment import RSIPAssignment
@@ -39,7 +38,6 @@ __all__ = [
     "IPPool",
     "Location",
     "Member",
-    "Port",
     "RSIPAssignment",
     "RouteServer",
     "RouteServerVLAN",

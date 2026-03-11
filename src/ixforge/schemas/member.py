@@ -27,8 +27,6 @@ class MemberCreate(BaseModel):
     city: str | None = None
     country: str | None = Field(default=None, min_length=2, max_length=2)
     connection_date: date | None = None
-    contract_start: date | None = None
-    contract_renewal: date | None = None
     contract_type: ContractType | None = None
     notes: str | None = None
     skip_ixf_export: bool = False
@@ -52,8 +50,6 @@ class MemberUpdate(BaseModel):
     city: str | None = None
     country: str | None = Field(default=None, min_length=2, max_length=2)
     connection_date: date | None = None
-    contract_start: date | None = None
-    contract_renewal: date | None = None
     contract_type: ContractType | None = None
     notes: str | None = None
     skip_ixf_export: bool | None = None
@@ -83,8 +79,6 @@ class MemberRead(BaseModel):
     city: str | None
     country: str | None
     connection_date: date | None
-    contract_start: date | None
-    contract_renewal: date | None
     contract_type: ContractType | None
     notes: str | None
     skip_ixf_export: bool

@@ -10,13 +10,13 @@ from ixforge.schemas.common import validate_country_code
 
 class LocationCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    city: str | None = Field(default=None, max_length=255)
-    country: str | None = Field(default=None, min_length=2, max_length=2)
+    city: str = Field(min_length=1, max_length=255)
+    country: str = Field(min_length=2, max_length=2)
 
     @field_validator("country")
     @classmethod
-    def country_must_be_uppercase(cls, v: str | None) -> str | None:
-        return validate_country_code(v)
+    def country_must_be_uppercase(cls, v: str) -> str:
+        return validate_country_code(v)  # type: ignore[return-value]
 
 
 class LocationUpdate(BaseModel):
@@ -34,8 +34,8 @@ class LocationRead(BaseModel):
     id: uuid.UUID
     ixp_id: uuid.UUID
     name: str
-    city: str | None
-    country: str | None
+    city: str
+    country: str
     created_at: datetime
     updated_at: datetime
 

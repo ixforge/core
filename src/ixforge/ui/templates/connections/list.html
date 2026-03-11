@@ -58,7 +58,7 @@
       <thead>
         <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
           <th class="pb-3 font-medium">Miembro</th>
-          <th class="pb-3 font-medium">Puerto</th>
+          <th class="pb-3 font-medium">Nombre</th>
           <th class="pb-3 font-medium">Tipo</th>
           <th class="pb-3 font-medium">Estado</th>
           <th class="pb-3 font-medium">Velocidad</th>
@@ -74,7 +74,7 @@
               {{ c.member_name or "-" }}
             </a>
           </td>
-          <td class="py-3">{{ c.port_name or "-" }}</td>
+          <td class="py-3">{{ c.name or "-" }}</td>
           <td class="py-3 capitalize">{{ c.type or "-" }}</td>
           <td class="py-3">
             {% if c.state == "active" %}<span class="badge badge-green">Activo</span>

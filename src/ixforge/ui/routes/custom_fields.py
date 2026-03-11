@@ -73,7 +73,7 @@ async def custom_field_new(request: Request) -> Response:
     try:
         await api.post("/api/v1/custom-fields", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "custom_fields/form.html", {
                 "field": payload,
                 "errors": e.detail,

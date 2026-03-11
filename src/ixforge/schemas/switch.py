@@ -20,14 +20,13 @@ def _validate_management_ip(v: str | None) -> str | None:
 
 class SwitchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    hostname: str = Field(min_length=1, max_length=255)
     vendor: str | None = None
     model: str | None = None
     management_ip: str | None = None
     snmp_community: str | None = None
     is_active: bool = True
     extra_data: dict[str, Any] | None = None
-    location_id: uuid.UUID | None = None
+    location_id: uuid.UUID
 
     @field_validator("management_ip")
     @classmethod
@@ -37,7 +36,6 @@ class SwitchCreate(BaseModel):
 
 class SwitchUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    hostname: str | None = Field(default=None, min_length=1, max_length=255)
     vendor: str | None = None
     model: str | None = None
     management_ip: str | None = None
@@ -55,9 +53,8 @@ class SwitchUpdate(BaseModel):
 class SwitchRead(BaseModel):
     id: uuid.UUID
     ixp_id: uuid.UUID
-    location_id: uuid.UUID | None
+    location_id: uuid.UUID
     name: str
-    hostname: str
     vendor: str | None
     model: str | None
     management_ip: str | None

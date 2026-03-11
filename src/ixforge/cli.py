@@ -240,7 +240,6 @@ async def _seed_data() -> None:
         ConnectionType,
         MemberState,
         PeeringPolicy,
-        PortType,
         VLANType,
     )
     from ixforge.models.bgp_session import BGPSession
@@ -248,7 +247,6 @@ async def _seed_data() -> None:
     from ixforge.models.ip import IPAssignment, IPPool
     from ixforge.models.ixp import IXP
     from ixforge.models.member import Member
-    from ixforge.models.port import Port
     from ixforge.models.route_server import RouteServer
     from ixforge.models.switch import Switch
     from ixforge.models.vlan import VLAN
@@ -304,7 +302,6 @@ async def _seed_data() -> None:
             sw = Switch(
                 ixp_id=ixp.id,
                 name=f"switch-{i + 1:02d}",
-                hostname=f"switch-{i + 1:02d}.demo-ixp.example.net",
                 vendor="Arista",
                 model="DCS-7280SR-48C6",
                 management_ip=f"10.0.0.{i + 1}",
@@ -314,23 +311,6 @@ async def _seed_data() -> None:
             switches.append(sw)
         await session.flush()
         print(f"Created {len(switches)} switches")
-
-        # -- Ports (4 ports per switch) --
-        ports: list[Port] = []
-        for sw in switches:
-            for p in range(4):
-                port = Port(
-                    ixp_id=ixp.id,
-                    switch_id=sw.id,
-                    name=f"Ethernet{p + 1}",
-                    speed=10000,
-                    type=PortType.member,
-                    is_active=True,
-                )
-                session.add(port)
-                ports.append(port)
-        await session.flush()
-        print(f"Created {len(ports)} ports")
 
         # -- VLANs --
         vlan_prod = VLAN(
@@ -370,21 +350,20 @@ async def _seed_data() -> None:
         await session.flush()
         print("Created 2 IP pools (IPv4 + IPv6)")
 
-        # -- Connections for active members with ports, VLANs, IPs --
+        # -- Connections for active members with VLANs and IPs --
         active_members = [m for m in members if m.state == MemberState.active]
         connections: list[Connection] = []
         ip_offset = 1  # Start from .1 (skip network .0)
-        for port_idx, m in enumerate(active_members):
-            if port_idx >= len(ports):
-                break
+        for i, m in enumerate(active_members):
             conn = Connection(
                 ixp_id=ixp.id,
                 member_id=m.id,
-                port_id=ports[port_idx].id,
+                switch_id=switches[0].id,
+                name=f"Ethernet{i + 1}",
                 type=ConnectionType.physical,
-                state=ConnectionState.active,
                 speed=10000,
-                mac_address=f"00:11:22:33:44:{port_idx:02x}",
+                state=ConnectionState.active,
+                mac_address=f"00:11:22:33:44:{i:02x}",
             )
             session.add(conn)
             connections.append(conn)
@@ -397,7 +376,6 @@ async def _seed_data() -> None:
                 ixp_id=ixp.id,
                 connection_id=conn.id,
                 vlan_id=vlan_prod.id,
-                tagged=False,
             )
             session.add(cv)
 

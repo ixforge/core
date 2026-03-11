@@ -12,7 +12,6 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
-    PortType,
     VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
@@ -20,7 +19,6 @@ from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
@@ -47,29 +45,37 @@ async def _create_member(db: AsyncSession, ixp: IXP, **overrides) -> Member:
     return member
 
 
-async def _create_switch_and_port(db: AsyncSession, ixp: IXP) -> tuple[Switch, Port]:
+async def _create_switch(db: AsyncSession, ixp: IXP) -> Switch:
     switch = Switch(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name=f"sw-{uuid.uuid4().hex[:6]}",
-        hostname="sw.test.example.net",
         is_active=True,
     )
     db.add(switch)
     await db.flush()
+    return switch
 
-    port = Port(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        switch_id=switch.id,
-        name=f"Ethernet{uuid.uuid4().hex[:4]}",
-        speed=10000,
-        type=PortType.member,
-        is_active=True,
-    )
-    db.add(port)
+
+async def _create_connection(
+    db: AsyncSession, ixp: IXP, member: Member, switch: Switch, **overrides
+) -> Connection:
+    """Create a connection with all required fields"""
+    defaults = {
+        "id": uuid.uuid4(),
+        "ixp_id": ixp.id,
+        "member_id": member.id,
+        "switch_id": switch.id,
+        "name": f"Ethernet{uuid.uuid4().hex[:4]}",
+        "type": ConnectionType.physical,
+        "state": ConnectionState.draft,
+        "speed": 10000,
+    }
+    defaults.update(overrides)
+    conn = Connection(**defaults)
+    db.add(conn)
     await db.flush()
-    return switch, port
+    return conn
 
 
 async def _create_vlan(db: AsyncSession, ixp: IXP, **overrides) -> VLAN:
@@ -126,12 +132,15 @@ class TestConnectionCRUD:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
 
         resp = await client.post(
             "/api/v1/connections",
             headers=auth_headers,
             json={
                 "member_id": str(member.id),
+                "switch_id": str(switch.id),
+                "name": "Ethernet1",
                 "type": "physical",
                 "speed": 10000,
                 "mac_address": "00:11:22:33:44:55",
@@ -144,6 +153,8 @@ class TestConnectionCRUD:
         assert body["speed"] == 10000
         assert body["mac_address"] == "00:11:22:33:44:55"
         assert body["member_id"] == str(member.id)
+        assert body["switch_id"] == str(switch.id)
+        assert body["name"] == "Ethernet1"
 
     async def test_create_virtual_connection(
         self,
@@ -153,13 +164,17 @@ class TestConnectionCRUD:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
 
         resp = await client.post(
             "/api/v1/connections",
             headers=auth_headers,
             json={
                 "member_id": str(member.id),
+                "switch_id": str(switch.id),
+                "name": "VirtualPort1",
                 "type": "virtual",
+                "speed": 10000,
             },
         )
         assert resp.status_code == 201
@@ -173,13 +188,17 @@ class TestConnectionCRUD:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
 
         resp = await client.post(
             "/api/v1/connections",
             headers=auth_headers,
             json={
                 "member_id": str(member.id),
+                "switch_id": str(switch.id),
+                "name": "Ethernet1",
                 "type": "physical",
+                "speed": 10000,
                 "mac_address": "not-a-mac",
             },
         )
@@ -193,16 +212,8 @@ class TestConnectionCRUD:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         resp = await client.get(
             f"/api/v1/connections/{conn.id}",
@@ -228,17 +239,11 @@ class TestConnectionCRUD:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        for _ in range(3):
-            conn = Connection(
-                id=uuid.uuid4(),
-                ixp_id=ixp.id,
-                member_id=member.id,
-                type=ConnectionType.physical,
-                state=ConnectionState.draft,
-                speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        for i in range(3):
+            await _create_connection(
+                db_session, ixp, member, switch, name=f"Ethernet{i}"
             )
-            db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.get(
             "/api/v1/connections",
@@ -256,16 +261,8 @@ class TestConnectionCRUD:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=1000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(db_session, ixp, member, switch, speed=1000)
 
         resp = await client.patch(
             f"/api/v1/connections/{conn.id}",
@@ -292,16 +289,8 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -319,20 +308,12 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        _switch, port = await _create_switch_and_port(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
 
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            port_id=port.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.provisioning,
-            speed=10000,
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.provisioning
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         # Assign VLAN
         conn_vlan = ConnectionVLAN(
@@ -340,7 +321,7 @@ class TestConnectionStateMachine:
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
+
         )
         db_session.add(conn_vlan)
         await db_session.flush()
@@ -356,7 +337,7 @@ class TestConnectionStateMachine:
         assert resp.status_code == 200
         assert resp.json()["state"] == "active"
 
-    async def test_provisioning_to_active_without_port_rejected(
+    async def test_provisioning_to_active_without_setup_rejected(
         self,
         client: AsyncClient,
         auth_headers: dict,
@@ -364,16 +345,10 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.provisioning,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.provisioning
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -390,16 +365,10 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.provisioning,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.provisioning
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -417,16 +386,10 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.active
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -443,22 +406,14 @@ class TestConnectionStateMachine:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """disabled -> active requires complete setup (port + VLAN + IP)."""
+        """disabled -> active requires complete setup (VLAN + IP)."""
         member = await _create_member(db_session, ixp)
-        _switch, port = await _create_switch_and_port(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
 
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            port_id=port.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.disabled,
-            speed=10000,
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.disabled
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         # Assign VLAN
         conn_vlan = ConnectionVLAN(
@@ -466,7 +421,7 @@ class TestConnectionStateMachine:
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
+
         )
         db_session.add(conn_vlan)
         await db_session.flush()
@@ -489,18 +444,12 @@ class TestConnectionStateMachine:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """disabled -> active without port/VLAN/IP should be rejected."""
+        """disabled -> active without VLAN/IP should be rejected."""
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.disabled,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.disabled
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -517,16 +466,8 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -543,16 +484,10 @@ class TestConnectionStateMachine:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.active
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/transition",
@@ -570,16 +505,10 @@ class TestConnectionStateMachine:
     ):
         """Cannot decommission a connection that still has BGP sessions."""
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.disabled,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.disabled
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         rs = RouteServer(
             id=uuid.uuid4(),
@@ -627,27 +556,18 @@ class TestConnectionVLAN:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/vlans",
             headers=auth_headers,
-            json={"vlan_id": str(vlan.id), "tagged": False},
+            json={"vlan_id": str(vlan.id)},
         )
         assert resp.status_code == 201
         body = resp.json()
         assert body["vlan_id"] == str(vlan.id)
-        assert body["tagged"] is False
 
     async def test_assign_duplicate_vlan_rejected(
         self,
@@ -657,17 +577,9 @@ class TestConnectionVLAN:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         # First assignment
         cv = ConnectionVLAN(
@@ -675,7 +587,7 @@ class TestConnectionVLAN:
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
+
         )
         db_session.add(cv)
         await db_session.flush()
@@ -684,7 +596,7 @@ class TestConnectionVLAN:
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/vlans",
             headers=auth_headers,
-            json={"vlan_id": str(vlan.id), "tagged": True},
+            json={"vlan_id": str(vlan.id)},
         )
         assert resp.status_code == 409
 
@@ -696,24 +608,16 @@ class TestConnectionVLAN:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         cv = ConnectionVLAN(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
+
         )
         db_session.add(cv)
         await db_session.flush()
@@ -732,16 +636,8 @@ class TestConnectionVLAN:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         resp = await client.delete(
             f"/api/v1/connections/{conn.id}/vlans/{uuid.uuid4()}",
@@ -764,17 +660,9 @@ class TestConnectionIP:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -802,17 +690,9 @@ class TestConnectionIP:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -840,17 +720,9 @@ class TestConnectionIP:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         assignment = await _create_pool_and_assign_ip(db_session, ixp, vlan, conn)
 
@@ -869,30 +741,18 @@ class TestConnectionIP:
     ):
         """Releasing an IP with wrong connection_id should return 404 (IDOR prevention)."""
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
 
         # Connection A owns the IP
-        conn_a = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
+        conn_a = await _create_connection(
+            db_session, ixp, member, switch, name="EthernetA"
         )
-        db_session.add(conn_a)
 
         # Connection B is the attacker
-        conn_b = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
+        conn_b = await _create_connection(
+            db_session, ixp, member, switch, name="EthernetB"
         )
-        db_session.add(conn_b)
-        await db_session.flush()
 
         assignment = await _create_pool_and_assign_ip(db_session, ixp, vlan, conn_a)
 
@@ -918,24 +778,18 @@ class TestConnectionBusinessLogic:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.disabled,
-            speed=10000,
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.disabled
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         cv = ConnectionVLAN(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
+
         )
         db_session.add(cv)
         await db_session.flush()
@@ -955,22 +809,16 @@ class TestConnectionBusinessLogic:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.decommissioned,
-            speed=10000,
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.decommissioned
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/vlans",
             headers=auth_headers,
-            json={"vlan_id": str(vlan.id), "tagged": False},
+            json={"vlan_id": str(vlan.id)},
         )
         assert resp.status_code == 422
 
@@ -982,17 +830,11 @@ class TestConnectionBusinessLogic:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.disabled,
-            speed=10000,
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.disabled
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -1019,12 +861,15 @@ class TestConnectionBusinessLogic:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp, state=MemberState.terminated)
+        switch = await _create_switch(db_session, ixp)
 
         resp = await client.post(
             "/api/v1/connections",
             headers=auth_headers,
             json={
                 "member_id": str(member.id),
+                "switch_id": str(switch.id),
+                "name": "Ethernet1",
                 "type": "physical",
                 "speed": 10000,
             },
@@ -1046,21 +891,13 @@ class TestConnectionBusinessLogic:
         foreign_vlan = await _create_vlan(db_session, other_ixp, vid=500)
 
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(db_session, ixp, member, switch)
 
         resp = await client.post(
             f"/api/v1/connections/{conn.id}/vlans",
             headers=auth_headers,
-            json={"vlan_id": str(foreign_vlan.id), "tagged": False},
+            json={"vlan_id": str(foreign_vlan.id)},
         )
         assert resp.status_code == 404
 
@@ -1077,12 +914,15 @@ class TestConnectionBusinessLogic:
         await db_session.flush()
 
         foreign_member = await _create_member(db_session, other_ixp)
+        switch = await _create_switch(db_session, ixp)
 
         resp = await client.post(
             "/api/v1/connections",
             headers=auth_headers,
             json={
                 "member_id": str(foreign_member.id),
+                "switch_id": str(switch.id),
+                "name": "Ethernet1",
                 "type": "physical",
                 "speed": 10000,
             },
@@ -1104,16 +944,10 @@ class TestConnectionDelete:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.decommissioned,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.decommissioned
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.delete(
             f"/api/v1/connections/{conn.id}",
@@ -1129,16 +963,10 @@ class TestConnectionDelete:
         ixp: IXP,
     ):
         member = await _create_member(db_session, ixp)
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
+        switch = await _create_switch(db_session, ixp)
+        conn = await _create_connection(
+            db_session, ixp, member, switch, state=ConnectionState.active
         )
-        db_session.add(conn)
-        await db_session.flush()
 
         resp = await client.delete(
             f"/api/v1/connections/{conn.id}",

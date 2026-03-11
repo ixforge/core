@@ -18,7 +18,6 @@ class TestSwitchCRUD:
             headers=auth_headers,
             json={
                 "name": "sw-core-01",
-                "hostname": "sw-core-01.ixp.example.net",
                 "vendor": "Arista",
                 "model": "DCS-7280SR",
                 "management_ip": "10.0.0.1",
@@ -27,7 +26,6 @@ class TestSwitchCRUD:
         assert resp.status_code == 201
         body = resp.json()
         assert body["name"] == "sw-core-01"
-        assert body["hostname"] == "sw-core-01.ixp.example.net"
         assert body["vendor"] == "Arista"
         assert body["is_active"] is True
 
@@ -42,7 +40,6 @@ class TestSwitchCRUD:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-get",
-            hostname="sw-get.ixp.example.net",
             is_active=True,
         )
         db_session.add(sw)
@@ -68,7 +65,6 @@ class TestSwitchCRUD:
                 id=uuid.uuid4(),
                 ixp_id=ixp.id,
                 name=f"sw-list-{i}",
-                hostname=f"sw-list-{i}.example.net",
                 is_active=True,
             )
             db_session.add(sw)
@@ -89,7 +85,6 @@ class TestSwitchCRUD:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-old",
-            hostname="sw-old.example.net",
             is_active=True,
         )
         db_session.add(sw)
@@ -116,7 +111,6 @@ class TestSwitchCRUD:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-del",
-            hostname="sw-del.example.net",
             is_active=True,
         )
         db_session.add(sw)
@@ -145,7 +139,6 @@ class TestSwitchCRUD:
             headers=auth_headers,
             json={
                 "name": "sw-loc-01",
-                "hostname": "sw-loc-01.ixp.example.net",
                 "location_id": str(loc.id),
             },
         )
@@ -167,7 +160,6 @@ class TestSwitchCRUD:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-loc-upd",
-            hostname="sw-loc-upd.example.net",
             is_active=True,
         )
         db_session.add(sw)
@@ -206,7 +198,6 @@ class TestSwitchSNMP:
             headers=auth_headers,
             json={
                 "name": "sw-snmp-clear",
-                "hostname": "sw-snmp-clear.example.net",
                 "snmp_community": "public",
             },
         )

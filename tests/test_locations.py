@@ -41,7 +41,7 @@ class TestLocationService:
 
     async def test_delete_location_with_switch_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
         loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1"))
-        sw = Switch(ixp_id=ixp.id, name="SW1", hostname="sw1.example.com", location_id=loc.id)
+        sw = Switch(ixp_id=ixp.id, name="SW1", location_id=loc.id)
         db_session.add(sw)
         await db_session.flush()
         with pytest.raises(ConflictError):
@@ -77,7 +77,7 @@ class TestLocationsAPI:
         loc = Location(ixp_id=ixp.id, name="DC1")
         db_session.add(loc)
         await db_session.flush()
-        db_session.add(Switch(ixp_id=ixp.id, name="SW1", hostname="sw1.ex.com", location_id=loc.id))
+        db_session.add(Switch(ixp_id=ixp.id, name="SW1", location_id=loc.id))
         await db_session.flush()
         resp = await client.delete(f"/api/v1/locations/{loc.id}", headers=auth_headers)
         assert resp.status_code == 409

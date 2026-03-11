@@ -10,14 +10,12 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
-    PortType,
     VLANType,
 )
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
 
@@ -50,22 +48,10 @@ class TestIXFExport:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-ixf",
-            hostname="sw-ixf.example.net",
             is_active=True,
         )
         db_session.add(sw)
         await db_session.flush()
-
-        port = Port(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            switch_id=sw.id,
-            name="Ethernet1",
-            speed=10000,
-            type=PortType.member,
-            is_active=True,
-        )
-        db_session.add(port)
 
         vlan = VLAN(
             id=uuid.uuid4(),
@@ -81,7 +67,8 @@ class TestIXFExport:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
-            port_id=port.id,
+            switch_id=sw.id,
+            name="Ethernet1",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
@@ -94,7 +81,6 @@ class TestIXFExport:
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
         )
         db_session.add(cv)
 
