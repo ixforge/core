@@ -87,13 +87,13 @@ class TestVlanForm:
         assert "/admin/vlans" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "field required"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "field required"}]}}))
         resp = authed_client.post(
             "/admin/vlans/new",
             data={"name": "", "vid": "0", "type": "production", "description": ""},
         )
         assert resp.status_code == 200
-        assert "Corrige los errores" in resp.text
+        assert "Validation error" in resp.text
 
     def test_edit_form_renders(self, authed_client, app):
         app.state.api.get = AsyncMock(return_value=FAKE_VLAN)

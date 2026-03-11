@@ -4,9 +4,10 @@ import asyncio
 import os
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 config = context.config
 if config.config_file_name is not None:
@@ -40,7 +41,7 @@ PROCRASTINATE_TYPES = {
 
 
 def include_object(
-    object: object,  # noqa: A002
+    object: object,
     name: str | None,
     type_: str,
     reflected: bool,
@@ -49,9 +50,7 @@ def include_object(
     """Excluir tablas y tipos de procrastinate del autogenerate"""
     if type_ == "table" and name in PROCRASTINATE_TABLES:
         return False
-    if type_ == "type" and name in PROCRASTINATE_TYPES:
-        return False
-    return True
+    return not (type_ == "type" and name in PROCRASTINATE_TYPES)
 
 
 def run_migrations_offline() -> None:

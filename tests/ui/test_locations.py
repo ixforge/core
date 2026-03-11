@@ -71,7 +71,7 @@ class TestLocationNew:
         assert "/admin/locations" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "required"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             "/admin/locations/new",
             data={"name": "", "city": "", "country": ""},
@@ -105,7 +105,7 @@ class TestLocationEdit:
         assert "/admin/locations" in resp.headers["location"]
 
     def test_edit_validation_error_shows_form(self, authed_client, app):
-        app.state.api.patch = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "required"}]}))
+        app.state.api.patch = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             f"/admin/locations/{FAKE_LOCATION['id']}/edit",
             data={"name": ""},

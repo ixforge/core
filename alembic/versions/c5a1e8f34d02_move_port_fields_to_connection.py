@@ -5,17 +5,16 @@ Revises: b79735bb9c91
 Create Date: 2026-03-09
 """
 
-from typing import Union
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 revision: str = "c5a1e8f34d02"
-down_revision: Union[str, None] = "b79735bb9c91"
-branch_labels: Union[str, None] = None
-depends_on: Union[str, None] = None
+down_revision: str | None = "b79735bb9c91"
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade() -> None:

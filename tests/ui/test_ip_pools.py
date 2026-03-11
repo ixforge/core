@@ -159,13 +159,24 @@ class TestIpPoolForm:
 
     def test_create_validation_error_shows_form(self, authed_client, app):
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_VLAN]})
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "field required"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "field required"}]}}))
         resp = authed_client.post(
             "/admin/ip-pools/new",
             data={"vlan_id": "", "network": "", "af": "4"},
         )
         assert resp.status_code == 200
-        assert "Corrige los errores" in resp.text
+        assert "Validation error" in resp.text
+
+    def test_create_invalid_network_shows_error(self, authed_client, app):
+        """ValidationError from service (details is dict, not list)"""
+        app.state.api.get = AsyncMock(return_value={"items": [FAKE_VLAN]})
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Invalid network CIDR: basura", "details": {}}}))
+        resp = authed_client.post(
+            "/admin/ip-pools/new",
+            data={"vlan_id": FAKE_VLAN["id"], "network": "basura", "af": "4"},
+        )
+        assert resp.status_code == 200
+        assert "Invalid network CIDR" in resp.text
 
 
 class TestIpPoolDelete:

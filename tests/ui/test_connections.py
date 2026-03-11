@@ -136,7 +136,14 @@ class TestConnectionDetail:
             "ips": [{"id": str(uuid.uuid4()), "address": "10.0.0.1", "pool_network": "10.0.0.0/24"}],
         }
 
+        fake_conn_vlan = {"vlan_id": FAKE_VLAN["id"]}
+        fake_conn_ip = {"id": str(uuid.uuid4()), "address": "10.0.0.1", "pool_network": "10.0.0.0/24"}
+
         async def fake_get(path, token, params=None):
+            if path.endswith("/vlans") and "/connections/" in path:
+                return [fake_conn_vlan]
+            if path.endswith("/ips") and "/connections/" in path:
+                return [fake_conn_ip]
             if path.startswith("/api/v1/connections/"):
                 return conn_with_vlans
             if path.startswith("/api/v1/members/"):
@@ -208,13 +215,13 @@ class TestConnectionForm:
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "required"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             "/admin/connections/new",
             data={"member_id": "", "type": "physical", "speed": "0", "mac_address": ""},
         )
         assert resp.status_code == 200
-        assert "Corrige los errores" in resp.text
+        assert "Validation error" in resp.text
 
     def test_edit_form_renders(self, authed_client, app):
         async def fake_get(path, token, params=None):

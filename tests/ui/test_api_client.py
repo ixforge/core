@@ -45,7 +45,7 @@ class TestAPIClient:
 
     async def test_422_raises_api_error_with_details(self, api_client):
         """422 from API raises APIError with validation details."""
-        body = {"detail": [{"loc": ["body", "name"], "msg": "required", "type": "missing"}]}
+        body = {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"loc": ["body", "name"], "msg": "required", "type": "missing"}]}}
         api_client._client = self._mock_client(
             lambda req: httpx.Response(422, json=body)
         )

@@ -113,13 +113,13 @@ class TestUserForm:
         assert f"/admin/users/{FAKE_USER['id']}" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "invalid email"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "invalid email"}]}}))
         resp = authed_client.post(
             "/admin/users/new",
             data={"email": "", "password": "", "role": "admin"},
         )
         assert resp.status_code == 200
-        assert "Corrige los errores" in resp.text
+        assert "Validation error" in resp.text
 
 
 class TestUserEdit:
