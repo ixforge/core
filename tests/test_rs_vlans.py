@@ -1,6 +1,5 @@
 """Tests for route server VLAN association service and API."""
 
-import uuid
 
 import pytest
 from httpx import AsyncClient

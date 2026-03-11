@@ -14,5 +14,5 @@ class Location(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    city: Mapped[str] = mapped_column(String(255), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False)

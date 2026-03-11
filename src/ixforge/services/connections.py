@@ -48,12 +48,12 @@ async def create(
     if member.state == MemberState.terminated:
         raise ValidationError("Cannot create connection for a terminated member")
 
-    if data.port_id is not None:
-        from ixforge.models.port import Port
+    if data.switch_id is not None:
+        from ixforge.models.switch import Switch
 
-        port = await session.get(Port, data.port_id)
-        if port is None or port.ixp_id != ixp_id:
-            raise NotFoundError("Port", str(data.port_id))
+        switch = await session.get(Switch, data.switch_id)
+        if switch is None or switch.ixp_id != ixp_id:
+            raise NotFoundError("Switch", str(data.switch_id))
 
     if data.extra_data is not None:
         await custom_fields.validate_extra_data(session, ixp_id, "connection", data.extra_data)
@@ -61,11 +61,12 @@ async def create(
     connection = Connection(
         ixp_id=ixp_id,
         member_id=data.member_id,
-        port_id=data.port_id,
+        name=data.name,
+        switch_id=data.switch_id,
+        speed=data.speed,
         type=data.type,
         state=ConnectionState.draft,
         mac_address=data.mac_address,
-        speed=data.speed,
         extra_data=data.extra_data,
     )
     session.add(connection)
@@ -86,13 +87,13 @@ async def create(
 async def get(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID) -> Connection:
     """Get a connection by id or raise NotFoundError.
 
-    Always loads member and port relationships so ConnectionRead
-    can populate member_name/port_name consistently.
+    Always loads member relationship so ConnectionRead
+    can populate member_name consistently.
     """
     stmt = (
         select(Connection)
         .where(Connection.id == connection_id)
-        .options(joinedload(Connection.member), joinedload(Connection.port))
+        .options(joinedload(Connection.member))
     )
     result = await session.execute(stmt)
     connection = result.unique().scalar_one_or_none()
@@ -104,15 +105,21 @@ async def get(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID
 async def list_connections(
     session: AsyncSession,
     ixp_id: uuid.UUID,
-    member_id: uuid.UUID,
     params: CursorParams,
+    *,
+    member_id: uuid.UUID | None = None,
+    switch_id: uuid.UUID | None = None,
 ) -> CursorPage[ConnectionRead]:
-    """List connections for a member with cursor-based pagination."""
+    """List connections with optional member/switch filters."""
     stmt = (
         select(Connection)
-        .where(Connection.member_id == member_id, Connection.ixp_id == ixp_id)
-        .options(joinedload(Connection.member), joinedload(Connection.port))
+        .where(Connection.ixp_id == ixp_id)
+        .options(joinedload(Connection.member))
     )
+    if member_id is not None:
+        stmt = stmt.where(Connection.member_id == member_id)
+    if switch_id is not None:
+        stmt = stmt.where(Connection.switch_id == switch_id)
     return await paginate(
         session,
         stmt,
@@ -146,12 +153,12 @@ async def update(
                 session, member.ixp_id, "connection", update_fields["extra_data"]
             )
 
-    if "port_id" in update_fields and update_fields["port_id"] is not None:
-        from ixforge.models.port import Port
+    if "switch_id" in update_fields and update_fields["switch_id"] is not None:
+        from ixforge.models.switch import Switch
 
-        port = await session.get(Port, update_fields["port_id"])
-        if port is None or port.ixp_id != ixp_id:
-            raise NotFoundError("Port", str(update_fields["port_id"]))
+        switch = await session.get(Switch, update_fields["switch_id"])
+        if switch is None or switch.ixp_id != ixp_id:
+            raise NotFoundError("Switch", str(update_fields["switch_id"]))
 
     for field, value in update_fields.items():
         setattr(connection, field, value)
@@ -160,11 +167,7 @@ async def update(
 
 
 async def _has_complete_setup(session: AsyncSession, ixp_id: uuid.UUID, connection_id: uuid.UUID) -> bool:
-    """Check whether the connection has a port, at least one VLAN, and at least one IP."""
-    connection = await get(session, ixp_id, connection_id)
-    if connection.port_id is None:
-        return False
-
+    """Check whether the connection has at least one VLAN and at least one IP."""
     has_vlan = await session.scalar(
         select(ConnectionVLAN.id).where(ConnectionVLAN.connection_id == connection_id).limit(1)
     )
@@ -196,12 +199,12 @@ async def transition(
             details={"current_state": current, "target_state": target_state},
         )
 
-    # Activating a connection requires port + VLAN + IP
+    # Activating a connection requires VLAN + IP
     if (
         target_state == ConnectionState.active
         and not await _has_complete_setup(session, ixp_id, connection_id)
     ):
-        raise ValidationError("Cannot activate connection: port, VLAN, and IP must be assigned")
+        raise ValidationError("Cannot activate connection: VLAN and IP must be assigned")
 
     if target_state == ConnectionState.decommissioned:
         has_vlan = await session.scalar(
@@ -263,6 +266,42 @@ async def transition(
     return await get(session, ixp_id, connection_id)
 
 
+async def list_vlans(
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    connection_id: uuid.UUID,
+) -> list[ConnectionVLAN]:
+    """List VLANs assigned to a connection."""
+    await get(session, ixp_id, connection_id)
+    stmt = (
+        select(ConnectionVLAN)
+        .where(
+            ConnectionVLAN.connection_id == connection_id,
+            ConnectionVLAN.ixp_id == ixp_id,
+        )
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def list_ips(
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    connection_id: uuid.UUID,
+) -> list[IPAssignment]:
+    """List IP assignments for a connection."""
+    await get(session, ixp_id, connection_id)
+    stmt = (
+        select(IPAssignment)
+        .where(
+            IPAssignment.connection_id == connection_id,
+            IPAssignment.ixp_id == ixp_id,
+        )
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def assign_vlan(
     session: AsyncSession,
     ixp_id: uuid.UUID,
@@ -313,7 +352,6 @@ async def assign_vlan(
         ixp_id=ixp_id,
         connection_id=connection_id,
         vlan_id=data.vlan_id,
-        tagged=data.tagged,
     )
     session.add(cv)
     await session.flush()
@@ -380,11 +418,24 @@ async def release_ip(
     """Release an IP assignment from a connection, delegating to IPAM service.
 
     Validates that the assignment belongs to the given connection to prevent IDOR.
+    Blocks release if a BGP session uses this IP on the same connection.
     """
     from ixforge.services import ipam
 
     assignment = await session.get(IPAssignment, assignment_id)
     if assignment is None or assignment.connection_id != connection_id or assignment.ixp_id != ixp_id:
         raise NotFoundError("IPAssignment")
+
+    has_bgp = await session.scalar(
+        select(BGPSession.id).where(
+            BGPSession.connection_id == connection_id,
+            BGPSession.peer_ip == assignment.address,
+        ).limit(1)
+    )
+    if has_bgp is not None:
+        raise ConflictError(
+            f"Cannot release IP {assignment.address}: has an active BGP session. "
+            "Delete the BGP session first."
+        )
 
     await ipam.release(session, assignment_id, ixp_id)

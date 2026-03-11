@@ -10,8 +10,10 @@
   {# Validation errors #}
   {% if errors %}
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
-    {% if errors is mapping and errors.detail %}
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+    {% elif errors is mapping and errors.detail %}
+      <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
       {% for err in errors.detail %}
       <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
       {% endfor %}
@@ -23,196 +25,188 @@
   </div>
   {% endif %}
 
-  <form method="post" action="{{ '/admin/members/new' if not is_edit else '/admin/members/' ~ member.id ~ '/edit' }}">
-    {# Nombre #}
-    <div class="mb-4">
-      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
-      <input type="text"
-             id="name"
-             name="name"
-             value="{{ member.name if member else '' }}"
-             required
-             class="input-field w-full"
-             placeholder="Nombre de la organizacion">
-    </div>
+  <form method="post" action="{{ '/admin/members/new' if not is_edit else '/admin/members/' ~ member.id ~ '/edit' }}" class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-    {# Nombre corto #}
-    <div class="mb-4">
-      <label for="short_name" class="block text-sm font-medium mb-1">Nombre Corto</label>
-      <input type="text"
-             id="short_name"
-             name="short_name"
-             value="{{ member.short_name if member else '' }}"
-             required
-             class="input-field w-full"
-             placeholder="Abreviatura (ej: ACME)">
-    </div>
+      {# Nombre - full width #}
+      <div class="md:col-span-2">
+        <label for="name" class="block text-sm font-medium mb-2">Nombre de la organizacion</label>
+        <input type="text"
+               id="name"
+               name="name"
+               value="{{ member.name if member else '' }}"
+               required
+               class="input-field w-full"
+               placeholder="Nombre de la organizacion">
+      </div>
 
-    {# ASN - solo en creacion #}
-    {% if not is_edit %}
-    <div class="mb-4">
-      <label for="asn" class="block text-sm font-medium mb-1">ASN</label>
-      <input type="number"
-             id="asn"
-             name="asn"
-             value="{{ member.asn if member and member.asn else '' }}"
-             required
-             min="1"
-             class="input-field w-full"
-             placeholder="64512">
-    </div>
-    {% endif %}
+      {# ASN - solo en creacion #}
+      {% if not is_edit %}
+      <div>
+        <label for="asn" class="block text-sm font-medium mb-2">ASN</label>
+        <input type="number"
+               id="asn"
+               name="asn"
+               value="{{ member.asn if member and member.asn else '' }}"
+               required
+               min="1"
+               class="input-field w-full"
+               placeholder="64512">
+      </div>
+      {% endif %}
 
-    {# Website #}
-    <div class="mb-4">
-      <label for="website" class="block text-sm font-medium mb-1">Website</label>
-      <input type="url"
-             id="website"
-             name="website"
-             value="{{ member.website if member and member.website else '' }}"
-             class="input-field w-full"
-             placeholder="https://ejemplo.com">
-    </div>
+      {# Nombre corto #}
+      <div>
+        <label for="short_name" class="block text-sm font-medium mb-2">Nombre corto</label>
+        <input type="text"
+               id="short_name"
+               name="short_name"
+               value="{{ member.short_name if member else '' }}"
+               required
+               class="input-field w-full"
+               placeholder="Abreviatura (ej: ACME)">
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Usado para la exportacion IX-F</p>
+      </div>
 
-    {# PeeringDB ID #}
-    <div class="mb-4">
-      <label for="peeringdb_id" class="block text-sm font-medium mb-1">PeeringDB ID</label>
-      <input type="number"
-             id="peeringdb_id"
-             name="peeringdb_id"
-             value="{{ member.peeringdb_id if member and member.peeringdb_id else '' }}"
-             class="input-field w-full"
-             placeholder="12345"
-             min="1">
-    </div>
+      {# PeeringDB ID #}
+      <div>
+        <label for="peeringdb_id" class="block text-sm font-medium mb-2">PeeringDB ID (opcional)</label>
+        <input type="number"
+               id="peeringdb_id"
+               name="peeringdb_id"
+               value="{{ member.peeringdb_id if member and member.peeringdb_id else '' }}"
+               class="input-field w-full"
+               placeholder="12345"
+               min="1">
+      </div>
 
-    {# Politica de peering #}
-    <div class="mb-6">
-      <label for="peering_policy" class="block text-sm font-medium mb-1">Politica de Peering</label>
-      <select id="peering_policy" name="peering_policy" class="input-field w-full">
-        {% set current_policy = member.peering_policy if member else 'open' %}
-        <option value="open" {% if current_policy == "open" %}selected{% endif %}>Open</option>
-        <option value="selective" {% if current_policy == "selective" %}selected{% endif %}>Selective</option>
-        <option value="restrictive" {% if current_policy == "restrictive" %}selected{% endif %}>Restrictive</option>
-        <option value="no" {% if current_policy == "no" %}selected{% endif %}>No</option>
-      </select>
-    </div>
+      {# Tipo de Miembro #}
+      <div>
+        <label for="member_type" class="block text-sm font-medium mb-2">Tipo</label>
+        <select id="member_type" name="member_type" class="input-field w-full">
+          {% set current_type = member.member_type if member and member.member_type else '' %}
+          <option value="" {% if current_type == "" %}selected{% endif %}>— Sin especificar —</option>
+          <option value="isp" {% if current_type == "isp" %}selected{% endif %}>ISP</option>
+          <option value="cdn" {% if current_type == "cdn" %}selected{% endif %}>CDN</option>
+          <option value="ixp" {% if current_type == "ixp" %}selected{% endif %}>IXP</option>
+          <option value="academic" {% if current_type == "academic" %}selected{% endif %}>Academico</option>
+          <option value="government" {% if current_type == "government" %}selected{% endif %}>Gobierno</option>
+          <option value="corporate" {% if current_type == "corporate" %}selected{% endif %}>Corporativo</option>
+          <option value="other" {% if current_type == "other" %}selected{% endif %}>Otro</option>
+        </select>
+      </div>
 
-    {# Info General #}
-    <h2 class="text-base font-semibold mb-3 mt-6">Info General</h2>
+      {# Tipo de Contrato #}
+      <div>
+        <label for="contract_type" class="block text-sm font-medium mb-2">Tipo de contrato</label>
+        <select id="contract_type" name="contract_type" class="input-field w-full">
+          {% set current_contract = member.contract_type if member and member.contract_type else '' %}
+          <option value="" {% if current_contract == "" %}selected{% endif %}>— Sin especificar —</option>
+          <option value="free" {% if current_contract == "free" %}selected{% endif %}>Free</option>
+          <option value="standard" {% if current_contract == "standard" %}selected{% endif %}>Standard</option>
+        </select>
+      </div>
 
-    <div class="mb-4">
-      <label for="member_type" class="block text-sm font-medium mb-1">Tipo de Miembro</label>
-      <select id="member_type" name="member_type" class="input-field w-full">
-        {% set current_type = member.member_type if member and member.member_type else '' %}
-        <option value="" {% if current_type == "" %}selected{% endif %}>— Sin especificar —</option>
-        <option value="isp" {% if current_type == "isp" %}selected{% endif %}>ISP</option>
-        <option value="cdn" {% if current_type == "cdn" %}selected{% endif %}>CDN</option>
-        <option value="ixp" {% if current_type == "ixp" %}selected{% endif %}>IXP</option>
-        <option value="academic" {% if current_type == "academic" %}selected{% endif %}>Academico</option>
-        <option value="government" {% if current_type == "government" %}selected{% endif %}>Gobierno</option>
-        <option value="corporate" {% if current_type == "corporate" %}selected{% endif %}>Corporativo</option>
-        <option value="other" {% if current_type == "other" %}selected{% endif %}>Otro</option>
-      </select>
-    </div>
+      {# Fecha de Conexion #}
+      <div>
+        <label for="connection_date" class="block text-sm font-medium mb-2">Fecha de conexion (opcional)</label>
+        <input type="date"
+               id="connection_date"
+               name="connection_date"
+               value="{{ member.connection_date if member and member.connection_date else '' }}"
+               class="input-field w-full">
+      </div>
 
-    <div class="mb-4">
-      <label for="description" class="block text-sm font-medium mb-1">Descripcion</label>
-      <textarea id="description"
-                name="description"
-                rows="3"
-                class="input-field w-full"
-                placeholder="Descripcion de la organizacion">{{ member.description if member and member.description else '' }}</textarea>
-    </div>
+      {# Sitio web #}
+      <div>
+        <label for="website" class="block text-sm font-medium mb-2">Sitio web (opcional)</label>
+        <input type="url"
+               id="website"
+               name="website"
+               value="{{ member.website if member and member.website else '' }}"
+               class="input-field w-full"
+               placeholder="https://ejemplo.com">
+      </div>
 
-    <div class="mb-4">
-      <label for="city" class="block text-sm font-medium mb-1">Ciudad</label>
-      <input type="text"
-             id="city"
-             name="city"
-             value="{{ member.city if member and member.city else '' }}"
-             class="input-field w-full"
-             placeholder="Buenos Aires">
-    </div>
+      {# Politica de Peering #}
+      <div>
+        <label for="peering_policy" class="block text-sm font-medium mb-2">Politica de peering</label>
+        <select id="peering_policy" name="peering_policy" class="input-field w-full">
+          {% set current_policy = member.peering_policy if member else 'open' %}
+          <option value="open" {% if current_policy == "open" %}selected{% endif %}>Open</option>
+          <option value="selective" {% if current_policy == "selective" %}selected{% endif %}>Selective</option>
+          <option value="restrictive" {% if current_policy == "restrictive" %}selected{% endif %}>Restrictive</option>
+          <option value="no" {% if current_policy == "no" %}selected{% endif %}>No</option>
+        </select>
+      </div>
 
-    <div class="mb-6">
-      <label for="country" class="block text-sm font-medium mb-1">Pais (codigo ISO 2)</label>
-      <input type="text"
-             id="country"
-             name="country"
-             value="{{ member.country if member and member.country else '' }}"
-             maxlength="2"
-             class="input-field w-full"
-             placeholder="AR">
-    </div>
+      {# Ciudad #}
+      <div>
+        <label for="city" class="block text-sm font-medium mb-2">Ciudad (opcional)</label>
+        <input type="text"
+               id="city"
+               name="city"
+               value="{{ member.city if member and member.city else '' }}"
+               class="input-field w-full"
+               placeholder="Santiago">
+      </div>
 
-    {# Contrato #}
-    <h2 class="text-base font-semibold mb-3 mt-6">Contrato</h2>
+      {# Pais #}
+      <div>
+        <label for="country" class="block text-sm font-medium mb-2">Pais (opcional)</label>
+        <input type="text"
+               id="country"
+               name="country"
+               value="{{ member.country if member and member.country else '' }}"
+               maxlength="2"
+               class="input-field w-full"
+               placeholder="CL">
+      </div>
 
-    <div class="mb-4">
-      <label for="connection_date" class="block text-sm font-medium mb-1">Fecha de Conexion</label>
-      <input type="date"
-             id="connection_date"
-             name="connection_date"
-             value="{{ member.connection_date if member and member.connection_date else '' }}"
-             class="input-field w-full">
-    </div>
+      {# Descripcion - full width #}
+      <div class="md:col-span-2">
+        <label for="description" class="block text-sm font-medium mb-2">Descripcion (opcional)</label>
+        <textarea id="description"
+                  name="description"
+                  rows="3"
+                  class="input-field w-full"
+                  placeholder="Descripcion de la organizacion">{{ member.description if member and member.description else '' }}</textarea>
+      </div>
 
-    <div class="mb-4">
-      <label for="contract_start" class="block text-sm font-medium mb-1">Inicio del Contrato</label>
-      <input type="date"
-             id="contract_start"
-             name="contract_start"
-             value="{{ member.contract_start if member and member.contract_start else '' }}"
-             class="input-field w-full">
-    </div>
+      {# Notas internas - full width #}
+      <div class="md:col-span-2">
+        <label for="notes" class="block text-sm font-medium mb-2">Notas internas (opcional)</label>
+        <textarea id="notes"
+                  name="notes"
+                  rows="2"
+                  class="input-field w-full"
+                  placeholder="Notas internas">{{ member.notes if member and member.notes else '' }}</textarea>
+      </div>
 
-    <div class="mb-4">
-      <label for="contract_renewal" class="block text-sm font-medium mb-1">Renovacion del Contrato</label>
-      <input type="date"
-             id="contract_renewal"
-             name="contract_renewal"
-             value="{{ member.contract_renewal if member and member.contract_renewal else '' }}"
-             class="input-field w-full">
-    </div>
+      {# Excluir IXF - full width #}
+      <div class="md:col-span-2">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox"
+                 id="skip_ixf_export"
+                 name="skip_ixf_export"
+                 value="true"
+                 {% if member and member.skip_ixf_export %}checked{% endif %}
+                 class="w-4 h-4">
+          <span class="text-sm font-medium">Omitir de exportacion IX-F</span>
+        </label>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Si esta marcado, el miembro no aparecera en el JSON de exportacion IX-F aunque este activo
+        </p>
+      </div>
 
-    <div class="mb-4">
-      <label for="contract_type" class="block text-sm font-medium mb-1">Tipo de Contrato</label>
-      <select id="contract_type" name="contract_type" class="input-field w-full">
-        {% set current_contract = member.contract_type if member and member.contract_type else '' %}
-        <option value="" {% if current_contract == "" %}selected{% endif %}>— Sin especificar —</option>
-        <option value="free" {% if current_contract == "free" %}selected{% endif %}>Free</option>
-        <option value="standard" {% if current_contract == "standard" %}selected{% endif %}>Standard</option>
-      </select>
-    </div>
-
-    <div class="mb-4">
-      <label for="notes" class="block text-sm font-medium mb-1">Notas</label>
-      <textarea id="notes"
-                name="notes"
-                rows="3"
-                class="input-field w-full"
-                placeholder="Notas internas sobre el contrato">{{ member.notes if member and member.notes else '' }}</textarea>
-    </div>
-
-    <div class="mb-6">
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox"
-               id="skip_ixf_export"
-               name="skip_ixf_export"
-               value="true"
-               {% if member and member.skip_ixf_export %}checked{% endif %}
-               class="w-4 h-4">
-        <span class="text-sm font-medium">Excluir de exportacion IXF</span>
-      </label>
     </div>
 
     {# Botones #}
-    <div class="flex gap-3">
-      <button type="submit" class="btn-primary">
-        {{ "Guardar" if is_edit else "Crear" }}
-      </button>
+    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
       <a href="/admin/members" class="btn-secondary">Cancelar</a>
+      <button type="submit" class="btn-primary">
+        {{ "Guardar" if is_edit else "Crear Miembro" }}
+      </button>
     </div>
   </form>
 </div>

@@ -62,7 +62,7 @@ async def vlan_new(request: Request) -> Response:
     try:
         vlan = await api.post("/api/v1/vlans", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "vlans/form.html", {
                 "vlan": payload,
                 "errors": e.detail,
@@ -107,7 +107,7 @@ async def vlan_edit(request: Request) -> Response:
     try:
         vlan = await api.patch(f"/api/v1/vlans/{vlan_id}", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "vlans/form.html", {
                 "vlan": {**payload, "id": vlan_id},
                 "errors": e.detail,

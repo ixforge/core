@@ -16,7 +16,6 @@ from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.vlan import VLAN
 
 if TYPE_CHECKING:
@@ -152,13 +151,11 @@ class _BulkData:
     def __init__(
         self,
         connections_by_member: dict[uuid.UUID, list[Connection]],
-        ports: dict[uuid.UUID, Port],
         ip_assignments_by_connection: dict[uuid.UUID, list[IPAssignment]],
         connection_vlans_by_connection: dict[uuid.UUID, list[ConnectionVLAN]],
         pools: dict[uuid.UUID, IPPool],
     ) -> None:
         self.connections_by_member = connections_by_member
-        self.ports = ports
         self.ip_assignments_by_connection = ip_assignments_by_connection
         self.connection_vlans_by_connection = connection_vlans_by_connection
         self.pools = pools
@@ -185,13 +182,7 @@ async def _load_bulk_data(session: AsyncSession, member_ids: list[uuid.UUID]) ->
 
     connection_ids = [conn.id for conn in connections]
     if not connection_ids:
-        return _BulkData({}, {}, {}, {}, {})
-
-    port_ids = [conn.port_id for conn in connections if conn.port_id is not None]
-    ports: dict[uuid.UUID, Port] = {}
-    if port_ids:
-        port_result = await session.execute(select(Port).where(Port.id.in_(port_ids)))
-        ports = {p.id: p for p in port_result.scalars().all()}
+        return _BulkData({}, {}, {}, {})
 
     ip_result = await session.execute(
         select(IPAssignment)
@@ -225,7 +216,6 @@ async def _load_bulk_data(session: AsyncSession, member_ids: list[uuid.UUID]) ->
 
     return _BulkData(
         connections_by_member=connections_by_member,
-        ports=ports,
         ip_assignments_by_connection=ip_assignments_by_connection,
         connection_vlans_by_connection=connection_vlans_by_connection,
         pools=pools,
@@ -247,15 +237,13 @@ def _build_connection_entry(
         return None
 
     if_list: list[dict[str, Any]] = []
-    if conn.port_id is not None:
-        port = bulk_data.ports.get(conn.port_id)
-        if port is not None:
-            if_entry: dict[str, Any] = {
-                "switch_id": str(port.switch_id),
-                "if_speed": port.speed,
-                "if_type": "LAN",
-            }
-            if_list.append(if_entry)
+    if conn.switch_id is not None:
+        if_entry: dict[str, Any] = {
+            "switch_id": str(conn.switch_id),
+            "if_speed": conn.speed * 1_000_000,
+            "if_type": "LAN",
+        }
+        if_list.append(if_entry)
 
     vlan_list = _build_vlan_list(conn.id, ip_assignments, vlan_vid_map, bulk_data)
 

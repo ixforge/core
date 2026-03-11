@@ -102,14 +102,6 @@
       <p class="font-medium">{{ member.connection_date or "-" }}</p>
     </div>
     <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Inicio contrato</p>
-      <p class="font-medium">{{ member.contract_start or "-" }}</p>
-    </div>
-    <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Renovacion contrato</p>
-      <p class="font-medium">{{ member.contract_renewal or "-" }}</p>
-    </div>
-    <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">Tipo de contrato</p>
       <p class="font-medium capitalize">{{ member.contract_type or "-" }}</p>
     </div>
@@ -292,7 +284,7 @@
     <table class="w-full">
       <thead>
         <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-          <th class="pb-3 font-medium">Puerto</th>
+          <th class="pb-3 font-medium">Nombre</th>
           <th class="pb-3 font-medium">Tipo</th>
           <th class="pb-3 font-medium">Estado</th>
           <th class="pb-3 font-medium">Velocidad</th>
@@ -304,7 +296,7 @@
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
           <td class="py-3">
             <a href="/admin/connections/{{ c.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
-              {{ c.port_name or c.port_id or "-" }}
+              {{ c.name or "-" }}
             </a>
           </td>
           <td class="py-3 capitalize">{{ c.type or "-" }}</td>

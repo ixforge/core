@@ -47,7 +47,7 @@ async def switch_detail(request: Request) -> Response:
 
     try:
         switch = await api.get(f"/api/v1/switches/{switch_id}", token)
-        ports_data = await api.get("/api/v1/ports", token, params={"switch_id": switch_id, "limit": 200})
+        connections_data = await api.get("/api/v1/connections", token, params={"switch_id": switch_id, "limit": 200})
     except APIError as e:
         if e.status_code == 404:
             add_flash(request, "Switch no encontrado", "error")
@@ -56,39 +56,46 @@ async def switch_detail(request: Request) -> Response:
 
     return render(request, "switches/detail.html", {
         "switch": switch,
-        "ports": ports_data.get("items", []),
+        "connections": connections_data.get("items", []),
         "page_title": switch.get("name", "Switch"),
     })
 
 
 @require_auth
 async def switch_new(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    locations_data = await api.get("/api/v1/locations", token, params={"limit": 200})
+    locations = locations_data.get("items", [])
+
     if request.method == "GET":
         return render(request, "switches/form.html", {
             "switch": None,
+            "locations": locations,
             "errors": {},
             "page_title": "Nuevo Switch",
         })
 
-    token = require_token(request)
-    api: APIClient = request.app.state.api
     form = await request.form()
 
     payload: dict[str, Any] = {
         "name": str(form.get("name", "")),
-        "hostname": str(form.get("hostname", "")),
         "vendor": str(form.get("vendor", "")),
         "model": str(form.get("model", "")),
         "management_ip": str(form.get("management_ip", "")),
         "is_active": form.get("is_active") == "on",
     }
+    location_id = str(form.get("location_id", "")).strip()
+    if location_id:
+        payload["location_id"] = location_id
 
     try:
         switch = await api.post("/api/v1/switches", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "switches/form.html", {
                 "switch": payload,
+                "locations": locations,
                 "errors": e.detail,
                 "page_title": "Nuevo Switch",
             })
@@ -103,29 +110,35 @@ async def switch_edit(request: Request) -> Response:
     token = require_token(request)
     api: APIClient = request.app.state.api
     switch_id = request.path_params["switch_id"]
+    locations_data = await api.get("/api/v1/locations", token, params={"limit": 200})
+    locations = locations_data.get("items", [])
 
     if request.method == "GET":
         switch = await api.get(f"/api/v1/switches/{switch_id}", token)
         return render(request, "switches/form.html", {
             "switch": switch,
+            "locations": locations,
             "errors": {},
             "page_title": f"Editar {switch.get('name', 'Switch')}",
         })
 
     form = await request.form()
     payload: dict[str, Any] = {}
-    for field in ("name", "hostname", "vendor", "model", "management_ip"):
+    for field in ("name", "vendor", "model", "management_ip"):
         val = form.get(field)
         if val is not None:
             payload[field] = str(val)
     payload["is_active"] = form.get("is_active") == "on"
+    location_id = str(form.get("location_id", "")).strip()
+    payload["location_id"] = location_id if location_id else None
 
     try:
         switch = await api.patch(f"/api/v1/switches/{switch_id}", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "switches/form.html", {
                 "switch": {**payload, "id": switch_id},
+                "locations": locations,
                 "errors": e.detail,
                 "page_title": "Editar Switch",
             })

@@ -76,23 +76,35 @@ async def connection_detail(request: Request) -> Response:
         connection = await api.get(f"/api/v1/connections/{connection_id}", token)
         member = await api.get(f"/api/v1/members/{connection['member_id']}", token)
         vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
+        conn_vlans = await api.get(f"/api/v1/connections/{connection_id}/vlans", token)
+        conn_ips = await api.get(f"/api/v1/connections/{connection_id}/ips", token)
     except APIError as e:
         if e.status_code == 404:
             add_flash(request, "Conexion no encontrada", "error")
             return RedirectResponse("/admin/connections", status_code=302)
         raise
 
-    # Fetch IP pools for each VLAN assigned to connection
+    # Enrich VLAN assignments with name/vid from the full VLAN list
+    vlan_map = {v["id"]: v for v in vlans_data.get("items", [])}
+    for cv in conn_vlans:
+        vlan = vlan_map.get(cv.get("vlan_id", ""), {})
+        cv["vlan_name"] = vlan.get("name", "")
+        cv["vid"] = vlan.get("vid", "")
+
+    # Fetch IP pools for each assigned VLAN
     ip_pools: list[Any] = []
-    connection_vlans = connection.get("vlans", [])
-    for vlan_assignment in connection_vlans:
-        vlan_id = vlan_assignment.get("vlan_id", "")
+    for cv in conn_vlans:
+        vlan_id = cv.get("vlan_id", "")
         if vlan_id:
             try:
                 pools = await api.get("/api/v1/ip-pools", token, params={"vlan_id": vlan_id})
                 ip_pools.extend(pools.get("items", []))
             except APIError:
                 pass
+
+    # Inject vlans and ips into connection dict for template
+    connection["vlans"] = conn_vlans
+    connection["ips"] = conn_ips
 
     return render(request, "connections/detail.html", {
         "connection": connection,
@@ -116,7 +128,6 @@ async def connection_new(request: Request) -> Response:
             "connection": None,
             "members": members_data.get("items", []),
             "switches": switches_data.get("items", []),
-            "ports": [],
             "errors": {},
             "page_title": "Nueva Conexion",
         })
@@ -127,15 +138,14 @@ async def connection_new(request: Request) -> Response:
         "type": str(form.get("type", "physical")),
         "speed": int(str(form.get("speed", 0)) or 0),
         "mac_address": str(form.get("mac_address", "")),
+        "switch_id": str(form.get("switch_id", "")),
+        "name": str(form.get("name", "")),
     }
-    port_id = str(form.get("port_id", ""))
-    if port_id:
-        payload["port_id"] = port_id
 
     try:
         connection = await api.post("/api/v1/connections", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             members_data = await api.get("/api/v1/members", token, params={"limit": 200})
             switches_data = await api.get("/api/v1/switches", token, params={"limit": 200})
 
@@ -143,7 +153,6 @@ async def connection_new(request: Request) -> Response:
                 "connection": payload,
                 "members": members_data.get("items", []),
                 "switches": switches_data.get("items", []),
-                "ports": [],
                 "errors": e.detail,
                 "page_title": "Nueva Conexion",
             })
@@ -168,28 +177,27 @@ async def connection_edit(request: Request) -> Response:
             "connection": connection,
             "members": members_data.get("items", []),
             "switches": switches_data.get("items", []),
-            "ports": [],
             "errors": {},
             "page_title": "Editar Conexion",
         })
 
     form = await request.form()
     payload: dict[str, Any] = {}
-    for field in ("type", "mac_address"):
+    for field in ("type", "mac_address", "name"):
         val = form.get(field)
         if val is not None:
             payload[field] = str(val)
     speed_val = form.get("speed")
     if speed_val is not None and speed_val != "":
         payload["speed"] = int(str(speed_val))
-    port_id = str(form.get("port_id", ""))
-    if port_id:
-        payload["port_id"] = port_id
+    switch_id = str(form.get("switch_id", ""))
+    if switch_id:
+        payload["switch_id"] = switch_id
 
     try:
         connection = await api.patch(f"/api/v1/connections/{connection_id}", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             members_data = await api.get("/api/v1/members", token, params={"limit": 200})
             switches_data = await api.get("/api/v1/switches", token, params={"limit": 200})
 
@@ -197,7 +205,6 @@ async def connection_edit(request: Request) -> Response:
                 "connection": {**payload, "id": connection_id},
                 "members": members_data.get("items", []),
                 "switches": switches_data.get("items", []),
-                "ports": [],
                 "errors": e.detail,
                 "page_title": "Editar Conexion",
             })
@@ -205,6 +212,22 @@ async def connection_edit(request: Request) -> Response:
 
     add_flash(request, "Conexion actualizada", "success")
     return RedirectResponse(f"/admin/connections/{connection['id']}", status_code=302)
+
+
+@require_auth
+async def connection_delete(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    connection_id = request.path_params["connection_id"]
+
+    try:
+        await api.delete(f"/api/v1/connections/{connection_id}", token)
+        add_flash(request, "Conexion eliminada", "success")
+    except APIError as e:
+        add_flash(request, f"Error eliminando conexion: {safe_detail(e)}", "error")
+        return RedirectResponse(f"/admin/connections/{connection_id}", status_code=302)
+
+    return RedirectResponse("/admin/connections", status_code=302)
 
 
 @require_auth
@@ -237,7 +260,6 @@ async def connection_assign_vlan(request: Request) -> Response:
 
     payload = {
         "vlan_id": str(form.get("vlan_id", "")),
-        "tagged": form.get("tagged") == "on",
     }
 
     try:

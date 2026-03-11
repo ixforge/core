@@ -39,7 +39,6 @@ def create_ui_app() -> Starlette:
         locations,
         members,
         portal,
-        ports,
         route_servers,
         settings,
         switches,
@@ -89,14 +88,6 @@ def create_ui_app() -> Starlette:
         Route("/admin/switches/{switch_id}", switches.switch_detail),
         Route("/admin/switches/{switch_id}/edit", switches.switch_edit, methods=["GET", "POST"]),
         Route("/admin/switches/{switch_id}/delete", switches.switch_delete, methods=["POST"]),
-        # Ports
-        Route("/admin/ports/options", ports.port_options),
-        Route("/admin/ports", ports.port_list),
-        Route("/admin/ports/new", ports.port_new, methods=["GET", "POST"]),
-        Route("/admin/ports/{port_id}/edit", ports.port_edit, methods=["GET", "POST"]),
-        Route("/admin/ports/{port_id}/delete", ports.port_delete, methods=["POST"]),
-        Route("/admin/ports/{port_id}/assign", ports.port_assign, methods=["POST"]),
-        Route("/admin/ports/{port_id}/release", ports.port_release, methods=["POST"]),
         # Route Servers
         Route("/admin/route-servers", route_servers.route_server_list),
         Route("/admin/route-servers/new", route_servers.route_server_new, methods=["GET", "POST"]),
@@ -126,12 +117,14 @@ def create_ui_app() -> Starlette:
         # BGP Sessions
         Route("/admin/bgp-sessions", bgp_sessions.bgp_session_list),
         Route("/admin/bgp-sessions/{session_id}", bgp_sessions.bgp_session_detail),
+        Route("/admin/bgp-sessions/{session_id}/delete", bgp_sessions.bgp_session_delete, methods=["POST"]),
         Route("/admin/bgp-sessions/{session_id}/toggle", bgp_sessions.bgp_session_toggle, methods=["POST"]),
         # Connections
         Route("/admin/connections", connections.connection_list),
         Route("/admin/connections/new", connections.connection_new, methods=["GET", "POST"]),
         Route("/admin/connections/{connection_id}", connections.connection_detail),
         Route("/admin/connections/{connection_id}/edit", connections.connection_edit, methods=["GET", "POST"]),
+        Route("/admin/connections/{connection_id}/delete", connections.connection_delete, methods=["POST"]),
         Route("/admin/connections/{connection_id}/transition", connections.connection_transition, methods=["POST"]),
         Route("/admin/connections/{connection_id}/vlans", connections.connection_assign_vlan, methods=["POST"]),
         Route("/admin/connections/{connection_id}/vlans/{vlan_id}/delete", connections.connection_unassign_vlan, methods=["POST"]),

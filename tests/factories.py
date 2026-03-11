@@ -21,7 +21,6 @@ from ixforge.enums import (
     CustomFieldType,
     MemberState,
     PeeringPolicy,
-    PortType,
     VLANType,
 )
 from ixforge.models.api_key import APIKey
@@ -34,7 +33,6 @@ from ixforge.models.event import Event
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
 from ixforge.models.user import User, UserRole
@@ -106,27 +104,12 @@ class SwitchFactory(_NoDBFactory):
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"switch-{n:02d}")
-    hostname = factory.LazyAttribute(lambda o: f"{o.name}.ixp.example.net")
     vendor = fuzzy.FuzzyChoice(["Arista", "Juniper", "Nokia"])
     model = "DCS-7280SR"
     management_ip = factory.Sequence(lambda n: f"10.0.0.{n + 1}")
     is_active = True
     extra_data = None
 
-
-class PortFactory(_NoDBFactory):
-    class Meta:
-        model = Port
-
-    id = factory.LazyFunction(uuid.uuid4)
-    ixp_id = factory.LazyFunction(uuid.uuid4)
-    switch_id = factory.LazyFunction(uuid.uuid4)
-    name = factory.Sequence(lambda n: f"Ethernet{n + 1}")
-    speed = fuzzy.FuzzyChoice([1000, 10000, 100000])
-    type = PortType.member
-    member_id = None
-    is_active = True
-    extra_data = None
 
 
 class VLANFactory(_NoDBFactory):
@@ -171,7 +154,8 @@ class ConnectionFactory(_NoDBFactory):
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
     member_id = factory.LazyFunction(uuid.uuid4)
-    port_id = None
+    switch_id = factory.LazyFunction(uuid.uuid4)
+    name = factory.Sequence(lambda n: f"Ethernet{n + 1}")
     type = ConnectionType.physical
     state = ConnectionState.draft
     mac_address = factory.Sequence(lambda n: f"00:11:22:33:44:{n:02x}")
@@ -187,7 +171,6 @@ class ConnectionVLANFactory(_NoDBFactory):
     ixp_id = factory.LazyFunction(uuid.uuid4)
     connection_id = factory.LazyFunction(uuid.uuid4)
     vlan_id = factory.LazyFunction(uuid.uuid4)
-    tagged = False
 
 
 class RouteServerFactory(_NoDBFactory):

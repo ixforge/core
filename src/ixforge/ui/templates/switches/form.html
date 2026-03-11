@@ -10,8 +10,10 @@
   {# Validation errors #}
   {% if errors %}
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
-    {% if errors is mapping and errors.detail %}
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+    {% elif errors is mapping and errors.detail %}
+      <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
       {% for err in errors.detail %}
       <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
       {% endfor %}
@@ -36,17 +38,6 @@
              placeholder="sw-core-01">
     </div>
 
-    {# Hostname #}
-    <div class="mb-4">
-      <label for="hostname" class="block text-sm font-medium mb-1">Hostname</label>
-      <input type="text"
-             id="hostname"
-             name="hostname"
-             value="{{ switch.hostname if switch else '' }}"
-             class="input-field w-full"
-             placeholder="sw-core-01.ejemplo.net">
-    </div>
-
     {# Vendor #}
     <div class="mb-4">
       <label for="vendor" class="block text-sm font-medium mb-1">Vendor</label>
@@ -67,6 +58,20 @@
              value="{{ switch.model if switch else '' }}"
              class="input-field w-full"
              placeholder="DCS-7280SR">
+    </div>
+
+    {# Ubicacion #}
+    <div class="mb-4">
+      <label for="location_id" class="block text-sm font-medium mb-1">Ubicacion</label>
+      <select id="location_id" name="location_id" required class="input-field w-full">
+        {% set current_location = switch.location_id if switch and switch.location_id else '' %}
+        <option value="" disabled {% if not current_location %}selected{% endif %}>— Seleccionar ubicacion —</option>
+        {% for loc in locations %}
+        <option value="{{ loc.id }}" {% if current_location == loc.id %}selected{% endif %}>
+          {{ loc.name }}{% if loc.city %} - {{ loc.city }}{% endif %}{% if loc.country %}, {{ loc.country }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
     </div>
 
     {# Management IP #}

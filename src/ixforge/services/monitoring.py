@@ -9,7 +9,6 @@ from ixforge.enums import ConnectionState, MemberState
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.schemas.monitoring import (
     MonitoringMemberIP,
@@ -43,26 +42,32 @@ async def build_targets(
         switch_targets.append(
             MonitoringSwitchTarget(
                 id=sw.id,
-                hostname=sw.hostname,
+                name=sw.name,
                 management_ip=sw.management_ip,
                 snmp_community=snmp,
             )
         )
         switch_ids.append(sw.id)
 
-    # Active ports on active switches
+    # Active connections on active switches
     port_targets: list[MonitoringPortTarget] = []
     if switch_ids:
-        port_stmt = select(Port).where(Port.switch_id.in_(switch_ids), Port.is_active.is_(True))
-        port_result = await session.execute(port_stmt)
-        for port in port_result.scalars().all():
+        conn_stmt = (
+            select(Connection)
+            .where(
+                Connection.switch_id.in_(switch_ids),
+                Connection.state == ConnectionState.active,
+            )
+        )
+        conn_result = await session.execute(conn_stmt)
+        for conn in conn_result.scalars().all():
             port_targets.append(
                 MonitoringPortTarget(
-                    id=port.id,
-                    switch_id=port.switch_id,
-                    name=port.name,
-                    speed=port.speed,
-                    member_id=port.member_id,
+                    id=conn.id,
+                    switch_id=conn.switch_id,
+                    name=conn.name,
+                    speed=conn.speed,
+                    member_id=conn.member_id,
                 )
             )
 

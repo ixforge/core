@@ -9,8 +9,10 @@
 <div class="card max-w-2xl">
   {% if errors %}
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
-    {% if errors is mapping and errors.detail %}
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+    {% elif errors is mapping and errors.detail %}
+      <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
       {% for err in errors.detail %}
       <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
       {% endfor %}
@@ -37,25 +39,27 @@
 
     {# Ciudad #}
     <div class="mb-4">
-      <label for="city" class="block text-sm font-medium mb-1">Ciudad <span class="text-gray-400 font-normal">(opcional)</span></label>
+      <label for="city" class="block text-sm font-medium mb-1">Ciudad</label>
       <input type="text"
              id="city"
              name="city"
              value="{{ location.city if location and location.city else '' }}"
+             required
              class="input-field w-full"
-             placeholder="Buenos Aires">
+             placeholder="Santiago">
     </div>
 
     {# País #}
     <div class="mb-6">
-      <label for="country" class="block text-sm font-medium mb-1">País <span class="text-gray-400 font-normal">(opcional, código ISO 2 letras)</span></label>
+      <label for="country" class="block text-sm font-medium mb-1">Pais (codigo ISO 2 letras)</label>
       <input type="text"
              id="country"
              name="country"
              value="{{ location.country if location and location.country else '' }}"
+             required
              maxlength="2"
              class="input-field w-full"
-             placeholder="AR">
+             placeholder="CL">
     </div>
 
     {# Botones #}

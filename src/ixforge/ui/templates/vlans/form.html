@@ -10,8 +10,10 @@
   {# Errores de validacion #}
   {% if errors %}
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-    <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
-    {% if errors is mapping and errors.detail %}
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+    {% elif errors is mapping and errors.detail %}
+      <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
       {% for err in errors.detail %}
       <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
       {% endfor %}

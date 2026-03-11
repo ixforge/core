@@ -5,7 +5,6 @@
       {{ s.name }}
     </a>
   </td>
-  <td class="py-3 text-sm">{{ s.hostname or "-" }}</td>
   <td class="py-3 text-sm"><code class="text-sm">{{ s.management_ip or "-" }}</code></td>
   <td class="py-3 text-sm">{{ s.vendor or "-" }}{% if s.model %} / {{ s.model }}{% endif %}</td>
   <td class="py-3">

@@ -29,8 +29,8 @@ FAKE_CONNECTION = {
     "id": str(uuid.uuid4()),
     "ixp_id": str(uuid.uuid4()),
     "member_id": FAKE_MEMBER["id"],
-    "port_id": str(uuid.uuid4()),
-    "port_name": "eth0",
+    "switch_id": str(uuid.uuid4()),
+    "name": "Ethernet1",
     "type": "physical",
     "state": "draft",
     "speed": 10000,
@@ -132,7 +132,7 @@ class TestConnectionDetail:
     def test_detail_renders(self, authed_client, app):
         conn_with_vlans = {
             **FAKE_CONNECTION,
-            "vlans": [{"vlan_id": FAKE_VLAN["id"], "vlan_name": "Peering", "vid": 100, "tagged": False}],
+            "vlans": [{"vlan_id": FAKE_VLAN["id"], "vlan_name": "Peering", "vid": 100}],
             "ips": [{"id": str(uuid.uuid4()), "address": "10.0.0.1", "pool_network": "10.0.0.0/24"}],
         }
 
@@ -269,29 +269,14 @@ class TestConnectionActions:
         app.state.api.post = AsyncMock(return_value=None)
         resp = authed_client.post(
             f"/admin/connections/{FAKE_CONNECTION['id']}/vlans",
-            data={"vlan_id": FAKE_VLAN["id"], "tagged": "on"},
-            follow_redirects=False,
-        )
-        assert resp.status_code == 302
-        app.state.api.post.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/vlans",
-            "test-jwt",
-            json={"vlan_id": FAKE_VLAN["id"], "tagged": True},
-        )
-
-    def test_assign_vlan_untagged(self, authed_client, app):
-        app.state.api.post = AsyncMock(return_value=None)
-        resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/vlans",
             data={"vlan_id": FAKE_VLAN["id"]},
             follow_redirects=False,
         )
         assert resp.status_code == 302
-        # tagged should be False when checkbox not checked
         app.state.api.post.assert_called_once_with(
             f"/api/v1/connections/{FAKE_CONNECTION['id']}/vlans",
             "test-jwt",
-            json={"vlan_id": FAKE_VLAN["id"], "tagged": False},
+            json={"vlan_id": FAKE_VLAN["id"]},
         )
 
     def test_unassign_vlan(self, authed_client, app):

@@ -2,12 +2,11 @@
 
 import uuid
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.models.user import User, UserRole
-from ixforge.services.auth import create_access_token, hash_password
+from ixforge.services.auth import hash_password
 
 
 class TestUserExtendedFields:
