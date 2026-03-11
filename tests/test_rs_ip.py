@@ -1,7 +1,8 @@
 """Tests for RS IP assignment service and API."""
 
-import pytest
 import uuid
+
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +14,7 @@ from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.vlan import VLAN
-from ixforge.schemas.rs_ip import RSIPAssignmentCreate, RSIPAssignmentRead
+from ixforge.schemas.rs_ip import RSIPAssignmentCreate
 from ixforge.services import rs_ip as svc
 
 

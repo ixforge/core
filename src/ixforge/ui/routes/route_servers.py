@@ -152,7 +152,7 @@ async def route_server_new(request: Request) -> Response:
     try:
         rs = await api.post("/api/v1/route-servers", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "route_servers/form.html", {
                 "rs": payload,
                 "errors": e.detail,
@@ -192,7 +192,7 @@ async def route_server_edit(request: Request) -> Response:
     try:
         rs = await api.patch(f"/api/v1/route-servers/{rs_id}", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "route_servers/form.html", {
                 "rs": {**payload, "id": rs_id},
                 "errors": e.detail,

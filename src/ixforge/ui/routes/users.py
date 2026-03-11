@@ -88,7 +88,7 @@ async def user_new(request: Request) -> Response:
     try:
         user = await api.post("/api/v1/users", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "users/form.html", {
                 "user": payload,
                 "errors": e.detail,

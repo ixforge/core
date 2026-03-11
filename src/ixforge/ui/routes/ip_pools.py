@@ -68,13 +68,13 @@ async def ip_pool_detail(request: Request) -> Response:
         try:
             conn = await api.get(f"/api/v1/connections/{conn_id}", token)
             member_name = conn.get("member_name", "")
-            port_name = conn.get("port_name", "")
-            if member_name and port_name:
-                label = f"{member_name} / {port_name}"
+            conn_name = conn.get("name", "")
+            if member_name and conn_name:
+                label = f"{member_name} / {conn_name}"
             elif member_name:
                 label = member_name
-            elif port_name:
-                label = port_name
+            elif conn_name:
+                label = conn_name
             else:
                 label = conn.get("type", "conexion")
             connection_map[conn_id] = {"label": label}
@@ -117,7 +117,7 @@ async def ip_pool_new(request: Request) -> Response:
     try:
         await api.post("/api/v1/ip-pools", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
 
             return render(request, "ip_pools/form.html", {

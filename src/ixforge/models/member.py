@@ -60,8 +60,6 @@ class Member(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     connection_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    contract_start: Mapped[date | None] = mapped_column(Date, nullable=True)
-    contract_renewal: Mapped[date | None] = mapped_column(Date, nullable=True)
     contract_type: Mapped[ContractType | None] = mapped_column(
         Enum(ContractType, name="contract_type"),
         nullable=True,

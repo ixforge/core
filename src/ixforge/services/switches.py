@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.config import get_settings
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
+from ixforge.models.connection import Connection
 from ixforge.models.location import Location
-from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.switch import SwitchCreate, SwitchRead, SwitchUpdate
@@ -59,10 +59,9 @@ async def create(
     if data.snmp_community is not None:
         encrypted_community = encrypt_snmp(data.snmp_community)
 
-    if data.location_id is not None:
-        location = await session.get(Location, data.location_id)
-        if location is None or location.ixp_id != ixp_id:
-            raise NotFoundError("Location", str(data.location_id))
+    location = await session.get(Location, data.location_id)
+    if location is None or location.ixp_id != ixp_id:
+        raise NotFoundError("Location", str(data.location_id))
 
     if data.extra_data is not None:
         await custom_fields.validate_extra_data(session, ixp_id, "switch", data.extra_data)
@@ -70,7 +69,6 @@ async def create(
     switch = Switch(
         ixp_id=ixp_id,
         name=data.name,
-        hostname=data.hostname,
         vendor=data.vendor,
         model=data.model,
         management_ip=data.management_ip,
@@ -84,7 +82,7 @@ async def create(
         await session.flush()
     except IntegrityError as exc:
         raise ConflictError(
-            f"Switch with hostname '{data.hostname}' already exists in this IXP"
+            f"Switch with name '{data.name}' already exists in this IXP"
         ) from exc
     return switch
 
@@ -143,19 +141,19 @@ async def update(
         await session.flush()
     except IntegrityError as exc:
         raise ConflictError(
-            "Switch with that hostname already exists in this IXP"
+            "Switch with that name already exists in this IXP"
         ) from exc
     await session.refresh(switch)
     return switch
 
 
 async def delete(session: AsyncSession, ixp_id: uuid.UUID, switch_id: uuid.UUID) -> None:
-    """Delete a switch. Rejects if ports are still assigned."""
+    """Delete a switch. Rejects if connections are assigned to it."""
     switch = await get(session, ixp_id, switch_id)
-    has_port = await session.scalar(
-        select(Port.id).where(Port.switch_id == switch_id).limit(1)
+    has_connection = await session.scalar(
+        select(Connection.id).where(Connection.switch_id == switch_id).limit(1)
     )
-    if has_port is not None:
-        raise ConflictError("Cannot delete switch: ports are still assigned to it")
+    if has_connection is not None:
+        raise ConflictError("Cannot delete switch: connections are assigned to it")
     await session.delete(switch)
     await session.flush()

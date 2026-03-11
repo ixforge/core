@@ -17,7 +17,7 @@
       <a href="/admin/ip-pools/{{ p.id }}" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Ver</a>
       <button type="button"
               class="text-sm text-red-600 dark:text-red-400 hover:underline"
-              @click="confirmId = {{ p.id|tojson }}; confirmNetwork = {{ p.network|tojson }}">
+              @click="$dispatch('pool-delete', { id: '{{ p.id }}', network: '{{ p.network|e }}' })">
         Eliminar
       </button>
     </div>

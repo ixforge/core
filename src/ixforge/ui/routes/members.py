@@ -111,8 +111,7 @@ async def member_new(request: Request) -> Response:
 
     # Extended fields
     for field in ("member_type", "description", "city", "country",
-                  "connection_date", "contract_start", "contract_renewal",
-                  "contract_type", "notes"):
+                  "connection_date", "contract_type", "notes"):
         val = str(form.get(field, "")).strip()
         if val:
             payload[field] = val
@@ -122,7 +121,7 @@ async def member_new(request: Request) -> Response:
     try:
         member = await api.post("/api/v1/members", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "members/form.html", {
                 "member": payload,
                 "errors": e.detail,
@@ -152,8 +151,7 @@ async def member_edit(request: Request) -> Response:
     payload: dict[str, Any] = {}
     for field in ("name", "short_name", "peering_policy", "website",
                   "member_type", "description", "city", "country",
-                  "connection_date", "contract_start", "contract_renewal",
-                  "contract_type", "notes"):
+                  "connection_date", "contract_type", "notes"):
         val = form.get(field)
         if val is not None:
             payload[field] = str(val) if str(val).strip() else None
@@ -165,7 +163,7 @@ async def member_edit(request: Request) -> Response:
     try:
         member = await api.patch(f"/api/v1/members/{member_id}", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             return render(request, "members/form.html", {
                 "member": {**payload, "id": member_id},
                 "errors": e.detail,

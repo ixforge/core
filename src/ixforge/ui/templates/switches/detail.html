@@ -38,10 +38,6 @@
   <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Hostname</p>
-      <p class="font-medium">{{ switch.hostname or "-" }}</p>
-    </div>
-    <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">Management IP</p>
       <p class="font-medium"><code class="text-sm">{{ switch.management_ip or "-" }}</code></p>
     </div>
@@ -60,47 +56,48 @@
   </div>
 </div>
 
-{# Ports table #}
+{# Connections table #}
 <div class="card">
   <div class="flex justify-between items-center mb-4">
-    <h2 class="text-lg font-semibold">Puertos</h2>
-    <a href="/admin/ports/new?switch_id={{ switch.id }}" class="btn-primary btn-sm">Nuevo Puerto</a>
+    <h2 class="text-lg font-semibold">Conexiones</h2>
+    <a href="/admin/connections/new?switch_id={{ switch.id }}" class="btn-primary btn-sm">Nueva Conexion</a>
   </div>
-  {% if ports %}
+  {% if connections %}
   <div class="overflow-x-auto">
     <table class="w-full">
       <thead>
         <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
           <th class="pb-3 font-medium">Nombre</th>
           <th class="pb-3 font-medium">Velocidad</th>
-          <th class="pb-3 font-medium">Tipo</th>
           <th class="pb-3 font-medium">Miembro</th>
           <th class="pb-3 font-medium">Estado</th>
           <th class="pb-3 font-medium">Acciones</th>
         </tr>
       </thead>
       <tbody class="divide-y dark:divide-gray-700">
-        {% for p in ports %}
+        {% for c in connections %}
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-          <td class="py-3 font-medium">{{ p.name or "-" }}</td>
-          <td class="py-3">{{ p.speed or "-" }}</td>
-          <td class="py-3 capitalize">{{ p.type or "-" }}</td>
+          <td class="py-3 font-medium">{{ c.name or "-" }}</td>
+          <td class="py-3">{{ c.speed or "-" }}</td>
           <td class="py-3">
-            {% if p.connection_id %}
-            <span class="text-sm text-indigo-600 dark:text-indigo-400">Asignado</span>
+            {% if c.member_name %}
+            <a href="/admin/members/{{ c.member_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ c.member_name }}</a>
             {% else %}
-            <span class="text-sm text-gray-400">Libre</span>
+            <span class="text-sm text-gray-400">-</span>
             {% endif %}
           </td>
           <td class="py-3">
-            {% if p.is_active %}
-            <span class="badge badge-green">Activo</span>
-            {% else %}
-            <span class="badge badge-red">Inactivo</span>
-            {% endif %}
+            {% if c.state == "active" %}<span class="badge badge-green">Activo</span>
+            {% elif c.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+            {% elif c.state == "draft" %}<span class="badge badge-blue">Borrador</span>
+            {% elif c.state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
+            {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
           </td>
           <td class="py-3">
-            <a href="/admin/ports/{{ p.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+            <div class="flex gap-2">
+              <a href="/admin/connections/{{ c.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+              <a href="/admin/connections/{{ c.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
+            </div>
           </td>
         </tr>
         {% endfor %}
@@ -109,8 +106,8 @@
   </div>
   {% else %}
   <p class="text-gray-500 dark:text-gray-400 text-center py-4">
-    Este switch no tiene puertos.
-    <a href="/admin/ports/new?switch_id={{ switch.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">Nuevo Puerto</a>
+    Este switch no tiene conexiones.
+    <a href="/admin/connections/new?switch_id={{ switch.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">Nueva Conexion</a>
   </p>
   {% endif %}
 </div>

@@ -8,20 +8,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ixforge.enums import (
     ConnectionState,
     ConnectionType,
+    CustomFieldEntityType,
     MemberState,
     PeeringPolicy,
-    PortType,
     VLANType,
 )
+from ixforge.enums import (
+    CustomFieldType as CFType,
+)
 from ixforge.models.connection import Connection, ConnectionVLAN
+from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
-from ixforge.models.port import Port
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
-from ixforge.enums import CustomFieldEntityType, CustomFieldType as CFType
-from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.schemas.member import MemberCreate, MemberUpdate
 
 # ---------------------------------------------------------------------------
@@ -190,8 +191,9 @@ class TestMemberCRUD:
     async def test_create_member_country_invalid_rejected(self) -> None:
         """Country with non-alpha characters should be rejected at schema level"""
         import pytest
+        from pydantic import ValidationError
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             MemberCreate(name="Bad", short_name="B", asn=1, country="1X")
 
     async def test_update_member_country_uppercase(self) -> None:
@@ -322,27 +324,14 @@ class TestMemberStateMachine:
         db_session.add(member)
         await db_session.flush()
 
-        # Create the supporting infrastructure.
+        # Create the supporting infrastructure
         switch = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-test",
-            hostname="sw-test.ixp.example.net",
             is_active=True,
         )
         db_session.add(switch)
-        await db_session.flush()
-
-        port = Port(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            switch_id=switch.id,
-            name="Ethernet1",
-            speed=10000,
-            type=PortType.member,
-            is_active=True,
-        )
-        db_session.add(port)
         await db_session.flush()
 
         vlan = VLAN(
@@ -359,7 +348,8 @@ class TestMemberStateMachine:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
-            port_id=port.id,
+            switch_id=switch.id,
+            name="Ethernet1",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
@@ -372,7 +362,6 @@ class TestMemberStateMachine:
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
         )
         db_session.add(conn_vlan)
         await db_session.flush()
@@ -397,7 +386,7 @@ class TestMemberStateMachine:
         db_session.add(ip_assignment)
         await db_session.flush()
 
-        # Now transition should succeed.
+        # Now transition should succeed
         resp = await client.post(
             f"/api/v1/members/{member.id}/transition",
             headers=auth_headers,
@@ -538,22 +527,9 @@ class TestMemberStateMachine:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-term",
-            hostname="sw-term.ixp.example.net",
             is_active=True,
         )
         db_session.add(switch)
-        await db_session.flush()
-
-        port = Port(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            switch_id=switch.id,
-            name="Ethernet1",
-            speed=10000,
-            type=PortType.member,
-            is_active=True,
-        )
-        db_session.add(port)
         await db_session.flush()
 
         vlan = VLAN(
@@ -570,7 +546,8 @@ class TestMemberStateMachine:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
-            port_id=port.id,
+            switch_id=switch.id,
+            name="Ethernet1",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
@@ -583,7 +560,6 @@ class TestMemberStateMachine:
             ixp_id=ixp.id,
             connection_id=conn.id,
             vlan_id=vlan.id,
-            tagged=False,
         )
         db_session.add(conn_vlan)
         await db_session.flush()

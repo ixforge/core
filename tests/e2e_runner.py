@@ -275,41 +275,18 @@ def run():
         expect=200,
         check=lambda b: b["vendor"] == "Arista",
     )
-    new_sw = test(
+    test(
         "Create switch",
         "POST",
         "/switches",
         {
             "name": "sw-e2n",
-            "hostname": "sw-e2n.test",
             "vendor": "Juniper",
             "model": "QFX5100",
             "management_ip": "10.0.0.201",
         },
         201,
         lambda b: b["name"] == "sw-e2n",
-    )
-
-    # === PORTS ===
-    print("\n-- PORTS --")
-    p = test(
-        "List ports",
-        "GET",
-        f"/ports?switch_id={sw_id}",
-        expect=200,
-        check=lambda b: len(b["items"]) >= 4,
-    )
-    port_id = p["items"][0]["id"]
-    test(
-        "Get port", "GET", f"/ports/{port_id}", expect=200, check=lambda b: "Ethernet" in b["name"]
-    )
-    test(
-        "Create port",
-        "POST",
-        "/ports",
-        {"switch_id": new_sw.get("id", ""), "name": "Ethernet1", "speed": 40000, "type": "member"},
-        201,
-        lambda b: b["name"] == "Ethernet1",
     )
 
     # === VLANS ===
@@ -375,24 +352,19 @@ def run():
                 check=lambda b: "type" in b,
             )
 
-    # Build a complete connection: port + VLAN + IP
-    free_port = None
-    for pp in p.get("items", []):
-        if "Ethernet3" in pp["name"]:
-            free_port = pp["id"]
-            break
-    if not free_port:
-        for pp in p.get("items", []):
-            if "Ethernet4" in pp["name"]:
-                free_port = pp["id"]
-                break
-
-    if free_port and mid:
+    # Build a complete connection: VLAN + IP
+    if mid and sw_id:
         cn = test(
             "Create connection",
             "POST",
             "/connections",
-            {"member_id": mid, "port_id": free_port, "type": "physical", "speed": 10000},
+            {
+                "member_id": mid,
+                "switch_id": sw_id,
+                "name": "Ethernet-e2e",
+                "type": "physical",
+                "speed": 10000,
+            },
             201,
             lambda b: "id" in b,
         )
@@ -404,7 +376,7 @@ def run():
                 "Attach VLAN",
                 "POST",
                 f"/connections/{cn_id}/vlans",
-                {"vlan_id": prod_vlan_id, "tagged": False},
+                {"vlan_id": prod_vlan_id},
                 201,
             )
             if pool_id:

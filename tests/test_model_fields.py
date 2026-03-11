@@ -11,8 +11,6 @@ def test_member_has_new_fields():
         "city",
         "country",
         "connection_date",
-        "contract_start",
-        "contract_renewal",
         "contract_type",
         "notes",
         "skip_ixf_export",

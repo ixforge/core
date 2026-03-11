@@ -13,7 +13,6 @@ FAKE_SWITCH = {
     "id": str(uuid.uuid4()),
     "ixp_id": str(uuid.uuid4()),
     "name": "switch-01",
-    "hostname": "switch-01.demo.net",
     "vendor": "Arista",
     "model": "DCS-7280SR",
     "management_ip": "10.0.0.1",
@@ -113,7 +112,6 @@ class TestSwitchForm:
         resp = authed_client.get("/admin/switches/new")
         assert resp.status_code == 200
         assert "name" in resp.text.lower()
-        assert "hostname" in resp.text.lower()
 
     def test_create_redirects(self, authed_client, app):
         app.state.api.post = AsyncMock(return_value={**FAKE_SWITCH})
@@ -121,7 +119,6 @@ class TestSwitchForm:
             "/admin/switches/new",
             data={
                 "name": "switch-01",
-                "hostname": "switch-01.demo.net",
                 "vendor": "Arista",
                 "model": "DCS-7280SR",
                 "management_ip": "10.0.0.1",
@@ -135,7 +132,7 @@ class TestSwitchForm:
         app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "field required"}]}))
         resp = authed_client.post(
             "/admin/switches/new",
-            data={"name": "", "hostname": "", "vendor": "", "model": "", "management_ip": ""},
+            data={"name": "", "vendor": "", "model": "", "management_ip": ""},
         )
         assert resp.status_code == 200
         assert "Corrige los errores" in resp.text

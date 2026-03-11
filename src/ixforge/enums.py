@@ -14,7 +14,6 @@ __all__ = [
     "MemberState",
     "MemberType",
     "PeeringPolicy",
-    "PortType",
     "UserRole",
     "VLANType",
 ]
@@ -69,15 +68,6 @@ class ConnectionState(StrEnum):
     decommissioned = "decommissioned"
 
 
-# -- Ports --
-
-
-class PortType(StrEnum):
-    member = "member"
-    infra = "infra"
-    unused = "unused"
-
-
 # -- VLANs --
 
 
@@ -105,7 +95,6 @@ class ContactRole(StrEnum):
 class CustomFieldEntityType(StrEnum):
     member = "member"
     connection = "connection"
-    port = "port"
     switch = "switch"
     vlan = "vlan"
 

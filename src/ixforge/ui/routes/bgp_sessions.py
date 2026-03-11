@@ -38,10 +38,7 @@ async def bgp_session_list(request: Request) -> Response:
         except APIError:
             pass
 
-    is_htmx = request.headers.get("hx-request") == "true"
-    template = "bgp_sessions/list_rows.html" if is_htmx else "bgp_sessions/list.html"
-
-    return render(request, template, {
+    return render(request, "bgp_sessions/list.html", {
         "sessions": sessions,
         "route_servers": route_servers,
         "filter_route_server_id": route_server_id,
@@ -112,3 +109,19 @@ async def bgp_session_toggle(request: Request) -> Response:
         add_flash(request, f"Error cambiando admin state: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/bgp-sessions/{session_id}", status_code=302)
+
+
+@require_auth
+async def bgp_session_delete(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    session_id = request.path_params["session_id"]
+
+    try:
+        await api.delete(f"/api/v1/bgp-sessions/{session_id}", token)
+        add_flash(request, "BGP Session eliminada", "success")
+    except APIError as e:
+        add_flash(request, f"Error eliminando BGP session: {safe_detail(e)}", "error")
+        return RedirectResponse(f"/admin/bgp-sessions/{session_id}", status_code=302)
+
+    return RedirectResponse("/admin/bgp-sessions", status_code=302)

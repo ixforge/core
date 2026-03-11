@@ -39,7 +39,6 @@ class RouteServerContext:
     """Template context for the route server itself."""
 
     name: str
-    hostname: str
     ip_v4: str | None
     ip_v6: str | None
     asn: int
@@ -154,7 +153,6 @@ async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServ
 
     return RouteServerContext(
         name=rs.name,
-        hostname=rs.hostname,
         ip_v4=rs.ip_v4,
         ip_v6=rs.ip_v6,
         asn=rs.asn,

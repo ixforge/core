@@ -22,7 +22,7 @@
         <option value="member" {% if filter_entity_type == "member" %}selected{% endif %}>Member</option>
         <option value="connection" {% if filter_entity_type == "connection" %}selected{% endif %}>Connection</option>
         <option value="switch" {% if filter_entity_type == "switch" %}selected{% endif %}>Switch</option>
-        <option value="port" {% if filter_entity_type == "port" %}selected{% endif %}>Port</option>
+
         <option value="vlan" {% if filter_entity_type == "vlan" %}selected{% endif %}>VLAN</option>
         <option value="ip_pool" {% if filter_entity_type == "ip_pool" %}selected{% endif %}>IP Pool</option>
       </select>
@@ -33,7 +33,9 @@
 <div id="fields-content">
 {% if fields %}
   {% for entity_type, group in grouped_fields.items() %}
-  <div class="card mb-4 overflow-hidden" x-data="{ confirmId: null, confirmName: '' }">
+  <div class="card mb-4 overflow-hidden"
+       x-data="{ confirmId: null, confirmName: '' }"
+       @cf-delete.window="confirmId = $event.detail.id; confirmName = $event.detail.name">
     <h2 class="text-md font-semibold mb-3 capitalize">{{ entity_type }}</h2>
     <div class="overflow-x-auto">
       <table class="w-full">
@@ -62,7 +64,7 @@
               <div class="flex gap-2">
                 <button type="button"
                         class="text-sm text-red-600 dark:text-red-400 hover:underline"
-                        @click="confirmId = {{ f.id|tojson }}; confirmName = {{ f.field_name|tojson }}">
+                        @click="$dispatch('cf-delete', { id: '{{ f.id }}', name: '{{ f.field_name|e }}' })">
                   Eliminar
                 </button>
               </div>
@@ -75,7 +77,8 @@
 
     {# Delete modal #}
     <div x-show="confirmId !== null"
-         x-cloak
+         x-transition
+         style="display: none;"
          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
         <h3 class="text-lg font-semibold mb-2">Confirmar eliminacion</h3>

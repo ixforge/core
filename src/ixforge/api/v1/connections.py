@@ -32,7 +32,6 @@ class ConnectionVLANRead(BaseModel):
     id: uuid.UUID
     connection_id: uuid.UUID
     vlan_id: uuid.UUID
-    tagged: bool
 
     model_config = {"from_attributes": True}
 
@@ -47,23 +46,24 @@ async def list_connections(
     db: DBSession,
     user: CurrentUser,
     ixp_id: IXPId,
-    member_id: uuid.UUID = Query(),
+    member_id: uuid.UUID | None = Query(default=None),
+    switch_id: uuid.UUID | None = Query(default=None),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[ConnectionRead]:
-    """List connections for a member.
+    """List connections filtered by member and/or switch.
 
-    Admins can list any member's connections; member users can only list
-    their own.
+    Admins can list any connections; member users can only list their own.
     """
     if user.role == UserRole.member:
         if user.member_id is None:
             raise ForbiddenError("Member user without assigned member cannot access connections")
-        if member_id != user.member_id:
+        if member_id is not None and member_id != user.member_id:
             raise ForbiddenError("You can only view your own connections")
+        member_id = user.member_id
 
     params = CursorParams(cursor=cursor, limit=limit)
-    return await conn_svc.list_connections(db, ixp_id, member_id, params)
+    return await conn_svc.list_connections(db, ixp_id, params, member_id=member_id, switch_id=switch_id)
 
 
 @connections_router.post("", response_model=ConnectionRead, status_code=201)
@@ -135,6 +135,38 @@ async def transition_connection(
     return await conn_svc.transition(
         db, connection_id, body.state, ixp_id=ixp_id, actor_id=admin.id
     )
+
+
+@connections_router.get("/{connection_id}/vlans", response_model=list[ConnectionVLANRead])
+async def list_connection_vlans(
+    connection_id: uuid.UUID,
+    db: DBSession,
+    ixp_id: IXPId,
+    user: CurrentUser,
+) -> list[ConnectionVLAN]:
+    """List VLANs assigned to a connection."""
+    connection = await conn_svc.get(db, ixp_id, connection_id)
+    if user.role == UserRole.member and (
+        user.member_id is None or connection.member_id != user.member_id
+    ):
+        raise ForbiddenError("You do not have access to this connection")
+    return await conn_svc.list_vlans(db, ixp_id, connection_id)
+
+
+@connections_router.get("/{connection_id}/ips", response_model=list[IPAssignmentRead])
+async def list_connection_ips(
+    connection_id: uuid.UUID,
+    db: DBSession,
+    ixp_id: IXPId,
+    user: CurrentUser,
+) -> list[IPAssignment]:
+    """List IP assignments for a connection."""
+    connection = await conn_svc.get(db, ixp_id, connection_id)
+    if user.role == UserRole.member and (
+        user.member_id is None or connection.member_id != user.member_id
+    ):
+        raise ForbiddenError("You do not have access to this connection")
+    return await conn_svc.list_ips(db, ixp_id, connection_id)
 
 
 @connections_router.post(

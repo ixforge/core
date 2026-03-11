@@ -41,7 +41,7 @@ async def settings_edit(request: Request) -> Response:
     try:
         await api.patch("/api/v1/ixp", token, json=payload)
     except APIError as e:
-        if e.status_code == 422:
+        if e.status_code in (400, 409, 422):
             ixp = await api.get("/api/v1/ixp", token)
             return render(request, "settings/edit.html", {
                 "ixp": {**ixp, **payload}, "errors": e.detail, "page_title": "Configuración IXP",

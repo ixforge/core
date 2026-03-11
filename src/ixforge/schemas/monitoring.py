@@ -15,7 +15,7 @@ class MonitoringSwitchTarget(BaseModel):
     """
 
     id: uuid.UUID
-    hostname: str
+    name: str
     management_ip: str | None
     snmp_community: str | None
 

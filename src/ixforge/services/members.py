@@ -51,8 +51,6 @@ async def create(
         city=data.city,
         country=data.country,
         connection_date=data.connection_date,
-        contract_start=data.contract_start,
-        contract_renewal=data.contract_renewal,
         contract_type=data.contract_type,
         notes=data.notes,
         skip_ixf_export=data.skip_ixf_export,
@@ -145,12 +143,8 @@ async def update(
 
 
 async def _has_complete_connection(session: AsyncSession, member_id: uuid.UUID) -> bool:
-    """Check whether the member has at least one connection with a port, VLAN, and IP."""
-    stmt = (
-        select(Connection.id)
-        .where(Connection.member_id == member_id)
-        .where(Connection.port_id.is_not(None))
-    )
+    """Check whether the member has at least one connection with a VLAN and IP."""
+    stmt = select(Connection.id).where(Connection.member_id == member_id)
     result = await session.execute(stmt)
     connection_ids = [row[0] for row in result.all()]
 
@@ -197,7 +191,7 @@ async def transition(
     ):
         raise ValidationError(
             "Cannot activate member: at least one connection must have "
-            "a port, VLAN, and IP assigned"
+            "a VLAN and IP assigned"
         )
 
     # Termination requires all connections to be decommissioned first
