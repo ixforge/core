@@ -18,9 +18,11 @@ from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.rs_ip_assignment import RSIPAssignment
+from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
 
 
@@ -35,7 +37,6 @@ class TestRouteServerCRUD:
                 "ip_v4": "192.0.2.250",
                 "ip_v6": "2001:db8::250",
                 "asn": 65000,
-                "software": "bird",
             },
         )
         assert resp.status_code == 201
@@ -60,7 +61,6 @@ class TestRouteServerCRUD:
             hostname="rs-get.example.net",
             ip_v4="192.0.2.251",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
@@ -91,8 +91,7 @@ class TestRouteServerCRUD:
                 hostname=f"rs-list-{i}.example.net",
                 ip_v4=f"192.0.2.{240 + i}",
                 asn=65000,
-                software="bird",
-                is_active=True,
+                    is_active=True,
             )
             db_session.add(rs)
         await db_session.flush()
@@ -115,7 +114,6 @@ class TestRouteServerCRUD:
             hostname="rs-old.example.net",
             ip_v4="192.0.2.245",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
@@ -144,7 +142,6 @@ class TestRouteServerCRUD:
             hostname="rs-del.example.net",
             ip_v4="192.0.2.249",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
@@ -167,7 +164,6 @@ class TestRouteServerCRUD:
             name="rs-dup",
             hostname="rs-dup.example.net",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
@@ -198,7 +194,6 @@ class TestRouteServerCRUD:
             name="rs-bgp-del",
             hostname="rs-bgp-del.example.net",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
@@ -213,12 +208,25 @@ class TestRouteServerCRUD:
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
+
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-del", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-del", location_id=location.id,
+        )
+        db_session.add(switch)
         await db_session.flush()
 
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name="eth-del",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
@@ -257,7 +265,6 @@ class TestRouteServerCRUD:
             name="rs-ip-del",
             hostname="rs-ip-del.example.net",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)

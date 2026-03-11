@@ -11,8 +11,10 @@ from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.rs_ip import RSIPAssignmentCreate
 from ixforge.services import rs_ip as svc
@@ -86,10 +88,23 @@ class TestRSIPService:
         )
         db_session.add(member)
         await db_session.flush()
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-test", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-test", location_id=location.id,
+        )
+        db_session.add(switch)
+        await db_session.flush()
         connection = Connection(
             ixp_id=ixp.id,
             member_id=member.id,
             type=ConnectionType.physical,
+            switch_id=switch.id,
+            name="eth-test",
+            speed=1000,
         )
         db_session.add(connection)
         await db_session.flush()
@@ -153,10 +168,23 @@ class TestRSIPGlobalUniqueness:
         )
         db_session.add(member)
         await db_session.flush()
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-gu", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-gu", location_id=location.id,
+        )
+        db_session.add(switch)
+        await db_session.flush()
         connection = Connection(
             ixp_id=ixp.id,
             member_id=member.id,
             type=ConnectionType.physical,
+            switch_id=switch.id,
+            name="eth-gu",
+            speed=1000,
         )
         db_session.add(connection)
         await db_session.flush()

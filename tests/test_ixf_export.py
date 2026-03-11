@@ -15,6 +15,7 @@ from ixforge.enums import (
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
@@ -44,10 +45,21 @@ class TestIXFExport:
         )
         db_session.add(member)
 
+        location = Location(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-ixf",
+            city="Test",
+            country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         sw = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-ixf",
+            location_id=location.id,
             is_active=True,
         )
         db_session.add(sw)

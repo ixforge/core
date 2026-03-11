@@ -28,7 +28,6 @@ async def create(
         ip_v4=data.ip_v4,
         ip_v6=data.ip_v6,
         asn=data.asn,
-        software=data.software,
         is_active=data.is_active,
     )
     session.add(rs)

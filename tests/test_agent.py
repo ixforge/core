@@ -20,8 +20,10 @@ from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.switch import Switch
 from ixforge.models.user import User
 from ixforge.services.auth import hash_api_key
 
@@ -41,7 +43,6 @@ async def _setup_route_server(db: AsyncSession, ixp: IXP) -> RouteServer:
         ip_v4="192.0.2.250",
         ip_v6="2001:db8::250",
         asn=65000,
-        software="bird",
         is_active=True,
     )
     db.add(rs)
@@ -154,8 +155,7 @@ class TestAgentConfigPoll:
             hostname="rs2.test.example.net",
             ip_v4="192.0.2.251",
             asn=65000,
-            software="bird",
-            is_active=True,
+                is_active=True,
         )
         db_session.add(rs2)
         await db_session.flush()
@@ -210,12 +210,25 @@ class TestAgentStatusReport:
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
+
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-status", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-status", location_id=location.id,
+        )
+        db_session.add(switch)
         await db_session.flush()
 
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name="eth-status",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
@@ -295,12 +308,25 @@ class TestAgentStatusReport:
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
+
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-unch", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-unch", location_id=location.id,
+        )
+        db_session.add(switch)
         await db_session.flush()
 
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name="eth-unch",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,

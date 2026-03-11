@@ -16,10 +16,51 @@ from ixforge.enums import (
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.switch import Switch
 from ixforge.models.user import User, UserRole
 from ixforge.services.auth import create_access_token, hash_password
+
+_conn_counter = 0
+
+
+async def _create_connection(
+    db: AsyncSession, ixp: IXP, member: Member, **overrides,
+) -> Connection:
+    """Create a Connection with required Location + Switch."""
+    global _conn_counter
+    _conn_counter += 1
+    tag = f"ma-{_conn_counter}"
+
+    location = Location(
+        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-{tag}", city="Test", country="US",
+    )
+    db.add(location)
+    await db.flush()
+
+    switch = Switch(
+        id=uuid.uuid4(), ixp_id=ixp.id, name=f"sw-{tag}", location_id=location.id,
+    )
+    db.add(switch)
+    await db.flush()
+
+    defaults = {
+        "id": uuid.uuid4(),
+        "ixp_id": ixp.id,
+        "member_id": member.id,
+        "switch_id": switch.id,
+        "name": f"eth-{tag}",
+        "type": ConnectionType.physical,
+        "state": ConnectionState.draft,
+        "speed": 10000,
+    }
+    defaults.update(overrides)
+    conn = Connection(**defaults)
+    db.add(conn)
+    await db.flush()
+    return conn
 
 
 async def _create_member(db: AsyncSession, ixp: IXP, **overrides) -> Member:
@@ -69,16 +110,7 @@ class TestMemberConnectionAccess:
         member = await _create_member(db_session, ixp)
         _user, headers = await _create_member_user(db_session, member_id=member.id)
 
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        await _create_connection(db_session, ixp, member)
 
         resp = await client.get(
             "/api/v1/connections",
@@ -114,16 +146,7 @@ class TestMemberConnectionAccess:
         member = await _create_member(db_session, ixp)
         _user, headers = await _create_member_user(db_session, member_id=member.id)
 
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        conn = await _create_connection(db_session, ixp, member)
 
         resp = await client.get(
             f"/api/v1/connections/{conn.id}",
@@ -142,16 +165,7 @@ class TestMemberConnectionAccess:
         member_b = await _create_member(db_session, ixp)
         _user, headers_a = await _create_member_user(db_session, member_id=member_a.id)
 
-        conn_b = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member_b.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
-        db_session.add(conn_b)
-        await db_session.flush()
+        conn_b = await _create_connection(db_session, ixp, member_b)
 
         resp = await client.get(
             f"/api/v1/connections/{conn_b.id}",
@@ -193,21 +207,12 @@ class TestMemberBGPSessionAccess:
             hostname="rs.test.example.net",
             ip_v4="192.0.2.250",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
-
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
-        )
-        db_session.add(conn)
         await db_session.flush()
+
+        conn = await _create_connection(db_session, ixp, member, state=ConnectionState.active)
 
         bgp = BGPSession(
             id=uuid.uuid4(),
@@ -249,21 +254,12 @@ class TestMemberBGPSessionAccess:
             hostname="rs.test.example.net",
             ip_v4="192.0.2.251",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)
-
-        conn_b = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member_b.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
-        )
-        db_session.add(conn_b)
         await db_session.flush()
+
+        conn_b = await _create_connection(db_session, ixp, member_b, state=ConnectionState.active)
 
         bgp = BGPSession(
             id=uuid.uuid4(),
@@ -301,7 +297,6 @@ class TestMemberBGPSessionAccess:
             hostname="rs.test.example.net",
             ip_v4="192.0.2.252",
             asn=65000,
-            software="bird",
             is_active=True,
         )
         db_session.add(rs)

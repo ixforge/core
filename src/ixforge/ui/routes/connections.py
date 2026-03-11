@@ -102,6 +102,18 @@ async def connection_detail(request: Request) -> Response:
             except APIError:
                 pass
 
+    # Enrich IPs with pool network info
+    pool_cache = {p["id"]: p for p in ip_pools}
+    for ip in conn_ips:
+        pool_id = ip.get("pool_id", "")
+        if pool_id and pool_id not in pool_cache:
+            try:
+                pool_cache[pool_id] = await api.get(f"/api/v1/ip-pools/{pool_id}", token)
+            except APIError:
+                pool_cache[pool_id] = {}
+        pool = pool_cache.get(pool_id, {})
+        ip["pool_network"] = pool.get("network", "")
+
     # Inject vlans and ips into connection dict for template
     connection["vlans"] = conn_vlans
     connection["ips"] = conn_ips

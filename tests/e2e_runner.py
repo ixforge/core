@@ -445,7 +445,7 @@ def run():
         "GET",
         f"/route-servers/{rs_id}",
         expect=200,
-        check=lambda b: b["software"] == "bird",
+        check=lambda b: b["name"] is not None,
     )
 
     # === BGP SESSIONS ===

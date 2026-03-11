@@ -67,16 +67,6 @@
              placeholder="2001:db8::1">
     </div>
 
-    {# Software #}
-    <div class="mb-4">
-      <label for="software" class="block text-sm font-medium mb-1">Software</label>
-      <select id="software" name="software" class="input-field w-full">
-        {% set current_sw = rs.software if rs else 'bird' %}
-        <option value="bird" {% if current_sw == "bird" %}selected{% endif %}>BIRD</option>
-        <option value="openbgpd" {% if current_sw == "openbgpd" %}selected{% endif %}>OpenBGPD</option>
-      </select>
-    </div>
-
     {# Is Active #}
     <div class="mb-6">
       <label class="flex items-center gap-3">
