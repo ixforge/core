@@ -5,15 +5,14 @@ Revises: e1465e3b85c1
 Create Date: 2026-03-09
 """
 
-from typing import Union
+
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "d67f97e3a57c"
-down_revision: Union[str, None] = "e1465e3b85c1"
-branch_labels: Union[str, None] = None
-depends_on: Union[str, None] = None
+down_revision: str | None = "e1465e3b85c1"
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade() -> None:

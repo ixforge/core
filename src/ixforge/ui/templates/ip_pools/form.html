@@ -11,15 +11,11 @@
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
     {% if errors is mapping and errors.error is defined %}
       <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
-    {% elif errors is mapping and errors.detail %}
-      <p class="text-sm text-red-700 dark:text-red-400">Corrige los errores en el formulario</p>
-      {% for err in errors.detail %}
+      {% for err in errors.error.details if errors.error.details is iterable and errors.error.details is not string %}
       <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
       {% endfor %}
-    {% elif errors is iterable and errors is not string %}
-      {% for err in errors %}
-      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
-      {% endfor %}
+    {% else %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors }}</p>
     {% endif %}
   </div>
   {% endif %}

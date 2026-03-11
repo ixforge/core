@@ -5,15 +5,15 @@ Revises: d67f97e3a57c
 Create Date: 2026-03-09
 """
 
-from typing import Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
+
 revision: str = "b79735bb9c91"
-down_revision: Union[str, None] = "d67f97e3a57c"
-branch_labels: Union[str, None] = None
-depends_on: Union[str, None] = None
+down_revision: str | None = "d67f97e3a57c"
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade() -> None:

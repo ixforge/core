@@ -15,9 +15,11 @@ from ixforge.enums import (
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.rs_ip_assignment import RSIPAssignment
+from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
 
 # ---------------------------------------------------------------------------
@@ -25,10 +27,31 @@ from ixforge.models.vlan import VLAN
 # ---------------------------------------------------------------------------
 
 
+_conn_counter = 0
+
+
+def _make_connection(
+    ixp: IXP, member: Member, switch: Switch,
+) -> Connection:
+    """Create a Connection instance with unique name"""
+    global _conn_counter
+    _conn_counter += 1
+    return Connection(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        member_id=member.id,
+        switch_id=switch.id,
+        name=f"eth{_conn_counter}",
+        type=ConnectionType.physical,
+        state=ConnectionState.draft,
+        speed=10000,
+    )
+
+
 async def _setup_vlan_and_member(
     db_session: AsyncSession, ixp: IXP
-) -> tuple[VLAN, Member, Connection]:
-    """Create a VLAN, member, and connection for IP allocation tests."""
+) -> tuple[VLAN, Member, Connection, Switch]:
+    """Create a VLAN, member, switch, and connection for IP allocation tests."""
     vlan = VLAN(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
@@ -48,20 +71,30 @@ async def _setup_vlan_and_member(
         peering_policy=PeeringPolicy.open,
     )
     db_session.add(member)
-    await db_session.flush()
 
-    conn = Connection(
+    location = Location(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
-        member_id=member.id,
-        type=ConnectionType.physical,
-        state=ConnectionState.draft,
-        speed=10000,
+        name="IPAM Test DC",
+        city="Testville",
+        country="US",
     )
+    db_session.add(location)
+
+    switch = Switch(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name="ipam-test-sw",
+        location_id=location.id,
+    )
+    db_session.add(switch)
+    await db_session.flush()
+
+    conn = _make_connection(ixp, member, switch)
     db_session.add(conn)
     await db_session.flush()
 
-    return vlan, member, conn
+    return vlan, member, conn, switch
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +188,31 @@ class TestIPPoolCreation:
         )
         assert resp.status_code == 422
 
+    async def test_create_pool_host_bits_set(
+        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP
+    ):
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Host Bits VLAN",
+            vid=303,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        resp = await client.post(
+            "/api/v1/ip-pools",
+            headers=auth_headers,
+            json={
+                "vlan_id": str(vlan.id),
+                "network": "192.168.1.2/24",
+                "af": 4,
+            },
+        )
+        assert resp.status_code == 422
+        assert "192.168.1.2/24" in resp.json()["error"]["message"]
+
     async def test_create_pool_af_mismatch(
         self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP
     ):
@@ -193,7 +251,7 @@ class TestSequentialAllocation:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -223,7 +281,7 @@ class TestSequentialAllocation:
         ixp: IXP,
     ):
         """Allocating multiple IPs should skip reserved addresses."""
-        vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
+        vlan, member, conn1, switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -235,14 +293,7 @@ class TestSequentialAllocation:
         db_session.add(pool)
         await db_session.flush()
 
-        conn2 = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
+        conn2 = _make_connection(ixp, member, switch)
         db_session.add(conn2)
         await db_session.flush()
 
@@ -278,7 +329,7 @@ class TestManualAllocation:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -305,7 +356,7 @@ class TestManualAllocation:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -338,7 +389,7 @@ class TestReservedIPRejection:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -364,7 +415,7 @@ class TestReservedIPRejection:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -398,7 +449,7 @@ class TestPoolExhaustion:
         ixp: IXP,
     ):
         """A /30 pool has only 2 usable IPs (.0 is network, .3 is broadcast)"""
-        vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
+        vlan, member, conn1, switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -419,14 +470,7 @@ class TestPoolExhaustion:
         assert resp1.status_code == 201
         assert resp1.json()["address"] == "203.0.113.1"
 
-        conn2 = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
+        conn2 = _make_connection(ixp, member, switch)
         db_session.add(conn2)
         await db_session.flush()
 
@@ -439,14 +483,7 @@ class TestPoolExhaustion:
         assert resp2.status_code == 201
         assert resp2.json()["address"] == "203.0.113.2"
 
-        conn3 = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
-        )
+        conn3 = _make_connection(ixp, member, switch)
         db_session.add(conn3)
         await db_session.flush()
 
@@ -473,7 +510,7 @@ class TestSequentialSkipsReserved:
         ixp: IXP,
     ):
         """In a /29 pool, sequential allocation should skip .0 (network) and .7 (broadcast)"""
-        vlan, member, conn1 = await _setup_vlan_and_member(db_session, ixp)
+        vlan, member, conn1, switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -488,14 +525,7 @@ class TestSequentialSkipsReserved:
         allocated: list[str] = []
         connections = [conn1]
         for _i in range(5):
-            c = Connection(
-                id=uuid.uuid4(),
-                ixp_id=ixp.id,
-                member_id=member.id,
-                type=ConnectionType.physical,
-                state=ConnectionState.draft,
-                speed=10000,
-            )
+            c = _make_connection(ixp, member, switch)
             db_session.add(c)
             connections.append(c)
         await db_session.flush()
@@ -534,7 +564,7 @@ class TestIPv6Allocation:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -572,7 +602,7 @@ class TestPoolDeletion:
         ixp: IXP,
     ):
         """Deleting a pool that has IP assignments must return 409"""
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -648,7 +678,7 @@ class TestGlobalUniquenessWithRS:
         ixp: IXP,
     ):
         """Sequential allocation must skip IPs already assigned to a route server."""
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -691,7 +721,7 @@ class TestGlobalUniquenessWithRS:
         ixp: IXP,
     ):
         """Manual allocation of an IP already assigned to a route server must be rejected."""
-        vlan, _member, conn = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),

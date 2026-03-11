@@ -29,7 +29,7 @@ async def create_pool(
     """Create an IP pool."""
     # Validate that network is valid CIDR
     try:
-        network = ipaddress.ip_network(data.network, strict=False)
+        network = ipaddress.ip_network(data.network, strict=True)
     except ValueError as exc:
         raise ValidationError(f"Invalid network CIDR: {data.network}") from exc
 

@@ -117,7 +117,7 @@ async def ip_pool_new(request: Request) -> Response:
     try:
         await api.post("/api/v1/ip-pools", token, json=payload)
     except APIError as e:
-        if e.status_code in (400, 409, 422):
+        if e.status_code in (400, 404, 409, 422):
             vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
 
             return render(request, "ip_pools/form.html", {

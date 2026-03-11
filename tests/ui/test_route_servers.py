@@ -137,13 +137,13 @@ class TestRouteServerForm:
         assert f"/admin/route-servers/{FAKE_RS['id']}" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "required"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             "/admin/route-servers/new",
             data={"name": "", "hostname": "", "asn": "0", "software": "bird"},
         )
         assert resp.status_code == 200
-        assert "Corrige los errores" in resp.text
+        assert "Validation error" in resp.text
 
     def test_edit_form_renders(self, authed_client, app):
         app.state.api.get = AsyncMock(return_value=FAKE_RS)
