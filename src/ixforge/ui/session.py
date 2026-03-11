@@ -72,14 +72,10 @@ def safe_detail(e: APIError, fallback: str = "Error interno del servidor") -> st
     if isinstance(detail, str):
         return detail
     if isinstance(detail, dict):
-        # IXForge format: {"error": {"code": "...", "message": "..."}}
+        # Unified format: {"error": {"code": "...", "message": "..."}}
         error = detail.get("error")
         if isinstance(error, dict):
             msg = error.get("message")
             if isinstance(msg, str):
                 return msg
-        # FastAPI default format: {"detail": "..."}
-        d = detail.get("detail")
-        if isinstance(d, str):
-            return d
     return "Error de validacion"

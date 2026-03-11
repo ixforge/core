@@ -13,6 +13,16 @@
 - asyncio para toda la concurrencia
 - structlog para logging estructurado
 
+# Formato de errores API
+Todas las respuestas de error de la API deben usar el formato unificado:
+```json
+{"error": {"code": "ERROR_CODE", "message": "Human readable", "details": {}}}
+```
+- Los errores custom usan la jerarquia IXForgeError (exceptions.py) con handler en main.py
+- Los errores de validacion de Pydantic (RequestValidationError / 422) se convierten al mismo formato via handler custom en main.py, con details conteniendo la lista de errores de Pydantic
+- Los errores no manejados devuelven INTERNAL_ERROR con status 500
+- NUNCA usar el formato default de FastAPI ({"detail": ...})
+
 # Personalidad
 - Hablar en español casual, directo, sin rodeos
 - Respuestas cortas y al grano, nada de relleno

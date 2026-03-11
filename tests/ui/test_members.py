@@ -98,7 +98,7 @@ class TestMemberForm:
         assert resp.status_code == 302
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"detail": [{"msg": "required"}]}))
+        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             "/admin/members/new",
             data={"name": "", "short_name": "", "asn": "0", "peering_policy": "open"},

@@ -5,15 +5,15 @@ Revises: 39b82a42fac5
 Create Date: 2026-03-09
 """
 
-from typing import Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
+
 revision: str = "c34ccb1c469f"
-down_revision: Union[str, None] = "39b82a42fac5"
-branch_labels: Union[str, None] = None
-depends_on: Union[str, None] = None
+down_revision: str | None = "39b82a42fac5"
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade() -> None:

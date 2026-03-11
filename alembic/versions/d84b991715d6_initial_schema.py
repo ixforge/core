@@ -1,23 +1,23 @@
 """initial schema
 
 Revision ID: d84b991715d6
-Revises: 
+Revises:
 Create Date: 2026-02-12 13:57:56.008628
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 import ixforge.models.types
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'd84b991715d6'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

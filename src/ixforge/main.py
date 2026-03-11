@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -165,6 +166,26 @@ def create_app(*, enable_rate_limit: bool = True) -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
 
     # Exception handlers
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # Strip non-serializable ctx from Pydantic errors
+        details = []
+        for err in exc.errors():
+            clean = {k: v for k, v in err.items() if k != "ctx"}
+            details.append(clean)
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Validation error",
+                    "details": details,
+                }
+            },
+        )
+
     @app.exception_handler(IXForgeError)
     async def ixforge_error_handler(request: Request, exc: IXForgeError) -> JSONResponse:
         return JSONResponse(
