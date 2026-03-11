@@ -37,7 +37,6 @@ class RouteServerCreate(BaseModel):
     ip_v4: str | None = None
     ip_v6: str | None = None
     asn: int = Field(gt=0, le=4294967295)
-    software: str = "bird"
     is_active: bool = True
 
     @field_validator("ip_v4")
@@ -57,7 +56,6 @@ class RouteServerUpdate(BaseModel):
     ip_v4: str | None = None
     ip_v6: str | None = None
     asn: int | None = Field(default=None, gt=0, le=4294967295)
-    software: str | None = None
     is_active: bool | None = None
 
     @field_validator("ip_v4")
@@ -79,7 +77,6 @@ class RouteServerRead(BaseModel):
     ip_v4: str | None
     ip_v6: str | None
     asn: int
-    software: str
     is_active: bool
     last_heartbeat_at: datetime | None
     agent_version: str | None

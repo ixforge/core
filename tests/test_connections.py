@@ -18,6 +18,7 @@ from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
@@ -46,10 +47,21 @@ async def _create_member(db: AsyncSession, ixp: IXP, **overrides) -> Member:
 
 
 async def _create_switch(db: AsyncSession, ixp: IXP) -> Switch:
+    location = Location(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"DC-{uuid.uuid4().hex[:6]}",
+        city="Test",
+        country="US",
+    )
+    db.add(location)
+    await db.flush()
+
     switch = Switch(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name=f"sw-{uuid.uuid4().hex[:6]}",
+        location_id=location.id,
         is_active=True,
     )
     db.add(switch)

@@ -141,7 +141,6 @@ async def route_server_new(request: Request) -> Response:
         "name": str(form.get("name", "")),
         "hostname": str(form.get("hostname", "")),
         "asn": int(str(form.get("asn", 0)) or 0),
-        "software": str(form.get("software", "bird")),
         "is_active": form.get("is_active") == "on",
     }
     for field in ("ip_v4", "ip_v6"):
@@ -180,7 +179,7 @@ async def route_server_edit(request: Request) -> Response:
 
     form = await request.form()
     payload: dict[str, Any] = {}
-    for field in ("name", "hostname", "software", "ip_v4", "ip_v6"):
+    for field in ("name", "hostname", "ip_v4", "ip_v6"):
         val = form.get(field)
         if val is not None:
             payload[field] = str(val)

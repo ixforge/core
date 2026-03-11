@@ -18,6 +18,7 @@ from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
@@ -28,10 +29,18 @@ async def _create_active_connection(
     db: AsyncSession, ixp: IXP, member: Member
 ) -> Connection:
     """Create a connection in active state with full setup (VLAN + IP)."""
+    location = Location(
+        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-{uuid.uuid4().hex[:6]}",
+        city="Test", country="US",
+    )
+    db.add(location)
+    await db.flush()
+
     switch = Switch(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name=f"sw-{uuid.uuid4().hex[:6]}",
+        location_id=location.id,
         is_active=True,
     )
     db.add(switch)
@@ -100,7 +109,6 @@ async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, B
         hostname="rs-bgp.example.net",
         ip_v4="192.0.2.250",
         asn=65000,
-        software="bird",
         is_active=True,
     )
     db.add(rs)
@@ -117,10 +125,18 @@ async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, B
     db.add(member)
     await db.flush()
 
+    location = Location(
+        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-bgp-{uuid.uuid4().hex[:6]}",
+        city="Test", country="US",
+    )
+    db.add(location)
+    await db.flush()
+
     switch = Switch(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name=f"sw-bgp-{uuid.uuid4().hex[:6]}",
+        location_id=location.id,
         is_active=True,
     )
     db.add(switch)
@@ -250,8 +266,7 @@ class TestBGPSessionCreate:
             hostname="rs-create.example.net",
             ip_v4="192.0.2.251",
             asn=65000,
-            software="bird",
-            is_active=True,
+                is_active=True,
         )
         db_session.add(rs)
 
@@ -306,8 +321,7 @@ class TestBGPSessionCreate:
             hostname="rs-dup.example.net",
             ip_v4="192.0.2.252",
             asn=65000,
-            software="bird",
-            is_active=True,
+                is_active=True,
         )
         db_session.add(rs)
 
@@ -363,8 +377,7 @@ class TestBGPSessionCreate:
             hostname="rs-inact.example.net",
             ip_v4="192.0.2.253",
             asn=65000,
-            software="bird",
-            is_active=True,
+                is_active=True,
         )
         db_session.add(rs)
 
@@ -380,10 +393,18 @@ class TestBGPSessionCreate:
         db_session.add(member)
         await db_session.flush()
 
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-inact-{uuid.uuid4().hex[:6]}",
+            city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         switch = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name=f"sw-inact-{uuid.uuid4().hex[:6]}",
+            location_id=location.id,
             is_active=True,
         )
         db_session.add(switch)
@@ -440,8 +461,7 @@ class TestBGPSessionCreate:
             hostname="rs-other.example.net",
             ip_v4="192.0.2.254",
             asn=65001,
-            software="bird",
-            is_active=True,
+                is_active=True,
         )
         db_session.add(rs_other)
 
@@ -646,8 +666,7 @@ class TestBGPSessionDelete:
             name="rs-other-del",
             hostname="rs-other-del.example.net",
             asn=65001,
-            software="bird",
-            is_active=True,
+                is_active=True,
         )
         db_session.add(rs)
 
@@ -663,10 +682,18 @@ class TestBGPSessionDelete:
         db_session.add(member)
         await db_session.flush()
 
+        location = Location(
+            id=uuid.uuid4(), ixp_id=other_ixp.id, name=f"DC-other-{uuid.uuid4().hex[:6]}",
+            city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         switch = Switch(
             id=uuid.uuid4(),
             ixp_id=other_ixp.id,
             name=f"sw-other-{uuid.uuid4().hex[:6]}",
+            location_id=location.id,
             is_active=True,
         )
         db_session.add(switch)

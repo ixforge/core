@@ -7,7 +7,6 @@
   </td>
   <td class="py-3 text-sm">{{ r.hostname or "-" }}</td>
   <td class="py-3 text-sm">AS{{ r.asn or "-" }}</td>
-  <td class="py-3 text-sm capitalize">{{ r.software or "-" }}</td>
   <td class="py-3">
     {% if r.is_active %}
     <span class="badge badge-green">Activo</span>

@@ -20,6 +20,7 @@ from ixforge.models.connection import Connection, ConnectionVLAN
 from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.switch import Switch
 from ixforge.models.vlan import VLAN
@@ -325,10 +326,21 @@ class TestMemberStateMachine:
         await db_session.flush()
 
         # Create the supporting infrastructure
+        location = Location(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-test",
+            city="Test",
+            country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         switch = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-test",
+            location_id=location.id,
             is_active=True,
         )
         db_session.add(switch)
@@ -523,10 +535,21 @@ class TestMemberStateMachine:
         db_session.add(member)
         await db_session.flush()
 
+        location = Location(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-term",
+            city="Test",
+            country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         switch = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-term",
+            location_id=location.id,
             is_active=True,
         )
         db_session.add(switch)

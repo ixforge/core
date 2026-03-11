@@ -16,8 +16,10 @@ from ixforge.enums import (
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
+from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.switch import Switch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -33,7 +35,6 @@ async def _setup_route_server(db: AsyncSession, ixp: IXP, **overrides) -> RouteS
         "ip_v4": "192.0.2.250",
         "ip_v6": "2001:db8::250",
         "asn": 65000,
-        "software": "bird",
         "is_active": True,
     }
     defaults.update(overrides)
@@ -61,12 +62,32 @@ async def _setup_active_peer(
         peering_policy=PeeringPolicy.open,
     )
     db.add(member)
+
+    location = Location(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"DC-{peer_asn}",
+        city="Test",
+        country="US",
+    )
+    db.add(location)
+    await db.flush()
+
+    switch = Switch(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"sw-{peer_asn}",
+        location_id=location.id,
+    )
+    db.add(switch)
     await db.flush()
 
     conn = Connection(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         member_id=member.id,
+        switch_id=switch.id,
+        name=f"eth-{peer_asn}",
         type=ConnectionType.physical,
         state=ConnectionState.active,
         speed=10000,
@@ -174,12 +195,25 @@ class TestConfigGeneration:
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
+
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-susp", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-susp", location_id=location.id,
+        )
+        db_session.add(switch)
         await db_session.flush()
 
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name="eth-susp",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
@@ -230,12 +264,25 @@ class TestConfigGeneration:
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
+
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-adn", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
+        switch = Switch(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-adn", location_id=location.id,
+        )
+        db_session.add(switch)
         await db_session.flush()
 
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
+            switch_id=switch.id,
+            name="eth-adn",
             type=ConnectionType.physical,
             state=ConnectionState.active,
             speed=10000,
