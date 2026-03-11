@@ -406,7 +406,6 @@ async def _seed_data() -> None:
                 ip_v4=f"192.0.2.{250 + i}",
                 ip_v6=f"2001:db8::{250 + i}",
                 asn=65000,
-                software="bird",
                 is_active=True,
             )
             session.add(rs)

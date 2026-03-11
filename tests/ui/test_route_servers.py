@@ -17,7 +17,6 @@ FAKE_RS = {
     "ip_v4": "10.0.0.1",
     "ip_v6": "2001:db8::1",
     "asn": 65000,
-    "software": "bird",
     "is_active": True,
     "agent_version": "0.1.0",
     "last_heartbeat": "2026-01-15T10:00:00",
@@ -126,7 +125,6 @@ class TestRouteServerForm:
                 "name": "rs1.example.net",
                 "hostname": "rs1.example.net",
                 "asn": "65000",
-                "software": "bird",
                 "ip_v4": "10.0.0.1",
                 "ip_v6": "2001:db8::1",
                 "is_active": "on",
@@ -140,7 +138,7 @@ class TestRouteServerForm:
         app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             "/admin/route-servers/new",
-            data={"name": "", "hostname": "", "asn": "0", "software": "bird"},
+            data={"name": "", "hostname": "", "asn": "0"},
         )
         assert resp.status_code == 200
         assert "Validation error" in resp.text
@@ -155,7 +153,7 @@ class TestRouteServerForm:
         app.state.api.patch = AsyncMock(return_value={**FAKE_RS})
         resp = authed_client.post(
             f"/admin/route-servers/{FAKE_RS['id']}/edit",
-            data={"name": "rs1-updated", "hostname": "rs1.example.net", "asn": "65000", "software": "bird"},
+            data={"name": "rs1-updated", "hostname": "rs1.example.net", "asn": "65000"},
             follow_redirects=False,
         )
         assert resp.status_code == 302

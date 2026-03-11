@@ -184,7 +184,6 @@ class RouteServerFactory(_NoDBFactory):
     ip_v4 = factory.Sequence(lambda n: f"192.0.2.{250 + n}")
     ip_v6 = factory.Sequence(lambda n: f"2001:db8::{250 + n}")
     asn = factory.LazyAttribute(lambda o: 65000)
-    software = "bird"
     is_active = True
     last_heartbeat_at = None
     agent_version = None

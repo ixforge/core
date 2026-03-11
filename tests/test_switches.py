@@ -12,7 +12,19 @@ from ixforge.models.user import User
 
 
 class TestSwitchCRUD:
-    async def test_create_switch(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
+    async def test_create_switch(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-create", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         resp = await client.post(
             "/api/v1/switches",
             headers=auth_headers,
@@ -21,6 +33,7 @@ class TestSwitchCRUD:
                 "vendor": "Arista",
                 "model": "DCS-7280SR",
                 "management_ip": "10.0.0.1",
+                "location_id": str(location.id),
             },
         )
         assert resp.status_code == 201
@@ -36,11 +49,18 @@ class TestSwitchCRUD:
         db_session: AsyncSession,
         ixp: IXP,
     ):
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-get", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         sw = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-get",
             is_active=True,
+            location_id=location.id,
         )
         db_session.add(sw)
         await db_session.flush()
@@ -60,12 +80,19 @@ class TestSwitchCRUD:
         db_session: AsyncSession,
         ixp: IXP,
     ):
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-list", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         for i in range(3):
             sw = Switch(
                 id=uuid.uuid4(),
                 ixp_id=ixp.id,
                 name=f"sw-list-{i}",
                 is_active=True,
+                location_id=location.id,
             )
             db_session.add(sw)
         await db_session.flush()
@@ -81,11 +108,18 @@ class TestSwitchCRUD:
         db_session: AsyncSession,
         ixp: IXP,
     ):
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-upd", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         sw = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-old",
             is_active=True,
+            location_id=location.id,
         )
         db_session.add(sw)
         await db_session.flush()
@@ -107,11 +141,18 @@ class TestSwitchCRUD:
         db_session: AsyncSession,
         ixp: IXP,
     ):
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-del", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         sw = Switch(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="sw-del",
             is_active=True,
+            location_id=location.id,
         )
         db_session.add(sw)
         await db_session.flush()
@@ -130,7 +171,7 @@ class TestSwitchCRUD:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        loc = Location(ixp_id=ixp.id, name="DC-sw-loc")
+        loc = Location(ixp_id=ixp.id, name="DC-sw-loc", city="Test", country="US")
         db_session.add(loc)
         await db_session.flush()
 
@@ -152,8 +193,12 @@ class TestSwitchCRUD:
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        loc = Location(ixp_id=ixp.id, name="DC-sw-upd")
+        loc = Location(ixp_id=ixp.id, name="DC-sw-upd", city="Test", country="US")
         db_session.add(loc)
+        await db_session.flush()
+
+        loc2 = Location(ixp_id=ixp.id, name="DC-sw-upd-orig", city="Test", country="US")
+        db_session.add(loc2)
         await db_session.flush()
 
         sw = Switch(
@@ -161,6 +206,7 @@ class TestSwitchCRUD:
             ixp_id=ixp.id,
             name="sw-loc-upd",
             is_active=True,
+            location_id=loc2.id,
         )
         db_session.add(sw)
         await db_session.flush()
@@ -192,6 +238,12 @@ class TestSwitchSNMP:
         db_session: AsyncSession,
         ixp: IXP,
     ):
+        location = Location(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-snmp", city="Test", country="US",
+        )
+        db_session.add(location)
+        await db_session.flush()
+
         # Create switch with SNMP community
         resp = await client.post(
             "/api/v1/switches",
@@ -199,6 +251,7 @@ class TestSwitchSNMP:
             json={
                 "name": "sw-snmp-clear",
                 "snmp_community": "public",
+                "location_id": str(location.id),
             },
         )
         assert resp.status_code == 201
