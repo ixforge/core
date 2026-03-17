@@ -246,6 +246,7 @@ async def _seed_data() -> None:
     from ixforge.models.connection import Connection, ConnectionVLAN
     from ixforge.models.ip import IPAssignment, IPPool
     from ixforge.models.ixp import IXP
+    from ixforge.models.location import Location
     from ixforge.models.member import Member
     from ixforge.models.route_server import RouteServer
     from ixforge.models.switch import Switch
@@ -296,6 +297,17 @@ async def _seed_data() -> None:
         await session.flush()
         print(f"Created {len(members)} members")
 
+        # -- Location --
+        location = Location(
+            ixp_id=ixp.id,
+            name="DC-01",
+            city="Buenos Aires",
+            country="AR",
+        )
+        session.add(location)
+        await session.flush()
+        print(f"Created location: {location.name}")
+
         # -- Switches --
         switches: list[Switch] = []
         for i in range(2):
@@ -306,6 +318,7 @@ async def _seed_data() -> None:
                 model="DCS-7280SR-48C6",
                 management_ip=f"10.0.0.{i + 1}",
                 is_active=True,
+                location_id=location.id,
             )
             session.add(sw)
             switches.append(sw)
