@@ -5,8 +5,8 @@
       {{ r.name }}
     </a>
   </td>
-  <td class="py-3 text-sm">{{ r.hostname or "-" }}</td>
-  <td class="py-3 text-sm">AS{{ r.asn or "-" }}</td>
+  <td class="py-3 text-sm"><code>{{ r.ip_v4 or "-" }}</code></td>
+  <td class="py-3 text-sm"><code>{{ r.ip_v6 or "-" }}</code></td>
   <td class="py-3">
     {% if r.is_active %}
     <span class="badge badge-green">Activo</span>

@@ -691,7 +691,7 @@ class TestGlobalUniquenessWithRS:
         await db_session.flush()
 
         # Pre-assign .1 to a route server
-        rs = RouteServer(ixp_id=ixp.id, name="RS-uniq", hostname="rs-uniq.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS-uniq")
         db_session.add(rs)
         await db_session.flush()
         rs_assign = RSIPAssignment(
@@ -733,7 +733,7 @@ class TestGlobalUniquenessWithRS:
         db_session.add(pool)
         await db_session.flush()
 
-        rs = RouteServer(ixp_id=ixp.id, name="RS-manual", hostname="rs-manual.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS-manual")
         db_session.add(rs)
         await db_session.flush()
         rs_assign = RSIPAssignment(

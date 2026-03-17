@@ -180,10 +180,8 @@ class RouteServerFactory(_NoDBFactory):
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"rs{n + 1}")
-    hostname = factory.LazyAttribute(lambda o: f"{o.name}.ixp.example.net")
     ip_v4 = factory.Sequence(lambda n: f"192.0.2.{250 + n}")
     ip_v6 = factory.Sequence(lambda n: f"2001:db8::{250 + n}")
-    asn = factory.LazyAttribute(lambda o: 65000)
     is_active = True
     last_heartbeat_at = None
     agent_version = None

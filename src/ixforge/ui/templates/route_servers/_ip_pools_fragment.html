@@ -1,0 +1,109 @@
+{% if pools %}
+<div class="mt-2 border-t border-gray-200 dark:border-gray-700 pt-6">
+  <div class="flex items-center justify-between mb-5">
+    <h3 class="text-lg font-medium">Asignacion de IPs</h3>
+  </div>
+
+  {# Pool info cards #}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+    {% for pool in pools %}
+    <div class="p-4 rounded-lg border {{ 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' if pool.af == 4 else 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' }}">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-semibold {{ 'text-indigo-800 dark:text-indigo-200' if pool.af == 4 else 'text-purple-800 dark:text-purple-200' }}">
+            IPv{{ pool.af }} Pool
+          </p>
+          <p class="text-xs font-mono mt-1 {{ 'text-indigo-600 dark:text-indigo-400' if pool.af == 4 else 'text-purple-600 dark:text-purple-400' }}">
+            {{ pool.network }}
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-lg font-bold {{ 'text-indigo-700 dark:text-indigo-300' if pool.af == 4 else 'text-purple-700 dark:text-purple-300' }}">
+            {{ pool.total_hosts - pool.used_count }} libres
+          </p>
+          <p class="text-xs {{ 'text-indigo-500 dark:text-indigo-400' if pool.af == 4 else 'text-purple-500 dark:text-purple-400' }}">
+            de {{ pool.total_hosts }}
+          </p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# IP input fields #}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    {% set ipv4_pools = pools | selectattr("af", "equalto", 4) | list %}
+    {% set ipv6_pools = pools | selectattr("af", "equalto", 6) | list %}
+
+    {% if ipv4_pools %}
+    {% set ipv4_pool = ipv4_pools[0] %}
+    <div>
+      <label for="ipv4" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">IPv4</label>
+      <input type="hidden" name="ipv4_pool_id" value="{{ ipv4_pool.id }}">
+      <div class="flex space-x-2">
+        <input type="text" name="ipv4" id="ipv4"
+               value="{{ ipv4_pool.next_available or '' }}"
+               placeholder="192.168.1.1"
+               class="input-field flex-1 font-mono">
+        {% if ipv4_pool.next_available %}
+        <button type="button"
+                onclick="document.getElementById('ipv4').value='{{ ipv4_pool.next_available }}'"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                title="Autoasignar siguiente IP disponible">
+          Auto
+        </button>
+        {% endif %}
+      </div>
+      {% if ipv4_pool.next_available %}
+      <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Siguiente disponible: <span class="font-mono font-medium text-indigo-600 dark:text-indigo-400">{{ ipv4_pool.next_available }}</span>
+      </p>
+      {% else %}
+      <p class="mt-2 text-xs text-red-600 dark:text-red-400">
+        No hay IPs IPv4 disponibles en este pool
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if ipv6_pools %}
+    {% set ipv6_pool = ipv6_pools[0] %}
+    <div>
+      <label for="ipv6" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">IPv6</label>
+      <input type="hidden" name="ipv6_pool_id" value="{{ ipv6_pool.id }}">
+      <div class="flex space-x-2">
+        <input type="text" name="ipv6" id="ipv6"
+               value="{{ ipv6_pool.next_available or '' }}"
+               placeholder="2001:db8::1"
+               class="input-field flex-1 font-mono">
+        {% if ipv6_pool.next_available %}
+        <button type="button"
+                onclick="document.getElementById('ipv6').value='{{ ipv6_pool.next_available }}'"
+                class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                title="Autoasignar siguiente IP disponible">
+          Auto
+        </button>
+        {% endif %}
+      </div>
+      {% if ipv6_pool.next_available %}
+      <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Siguiente disponible: <span class="font-mono font-medium text-purple-600 dark:text-purple-400">{{ ipv6_pool.next_available }}</span>
+      </p>
+      {% else %}
+      <p class="mt-2 text-xs text-red-600 dark:text-red-400">
+        No hay IPs IPv6 disponibles en este pool
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if not ipv4_pools and not ipv6_pools %}
+    <div class="md:col-span-2 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+      <p class="text-sm text-yellow-700 dark:text-yellow-300">
+        No hay pools de IP configurados para esta VLAN. Configura al menos un pool antes de asignar IPs.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

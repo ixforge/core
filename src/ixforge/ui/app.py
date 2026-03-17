@@ -91,6 +91,7 @@ def create_ui_app() -> Starlette:
         # Route Servers
         Route("/admin/route-servers", route_servers.route_server_list),
         Route("/admin/route-servers/new", route_servers.route_server_new, methods=["GET", "POST"]),
+        Route("/admin/route-servers/vlan-pools", route_servers.route_server_vlan_pools),
         Route("/admin/route-servers/{rs_id}", route_servers.route_server_detail),
         Route("/admin/route-servers/{rs_id}/edit", route_servers.route_server_edit, methods=["GET", "POST"]),
         Route("/admin/route-servers/{rs_id}/vlans/add", route_servers.rs_vlan_add, methods=["POST"]),

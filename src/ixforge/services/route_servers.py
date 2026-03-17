@@ -24,17 +24,16 @@ async def create(
     rs = RouteServer(
         ixp_id=ixp_id,
         name=data.name,
-        hostname=data.hostname,
         ip_v4=data.ip_v4,
         ip_v6=data.ip_v6,
-        asn=data.asn,
         is_active=data.is_active,
+        notes=data.notes,
     )
     session.add(rs)
     try:
         await session.flush()
     except IntegrityError as exc:
-        raise ConflictError(f"Route server with hostname '{data.hostname}' already exists in this IXP") from exc
+        raise ConflictError("Route server could not be created due to a conflict") from exc
     return rs
 
 
@@ -77,7 +76,7 @@ async def update(
         await session.flush()
     except IntegrityError as exc:
         raise ConflictError(
-            "Route server with that hostname already exists in this IXP"
+            "Route server could not be updated due to a conflict"
         ) from exc
     await session.refresh(rs)
     return rs

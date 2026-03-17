@@ -106,9 +106,7 @@ async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, B
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name="rs-bgp",
-        hostname="rs-bgp.example.net",
         ip_v4="192.0.2.250",
-        asn=65000,
         is_active=True,
     )
     db.add(rs)
@@ -263,10 +261,8 @@ class TestBGPSessionCreate:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="rs-create",
-            hostname="rs-create.example.net",
             ip_v4="192.0.2.251",
-            asn=65000,
-                is_active=True,
+            is_active=True,
         )
         db_session.add(rs)
 
@@ -318,10 +314,8 @@ class TestBGPSessionCreate:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="rs-dup",
-            hostname="rs-dup.example.net",
             ip_v4="192.0.2.252",
-            asn=65000,
-                is_active=True,
+            is_active=True,
         )
         db_session.add(rs)
 
@@ -374,10 +368,8 @@ class TestBGPSessionCreate:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="rs-inact",
-            hostname="rs-inact.example.net",
             ip_v4="192.0.2.253",
-            asn=65000,
-                is_active=True,
+            is_active=True,
         )
         db_session.add(rs)
 
@@ -458,10 +450,8 @@ class TestBGPSessionCreate:
             id=uuid.uuid4(),
             ixp_id=other_ixp.id,
             name="rs-other",
-            hostname="rs-other.example.net",
             ip_v4="192.0.2.254",
-            asn=65001,
-                is_active=True,
+            is_active=True,
         )
         db_session.add(rs_other)
 
@@ -664,9 +654,7 @@ class TestBGPSessionDelete:
             id=uuid.uuid4(),
             ixp_id=other_ixp.id,
             name="rs-other-del",
-            hostname="rs-other-del.example.net",
-            asn=65001,
-                is_active=True,
+            is_active=True,
         )
         db_session.add(rs)
 

@@ -22,7 +22,7 @@ from ixforge.services import rs_ip as svc
 
 @pytest.fixture
 async def rs(db_session: AsyncSession, ixp: IXP) -> RouteServer:
-    r = RouteServer(ixp_id=ixp.id, name="RS1", hostname="rs1.ex.com", asn=65000)
+    r = RouteServer(ixp_id=ixp.id, name="RS1")
     db_session.add(r)
     await db_session.flush()
     return r
@@ -206,7 +206,7 @@ class TestRSIPGlobalUniqueness:
 
 class TestRSIPAPI:
     async def test_list_rs_ips_empty(self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS-api", hostname="rs-api.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS-api")
         db_session.add(rs)
         await db_session.flush()
         resp = await client.get(f"/api/v1/route-servers/{rs.id}/ips", headers=auth_headers)
@@ -214,7 +214,7 @@ class TestRSIPAPI:
         assert resp.json() == []
 
     async def test_assign_rs_ip_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS-api2", hostname="rs-api2.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS-api2")
         vlan = VLAN(ixp_id=ixp.id, name="IXP-api", vid=30, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -233,7 +233,7 @@ class TestRSIPAPI:
         assert data["address"].startswith("198.51.100.")
 
     async def test_release_rs_ip_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS-api3", hostname="rs-api3.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS-api3")
         vlan = VLAN(ixp_id=ixp.id, name="IXP-api3", vid=40, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)

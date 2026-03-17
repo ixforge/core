@@ -31,10 +31,8 @@ async def _setup_route_server(db: AsyncSession, ixp: IXP, **overrides) -> RouteS
         "id": uuid.uuid4(),
         "ixp_id": ixp.id,
         "name": "rs1",
-        "hostname": "rs1.test.example.net",
         "ip_v4": "192.0.2.250",
         "ip_v6": "2001:db8::250",
-        "asn": 65000,
         "is_active": True,
     }
     defaults.update(overrides)
@@ -472,9 +470,9 @@ class TestConfigDiff:
         ixp: IXP,
     ):
         """GET /route-servers/{rs_id}/config/diff returns 404 when version IDs belong to another RS."""
-        rs1 = await _setup_route_server(db_session, ixp, name="rs1", hostname="rs1.test.net")
+        rs1 = await _setup_route_server(db_session, ixp, name="rs1")
         rs2 = await _setup_route_server(
-            db_session, ixp, name="rs2", hostname="rs2.test.net", ip_v4="192.0.2.251"
+            db_session, ixp, name="rs2", ip_v4="192.0.2.251"
         )
 
         # Generate configs on rs1

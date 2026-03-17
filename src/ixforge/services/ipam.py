@@ -329,3 +329,48 @@ async def list_assignments(
         id_column=IPAssignment.id,
         schema=IPAssignmentRead,
     )
+
+
+async def get_pools_with_availability(
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    vlan_id: uuid.UUID,
+) -> list[dict[str, object]]:
+    """Return pools for a VLAN with usage stats and next available IP.
+
+    Each dict contains: id, network, af, total_hosts, used_count, next_available.
+    """
+    result = await session.execute(
+        select(IPPool).where(IPPool.vlan_id == vlan_id, IPPool.ixp_id == ixp_id)
+    )
+    pools = result.scalars().all()
+
+    pool_summaries = []
+    for pool in pools:
+        network = ipaddress.ip_network(pool.network, strict=False)
+        reserved = _reserved_addresses(network)
+        total_hosts = network.num_addresses - len(reserved)
+
+        used = await _get_used_addresses(session, pool.id)
+        used_count = len(used)
+
+        next_available = None
+        if network.num_addresses <= MAX_SEQUENTIAL_HOSTS:
+            for host in network:
+                if host in reserved:
+                    continue
+                if str(host) in used:
+                    continue
+                next_available = str(host)
+                break
+
+        pool_summaries.append({
+            "id": str(pool.id),
+            "network": pool.network,
+            "af": pool.af,
+            "total_hosts": total_hosts,
+            "used_count": used_count,
+            "next_available": next_available,
+        })
+
+    return pool_summaries

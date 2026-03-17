@@ -16,7 +16,7 @@ from ixforge.services import route_server_vlans as svc
 
 class TestRSVLANService:
     async def test_add_vlan_to_rs(self, db_session: AsyncSession, ixp: IXP) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS1", hostname="rs1.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS1")
         vlan = VLAN(ixp_id=ixp.id, name="IXP", vid=10, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -26,7 +26,7 @@ class TestRSVLANService:
         assert assoc.vlan_id == vlan.id
 
     async def test_add_duplicate_vlan_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS2", hostname="rs2.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS2")
         vlan = VLAN(ixp_id=ixp.id, name="IXP2", vid=11, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -36,7 +36,7 @@ class TestRSVLANService:
             await svc.add_vlan(db_session, ixp.id, rs.id, vlan.id)
 
     async def test_remove_vlan_from_rs(self, db_session: AsyncSession, ixp: IXP) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS3", hostname="rs3.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS3")
         vlan = VLAN(ixp_id=ixp.id, name="IXP3", vid=12, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -45,7 +45,7 @@ class TestRSVLANService:
         await svc.remove_vlan(db_session, ixp.id, rs.id, vlan.id)
 
     async def test_remove_nonexistent_vlan_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS6", hostname="rs6.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS6")
         vlan = VLAN(ixp_id=ixp.id, name="IXP6", vid=14, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -57,7 +57,7 @@ class TestRSVLANService:
         other_ixp = IXP(name="Other IXP A", short_name="OTA", asn=65100, country="AR", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
-        rs = RouteServer(ixp_id=other_ixp.id, name="RS-other-a", hostname="rs-oa.ex.com", asn=65100)
+        rs = RouteServer(ixp_id=other_ixp.id, name="RS-other-a")
         vlan = VLAN(ixp_id=ixp.id, name="IXP-local", vid=20, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -69,7 +69,7 @@ class TestRSVLANService:
         other_ixp = IXP(name="Other IXP B", short_name="OTB", asn=65101, country="AR", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
-        rs = RouteServer(ixp_id=ixp.id, name="RS-local-b", hostname="rs-lb.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS-local-b")
         vlan = VLAN(ixp_id=other_ixp.id, name="IXP-other-b", vid=21, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -81,7 +81,7 @@ class TestRSVLANService:
         other_ixp = IXP(name="Other IXP C", short_name="OTC", asn=65102, country="AR", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
-        rs = RouteServer(ixp_id=other_ixp.id, name="RS-other-c", hostname="rs-oc.ex.com", asn=65100)
+        rs = RouteServer(ixp_id=other_ixp.id, name="RS-other-c")
         vlan = VLAN(ixp_id=other_ixp.id, name="IXP-other-c", vid=22, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -95,7 +95,7 @@ class TestRSVLANService:
 
 class TestRSVLANAPI:
     async def test_list_rs_vlans(self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS4", hostname="rs4.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS4")
         db_session.add(rs)
         await db_session.flush()
         resp = await client.get(f"/api/v1/route-servers/{rs.id}/vlans", headers=auth_headers)
@@ -103,7 +103,7 @@ class TestRSVLANAPI:
         assert resp.json()["items"] == []
 
     async def test_add_vlan_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS5", hostname="rs5.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS5")
         vlan = VLAN(ixp_id=ixp.id, name="IXP5", vid=13, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
@@ -116,7 +116,7 @@ class TestRSVLANAPI:
         assert resp.status_code == 201
 
     async def test_delete_vlan_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession) -> None:
-        rs = RouteServer(ixp_id=ixp.id, name="RS7", hostname="rs7.ex.com", asn=65000)
+        rs = RouteServer(ixp_id=ixp.id, name="RS7")
         vlan = VLAN(ixp_id=ixp.id, name="IXP7", vid=15, type=VLANType.production)
         db_session.add(rs)
         db_session.add(vlan)
