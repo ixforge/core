@@ -211,8 +211,6 @@ class TestVLANCRUD:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="rs-vlan-del",
-            hostname="rs-vlan-del.example.net",
-            asn=65000,
         )
         db_session.add(rs)
         await db_session.flush()

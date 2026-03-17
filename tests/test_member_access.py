@@ -204,9 +204,7 @@ class TestMemberBGPSessionAccess:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name=f"rs-{uuid.uuid4().hex[:6]}",
-            hostname="rs.test.example.net",
             ip_v4="192.0.2.250",
-            asn=65000,
             is_active=True,
         )
         db_session.add(rs)
@@ -251,9 +249,7 @@ class TestMemberBGPSessionAccess:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name=f"rs-{uuid.uuid4().hex[:6]}",
-            hostname="rs.test.example.net",
             ip_v4="192.0.2.251",
-            asn=65000,
             is_active=True,
         )
         db_session.add(rs)
@@ -294,9 +290,7 @@ class TestMemberBGPSessionAccess:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name=f"rs-{uuid.uuid4().hex[:6]}",
-            hostname="rs.test.example.net",
             ip_v4="192.0.2.252",
-            asn=65000,
             is_active=True,
         )
         db_session.add(rs)

@@ -1,12 +1,11 @@
 {% extends "layouts/base.html" %}
-{% set is_edit = rs is not none and rs.id is defined %}
 {% block title %}{{ page_title }} - IXForge{% endblock %}
 {% block content %}
 <div class="mb-6">
   <h1 class="text-2xl font-bold">{{ page_title }}</h1>
 </div>
 
-<div class="card max-w-2xl">
+<div class="card max-w-3xl">
   {# Validation errors #}
   {% if errors %}
   <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -21,68 +20,75 @@
   </div>
   {% endif %}
 
-  <form method="post" action="{{ '/admin/route-servers/new' if not is_edit else '/admin/route-servers/' ~ rs.id ~ '/edit' }}">
+  <form method="post" action="/admin/route-servers/new" class="space-y-6">
     {# Nombre #}
-    <div class="mb-4">
-      <label for="name" class="block text-sm font-medium mb-1">Nombre</label>
+    <div>
+      <label for="name" class="block text-sm font-medium mb-2">Nombre</label>
       <input type="text" id="name" name="name"
              value="{{ rs.name if rs else '' }}"
              required class="input-field w-full"
-             placeholder="rs1">
+             placeholder="Ej: RS-01">
     </div>
 
-    {# Hostname #}
-    <div class="mb-4">
-      <label for="hostname" class="block text-sm font-medium mb-1">Hostname</label>
-      <input type="text" id="hostname" name="hostname"
-             value="{{ rs.hostname if rs else '' }}"
-             class="input-field w-full"
-             placeholder="rs1.ejemplo.net">
+    {# VLAN selector (radio, maximo una) #}
+    <fieldset class="border-0 p-0 m-0">
+      <legend class="block text-sm font-medium mb-2">VLAN</legend>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        Selecciona la VLAN en la que este Route Server ofrecera servicio
+      </p>
+      {% if vlans %}
+      <div class="max-h-52 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+        {% for vlan in vlans %}
+        <label class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors{% if loop.first %} rounded-t-lg{% endif %}{% if loop.last %} rounded-b-lg{% endif %}">
+          <input type="radio" name="vlan_id" value="{{ vlan.id }}"
+                 {% if selected_vlan_id == vlan.id %}checked{% endif %}
+                 hx-get="/admin/route-servers/vlan-pools"
+                 hx-target="#ip-pools-section"
+                 hx-trigger="change"
+                 hx-include="[name='vlan_id']"
+                 class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600">
+          <span class="text-sm">
+            <span class="font-mono font-semibold text-indigo-600 dark:text-indigo-400">{{ vlan.vid }}</span>
+            <span class="text-gray-700 dark:text-gray-300">{{ vlan.name }}</span>
+            <span class="text-xs text-gray-400 dark:text-gray-500">({{ vlan.type }})</span>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+        <p class="text-sm text-yellow-700 dark:text-yellow-300">No hay VLANs disponibles. Crea una VLAN antes de crear un Route Server.</p>
+      </div>
+      {% endif %}
+    </fieldset>
+
+    {# IP Pools section (loaded via HTMX) #}
+    <div id="ip-pools-section">
+      {% include "route_servers/_ip_pools_fragment.html" %}
     </div>
 
-    {# ASN #}
-    <div class="mb-4">
-      <label for="asn" class="block text-sm font-medium mb-1">ASN</label>
-      <input type="number" id="asn" name="asn"
-             value="{{ rs.asn if rs and rs.asn else '' }}"
-             required min="1" class="input-field w-full"
-             placeholder="64500">
-    </div>
-
-    {# IPv4 #}
-    <div class="mb-4">
-      <label for="ip_v4" class="block text-sm font-medium mb-1">IPv4</label>
-      <input type="text" id="ip_v4" name="ip_v4"
-             value="{{ rs.ip_v4 if rs and rs.ip_v4 else '' }}"
-             class="input-field w-full"
-             placeholder="10.0.0.1">
-    </div>
-
-    {# IPv6 #}
-    <div class="mb-4">
-      <label for="ip_v6" class="block text-sm font-medium mb-1">IPv6</label>
-      <input type="text" id="ip_v6" name="ip_v6"
-             value="{{ rs.ip_v6 if rs and rs.ip_v6 else '' }}"
-             class="input-field w-full"
-             placeholder="2001:db8::1">
+    {# Notas #}
+    <div>
+      <label for="notes" class="block text-sm font-medium mb-2">Notas</label>
+      <textarea name="notes" id="notes" rows="3" maxlength="1000"
+                class="input-field w-full"
+                placeholder="Notas internas sobre este route server (opcional)">{{ rs.notes if rs and rs.notes else '' }}</textarea>
     </div>
 
     {# Is Active #}
-    <div class="mb-6">
-      <label class="flex items-center gap-3">
+    <div>
+      <label class="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="is_active" value="on"
-               {% if not is_edit or (rs and rs.is_active) %}checked{% endif %}
-               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+               {% if not rs or (rs and rs.is_active) %}checked{% endif %}
+               class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
         <span class="text-sm font-medium">Activo</span>
       </label>
     </div>
 
     {# Botones #}
-    <div class="flex gap-3">
-      <button type="submit" class="btn-primary">
-        {{ "Guardar" if is_edit else "Crear" }}
-      </button>
+    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
       <a href="/admin/route-servers" class="btn-secondary">Cancelar</a>
+      <button type="submit" class="btn-primary">Crear Route Server</button>
     </div>
   </form>
 </div>

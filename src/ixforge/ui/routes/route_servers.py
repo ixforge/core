@@ -16,6 +16,26 @@ if TYPE_CHECKING:
     from starlette.requests import Request
 
 
+async def _load_vlans(api: APIClient, token: str) -> list[dict]:
+    """Load all VLANs for the form."""
+    try:
+        data = await api.get("/api/v1/vlans", token, params={"limit": 200})
+        return data.get("items", [])
+    except APIError:
+        return []
+
+
+async def _load_pools_for_vlan(api: APIClient, token: str, vlan_id: str) -> list[dict]:
+    """Load pools with availability info for a specific VLAN."""
+    try:
+        return await api.get(
+            "/api/v1/ip-pools/available", token,
+            params={"vlan_id": vlan_id},
+        )
+    except APIError:
+        return []
+
+
 @require_auth
 async def route_server_list(request: Request) -> Response:
     token = require_token(request)
@@ -126,41 +146,91 @@ async def route_server_detail(request: Request) -> Response:
 
 @require_auth
 async def route_server_new(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+
     if request.method == "GET":
+        vlans = await _load_vlans(api, token)
         return render(request, "route_servers/form.html", {
             "rs": None,
             "errors": {},
+            "vlans": vlans,
+            "pools": [],
+            "selected_vlan_id": "",
             "page_title": "Nuevo Route Server",
         })
 
-    token = require_token(request)
-    api: APIClient = request.app.state.api
     form = await request.form()
 
     payload: dict[str, Any] = {
         "name": str(form.get("name", "")),
-        "hostname": str(form.get("hostname", "")),
-        "asn": int(str(form.get("asn", 0)) or 0),
         "is_active": form.get("is_active") == "on",
     }
-    for field in ("ip_v4", "ip_v6"):
-        val = str(form.get(field, "")).strip()
-        if val:
-            payload[field] = val
+    notes = str(form.get("notes", "")).strip()
+    if notes:
+        payload["notes"] = notes
+
+    # Extract VLAN and IP data from form (not sent to RS create)
+    vlan_id = str(form.get("vlan_id", "")).strip()
+    ipv4 = str(form.get("ipv4", "")).strip()
+    ipv6 = str(form.get("ipv6", "")).strip()
+    ipv4_pool_id = str(form.get("ipv4_pool_id", "")).strip()
+    ipv6_pool_id = str(form.get("ipv6_pool_id", "")).strip()
 
     try:
         rs = await api.post("/api/v1/route-servers", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
+            vlans = await _load_vlans(api, token)
+            pools = []
+            if vlan_id:
+                pools = await _load_pools_for_vlan(api, token, vlan_id)
             return render(request, "route_servers/form.html", {
                 "rs": payload,
                 "errors": e.detail,
+                "vlans": vlans,
+                "pools": pools,
+                "selected_vlan_id": vlan_id,
                 "page_title": "Nuevo Route Server",
             })
         raise
 
+    rs_id = rs["id"]
+
+    # Associate VLAN
+    if vlan_id:
+        with contextlib.suppress(APIError):
+            await api.post(f"/api/v1/route-servers/{rs_id}/vlans", token, json={"vlan_id": vlan_id})
+
+    # Assign IPs from pools
+    if ipv4_pool_id and ipv4:
+        with contextlib.suppress(APIError):
+            await api.post(
+                f"/api/v1/route-servers/{rs_id}/ips", token,
+                json={"pool_id": ipv4_pool_id, "address": ipv4},
+            )
+    elif ipv4_pool_id:
+        with contextlib.suppress(APIError):
+            await api.post(
+                f"/api/v1/route-servers/{rs_id}/ips", token,
+                json={"pool_id": ipv4_pool_id},
+            )
+
+    if ipv6_pool_id and ipv6:
+        with contextlib.suppress(APIError):
+            await api.post(
+                f"/api/v1/route-servers/{rs_id}/ips", token,
+                json={"pool_id": ipv6_pool_id, "address": ipv6},
+            )
+    elif ipv6_pool_id:
+        with contextlib.suppress(APIError):
+            await api.post(
+                f"/api/v1/route-servers/{rs_id}/ips", token,
+                json={"pool_id": ipv6_pool_id},
+            )
+
     add_flash(request, f"Route Server '{rs['name']}' creado", "success")
-    return RedirectResponse(f"/admin/route-servers/{rs['id']}", status_code=302)
+    return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
 
 
 @require_auth
@@ -171,7 +241,7 @@ async def route_server_edit(request: Request) -> Response:
 
     if request.method == "GET":
         rs = await api.get(f"/api/v1/route-servers/{rs_id}", token)
-        return render(request, "route_servers/form.html", {
+        return render(request, "route_servers/edit_form.html", {
             "rs": rs,
             "errors": {},
             "page_title": f"Editar {rs.get('name', 'Route Server')}",
@@ -179,20 +249,19 @@ async def route_server_edit(request: Request) -> Response:
 
     form = await request.form()
     payload: dict[str, Any] = {}
-    for field in ("name", "hostname", "ip_v4", "ip_v6"):
-        val = form.get(field)
-        if val is not None:
-            payload[field] = str(val)
-    asn_val = form.get("asn")
-    if asn_val and str(asn_val).strip():
-        payload["asn"] = int(str(asn_val))
+    name_val = form.get("name")
+    if name_val is not None:
+        payload["name"] = str(name_val)
+    notes_val = form.get("notes")
+    if notes_val is not None:
+        payload["notes"] = str(notes_val).strip() or None
     payload["is_active"] = form.get("is_active") == "on"
 
     try:
         rs = await api.patch(f"/api/v1/route-servers/{rs_id}", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "route_servers/form.html", {
+            return render(request, "route_servers/edit_form.html", {
                 "rs": {**payload, "id": rs_id},
                 "errors": e.detail,
                 "page_title": "Editar Route Server",
@@ -201,6 +270,20 @@ async def route_server_edit(request: Request) -> Response:
 
     add_flash(request, "Route Server actualizado", "success")
     return RedirectResponse(f"/admin/route-servers/{rs['id']}", status_code=302)
+
+
+@require_auth
+async def route_server_vlan_pools(request: Request) -> Response:
+    """HTMX endpoint: return IP pool info for a selected VLAN."""
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    vlan_id = request.query_params.get("vlan_id", "").strip()
+
+    if not vlan_id:
+        return render(request, "route_servers/_ip_pools_fragment.html", {"pools": []})
+
+    pools = await _load_pools_for_vlan(api, token, vlan_id)
+    return render(request, "route_servers/_ip_pools_fragment.html", {"pools": pools})
 
 
 @require_auth

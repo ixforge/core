@@ -41,10 +41,11 @@ class MemberType(StrEnum):
     isp = "isp"
     cdn = "cdn"
     ixp = "ixp"
-    academic = "academic"
-    government = "government"
-    corporate = "corporate"
-    other = "other"
+    academico = "academico"
+    gobierno = "gobierno"
+    corporativo = "corporativo"
+    infraestructura_critica = "infraestructura_critica"
+    otro = "otro"
 
 
 class ContractType(StrEnum):

@@ -16,6 +16,7 @@ from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
+from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.services.templates.loader import get_template_env, get_template_snapshots
@@ -102,7 +103,7 @@ async def _build_peers(
     return peers
 
 
-async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServerContext:
+async def _build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int) -> RouteServerContext:
     """Build the route server template context from the model."""
     import ipaddress
 
@@ -155,7 +156,7 @@ async def _build_rs_context(session: AsyncSession, rs: RouteServer) -> RouteServ
         name=rs.name,
         ip_v4=rs.ip_v4,
         ip_v6=rs.ip_v6,
-        asn=rs.asn,
+        asn=ixp_asn,
         router_id=router_id,
     )
 
@@ -175,7 +176,11 @@ async def generate_config(
     if rs is None or rs.ixp_id != ixp_id:
         raise NotFoundError("RouteServer", str(route_server_id))
 
-    rs_context = await _build_rs_context(session, rs)
+    ixp = await session.get(IXP, ixp_id)
+    if ixp is None:
+        raise NotFoundError("IXP", str(ixp_id))
+
+    rs_context = await _build_rs_context(session, rs, ixp.asn)
     generated_at = datetime.now(UTC)
     generated_at_str = generated_at.isoformat()
 

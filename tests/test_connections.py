@@ -526,8 +526,6 @@ class TestConnectionStateMachine:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="rs-decomm",
-            hostname="rs-decomm.example.net",
-            asn=65000,
         )
         db_session.add(rs)
         await db_session.flush()
