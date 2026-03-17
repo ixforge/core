@@ -803,6 +803,180 @@ class TestPoolOverlapValidation:
         assert resp2.status_code == 409
 
 
+# ---------------------------------------------------------------------------
+# Pools with availability (GET /ip-pools/available)
+# ---------------------------------------------------------------------------
+
+
+class TestPoolsWithAvailability:
+    async def test_available_returns_empty_for_vlan_without_pools(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Empty VLAN",
+            vid=500,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        resp = await client.get(
+            "/api/v1/ip-pools/available",
+            headers=auth_headers,
+            params={"vlan_id": str(vlan.id)},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_available_returns_next_ip_and_stats(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        vlan, _member, conn, _switch = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="203.0.113.0/29",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        # Assign one IP so used_count > 0
+        await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn.id)},
+        )
+
+        resp = await client.get(
+            "/api/v1/ip-pools/available",
+            headers=auth_headers,
+            params={"vlan_id": str(vlan.id)},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 1
+        pool_info = body[0]
+        assert pool_info["id"] == str(pool.id)
+        assert pool_info["network"] == "203.0.113.0/29"
+        assert pool_info["af"] == 4
+        # /29 = 8 addresses, minus network (.0) and broadcast (.7) = 6 usable
+        assert pool_info["total_hosts"] == 6
+        assert pool_info["used_count"] == 1
+        # .1 is taken, next should be .2
+        assert pool_info["next_available"] == "203.0.113.2"
+
+    async def test_available_shows_null_next_when_pool_exhausted(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """A fully used pool should show next_available as null."""
+        vlan, member, conn1, switch = await _setup_vlan_and_member(db_session, ixp)
+
+        # /30 = 4 addresses, 2 usable (.1, .2)
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="203.0.113.4/30",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        conn2 = _make_connection(ixp, member, switch)
+        db_session.add(conn2)
+        await db_session.flush()
+
+        # Fill the pool
+        await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn1.id)},
+        )
+        await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"connection_id": str(conn2.id)},
+        )
+
+        resp = await client.get(
+            "/api/v1/ip-pools/available",
+            headers=auth_headers,
+            params={"vlan_id": str(vlan.id)},
+        )
+        assert resp.status_code == 200
+        pool_info = resp.json()[0]
+        assert pool_info["used_count"] == 2
+        assert pool_info["next_available"] is None
+
+    async def test_available_counts_rs_assignments(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """RS IP assignments should be reflected in used_count and next_available."""
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="RS Avail VLAN",
+            vid=501,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="192.0.2.0/29",
+            af=4,
+        )
+        db_session.add(pool)
+
+        rs = RouteServer(ixp_id=ixp.id, name="RS-avail")
+        db_session.add(rs)
+        await db_session.flush()
+
+        # Assign .1 to route server
+        rs_ip = RSIPAssignment(
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            pool_id=pool.id,
+            address="192.0.2.1",
+            af=4,
+        )
+        db_session.add(rs_ip)
+        await db_session.flush()
+
+        resp = await client.get(
+            "/api/v1/ip-pools/available",
+            headers=auth_headers,
+            params={"vlan_id": str(vlan.id)},
+        )
+        assert resp.status_code == 200
+        pool_info = resp.json()[0]
+        assert pool_info["used_count"] == 1
+        assert pool_info["next_available"] == "192.0.2.2"
+
+
 class TestPoolCreationVLANValidation:
     async def test_create_pool_wrong_ixp_vlan_rejected(
         self,

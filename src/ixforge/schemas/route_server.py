@@ -31,6 +31,15 @@ def _validate_ipv6(v: str | None) -> str | None:
     return v
 
 
+def _strip_notes(v: str | None) -> str | None:
+    """Strip whitespace from notes, convert blank to None."""
+    if v is not None:
+        v = v.strip()
+        if not v:
+            return None
+    return v
+
+
 class RouteServerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     ip_v4: str | None = None
@@ -47,6 +56,11 @@ class RouteServerCreate(BaseModel):
     @classmethod
     def validate_ip_v6(cls, v: str | None) -> str | None:
         return _validate_ipv6(v)
+
+    @field_validator("notes")
+    @classmethod
+    def validate_notes(cls, v: str | None) -> str | None:
+        return _strip_notes(v)
 
 
 class RouteServerUpdate(BaseModel):
@@ -66,6 +80,11 @@ class RouteServerUpdate(BaseModel):
     def validate_ip_v6(cls, v: str | None) -> str | None:
         return _validate_ipv6(v)
 
+    @field_validator("notes")
+    @classmethod
+    def validate_notes(cls, v: str | None) -> str | None:
+        return _strip_notes(v)
+
 
 class RouteServerRead(BaseModel):
     id: uuid.UUID
@@ -73,6 +92,7 @@ class RouteServerRead(BaseModel):
     name: str
     ip_v4: str | None
     ip_v6: str | None
+    software: str
     is_active: bool
     notes: str | None
     last_heartbeat_at: datetime | None

@@ -57,6 +57,27 @@ class TestRouteServerCRUD:
         assert body["is_active"] is True
         assert body["notes"] is None
 
+    async def test_create_route_server_notes_too_long_rejected(
+        self, client: AsyncClient, auth_headers: dict, ixp: IXP
+    ):
+        resp = await client.post(
+            "/api/v1/route-servers",
+            headers=auth_headers,
+            json={"name": "rs-long-notes", "notes": "x" * 1001},
+        )
+        assert resp.status_code == 422
+
+    async def test_create_route_server_whitespace_notes_becomes_null(
+        self, client: AsyncClient, auth_headers: dict, ixp: IXP
+    ):
+        resp = await client.post(
+            "/api/v1/route-servers",
+            headers=auth_headers,
+            json={"name": "rs-blank-notes", "notes": "   "},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["notes"] is None
+
     async def test_get_route_server(
         self,
         client: AsyncClient,

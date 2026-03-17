@@ -21,8 +21,10 @@ async def _load_vlans(api: APIClient, token: str) -> list[dict]:
     try:
         data = await api.get("/api/v1/vlans", token, params={"limit": 200})
         return data.get("items", [])
-    except APIError:
-        return []
+    except APIError as e:
+        if e.status_code is not None and e.status_code < 500:
+            return []
+        raise
 
 
 async def _load_pools_for_vlan(api: APIClient, token: str, vlan_id: str) -> list[dict]:
@@ -32,8 +34,10 @@ async def _load_pools_for_vlan(api: APIClient, token: str, vlan_id: str) -> list
             "/api/v1/ip-pools/available", token,
             params={"vlan_id": vlan_id},
         )
-    except APIError:
-        return []
+    except APIError as e:
+        if e.status_code is not None and e.status_code < 500:
+            return []
+        raise
 
 
 @require_auth
@@ -196,40 +200,37 @@ async def route_server_new(request: Request) -> Response:
         raise
 
     rs_id = rs["id"]
+    warnings: list[str] = []
 
     # Associate VLAN
     if vlan_id:
-        with contextlib.suppress(APIError):
+        try:
             await api.post(f"/api/v1/route-servers/{rs_id}/vlans", token, json={"vlan_id": vlan_id})
+        except APIError as e:
+            warnings.append(f"VLAN: {safe_detail(e)}")
 
     # Assign IPs from pools
-    if ipv4_pool_id and ipv4:
-        with contextlib.suppress(APIError):
-            await api.post(
-                f"/api/v1/route-servers/{rs_id}/ips", token,
-                json={"pool_id": ipv4_pool_id, "address": ipv4},
-            )
-    elif ipv4_pool_id:
-        with contextlib.suppress(APIError):
-            await api.post(
-                f"/api/v1/route-servers/{rs_id}/ips", token,
-                json={"pool_id": ipv4_pool_id},
-            )
+    if ipv4_pool_id:
+        try:
+            payload_ip: dict[str, str] = {"pool_id": ipv4_pool_id}
+            if ipv4:
+                payload_ip["address"] = ipv4
+            await api.post(f"/api/v1/route-servers/{rs_id}/ips", token, json=payload_ip)
+        except APIError as e:
+            warnings.append(f"IPv4: {safe_detail(e)}")
 
-    if ipv6_pool_id and ipv6:
-        with contextlib.suppress(APIError):
-            await api.post(
-                f"/api/v1/route-servers/{rs_id}/ips", token,
-                json={"pool_id": ipv6_pool_id, "address": ipv6},
-            )
-    elif ipv6_pool_id:
-        with contextlib.suppress(APIError):
-            await api.post(
-                f"/api/v1/route-servers/{rs_id}/ips", token,
-                json={"pool_id": ipv6_pool_id},
-            )
+    if ipv6_pool_id:
+        try:
+            payload_ip6: dict[str, str] = {"pool_id": ipv6_pool_id}
+            if ipv6:
+                payload_ip6["address"] = ipv6
+            await api.post(f"/api/v1/route-servers/{rs_id}/ips", token, json=payload_ip6)
+        except APIError as e:
+            warnings.append(f"IPv6: {safe_detail(e)}")
 
     add_flash(request, f"Route Server '{rs['name']}' creado", "success")
+    for w in warnings:
+        add_flash(request, f"Advertencia: {w}", "warning")
     return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
 
 
