@@ -44,6 +44,17 @@ async def create_ip_pool(
     return await ipam.create_pool(db, ixp_id, body)
 
 
+@ip_pools_router.get("/ip-pools/available")
+async def get_pools_available(
+    db: DBSession,
+    _admin: AdminUser,
+    ixp_id: IXPId,
+    vlan_id: uuid.UUID = Query(),
+) -> list[dict[str, object]]:
+    """Get pools for a VLAN with availability info (next IP, usage stats)."""
+    return await ipam.get_pools_with_availability(db, ixp_id, vlan_id)
+
+
 @ip_pools_router.get("/ip-pools/{pool_id}", response_model=IPPoolRead)
 async def get_ip_pool(
     pool_id: uuid.UUID,

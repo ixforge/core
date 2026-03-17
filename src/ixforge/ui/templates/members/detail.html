@@ -75,7 +75,20 @@
     {% if member.member_type %}
     <div>
       <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo</p>
-      <p>{{ member.member_type }}</p>
+      <p>
+        {% set mt_map = {
+          "isp": ("Proveedor de Internet", "blue"),
+          "cdn": ("Red de Contenido", "purple"),
+          "ixp": ("Punto de Intercambio", "teal"),
+          "academico": ("Institucion Academica", "green"),
+          "gobierno": ("Institucion de Gobierno", "yellow"),
+          "corporativo": ("Corporativo", "gray"),
+          "infraestructura_critica": ("Infraestructura Critica", "red"),
+          "otro": ("Otro", "gray"),
+        } %}
+        {% set mt = mt_map.get(member.member_type, (member.member_type, "gray")) %}
+        <span class="badge badge-{{ mt[1] }}">{{ mt[0] }}</span>
+      </p>
     </div>
     {% endif %}
     {% if member.city or member.country %}

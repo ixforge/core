@@ -7,7 +7,22 @@
     <div><p class="text-sm text-gray-500">Nombre</p><p class="font-medium">{{ member.name }}</p></div>
     <div><p class="text-sm text-gray-500">ASN</p><p class="font-medium">{{ member.asn }}</p></div>
     <div><p class="text-sm text-gray-500">Estado</p><p class="font-medium">{{ member.state }}</p></div>
-    <div><p class="text-sm text-gray-500">Tipo</p><p class="font-medium">{{ member.member_type or "-" }}</p></div>
+    <div><p class="text-sm text-gray-500">Tipo</p><p class="font-medium">
+      {% if member.member_type %}
+        {% set mt_map = {
+          "isp": ("Proveedor de Internet", "blue"),
+          "cdn": ("Red de Contenido", "purple"),
+          "ixp": ("Punto de Intercambio", "teal"),
+          "academico": ("Institucion Academica", "green"),
+          "gobierno": ("Institucion de Gobierno", "yellow"),
+          "corporativo": ("Corporativo", "gray"),
+          "infraestructura_critica": ("Infraestructura Critica", "red"),
+          "otro": ("Otro", "gray"),
+        } %}
+        {% set mt = mt_map.get(member.member_type, (member.member_type, "gray")) %}
+        <span class="badge badge-{{ mt[1] }}">{{ mt[0] }}</span>
+      {% else %}-{% endif %}
+    </p></div>
     <div><p class="text-sm text-gray-500">Website</p><p class="font-medium">{{ member.website or "-" }}</p></div>
     <div><p class="text-sm text-gray-500">Politica de peering</p><p class="font-medium">{{ member.peering_policy }}</p></div>
     {% if member.city or member.country %}

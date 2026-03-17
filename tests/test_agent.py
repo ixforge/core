@@ -39,10 +39,8 @@ async def _setup_route_server(db: AsyncSession, ixp: IXP) -> RouteServer:
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         name="rs-agent-test",
-        hostname="rs-agent.test.example.net",
         ip_v4="192.0.2.250",
         ip_v6="2001:db8::250",
-        asn=65000,
         is_active=True,
     )
     db.add(rs)
@@ -152,10 +150,8 @@ class TestAgentConfigPoll:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             name="rs2",
-            hostname="rs2.test.example.net",
             ip_v4="192.0.2.251",
-            asn=65000,
-                is_active=True,
+            is_active=True,
         )
         db_session.add(rs2)
         await db_session.flush()

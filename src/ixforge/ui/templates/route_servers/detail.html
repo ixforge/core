@@ -41,14 +41,6 @@
   <h2 class="text-lg font-semibold mb-4">Informacion General</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Hostname</p>
-      <p class="font-medium">{{ rs.hostname or "-" }}</p>
-    </div>
-    <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">ASN</p>
-      <p class="font-medium">AS{{ rs.asn or "-" }}</p>
-    </div>
-    <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">IPv4</p>
       <p class="font-medium"><code class="text-sm">{{ rs.ip_v4 or "-" }}</code></p>
     </div>
@@ -73,6 +65,12 @@
     </div>
     {% endif %}
   </div>
+  {% if rs.notes %}
+  <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Notas</p>
+    <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ rs.notes }}</p>
+  </div>
+  {% endif %}
 </div>
 
 {# IP Addresses card #}

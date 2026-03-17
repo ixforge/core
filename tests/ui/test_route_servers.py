@@ -12,12 +12,11 @@ from ixforge.ui.app import create_ui_app
 FAKE_RS = {
     "id": str(uuid.uuid4()),
     "ixp_id": str(uuid.uuid4()),
-    "name": "rs1.example.net",
-    "hostname": "rs1.example.net",
+    "name": "RS-01",
     "ip_v4": "10.0.0.1",
     "ip_v6": "2001:db8::1",
-    "asn": 65000,
     "is_active": True,
+    "notes": "Test notes",
     "agent_version": "0.1.0",
     "last_heartbeat": "2026-01-15T10:00:00",
     "created_at": "2026-01-01T00:00:00",
@@ -42,6 +41,13 @@ FAKE_CONFIG = {
     "applied_at": None,
 }
 
+FAKE_VLAN = {
+    "id": str(uuid.uuid4()),
+    "name": "Production",
+    "vid": 100,
+    "type": "production",
+}
+
 
 @pytest.fixture
 def app():
@@ -63,7 +69,7 @@ class TestRouteServerList:
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_RS]})
         resp = authed_client.get("/admin/route-servers")
         assert resp.status_code == 200
-        assert "rs1.example.net" in resp.text
+        assert "RS-01" in resp.text
 
     def test_list_requires_auth(self):
         app = create_ui_app()
@@ -76,16 +82,15 @@ class TestRouteServerList:
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_RS, inactive_rs]})
         resp = authed_client.get("/admin/route-servers?is_active=true")
         assert resp.status_code == 200
-        assert "rs1.example.net" in resp.text
+        assert "RS-01" in resp.text
         assert "rs2-inactive" not in resp.text
 
     def test_list_htmx_returns_partial(self, authed_client, app):
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_RS]})
         resp = authed_client.get("/admin/route-servers", headers={"hx-request": "true"})
         assert resp.status_code == 200
-        # Partial should NOT have full layout
         assert "<!DOCTYPE html>" not in resp.text
-        assert "rs1.example.net" in resp.text
+        assert "RS-01" in resp.text
 
 
 class TestRouteServerDetail:
@@ -102,7 +107,7 @@ class TestRouteServerDetail:
         app.state.api.get = AsyncMock(side_effect=fake_get)
         resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}")
         assert resp.status_code == 200
-        assert "rs1.example.net" in resp.text
+        assert "RS-01" in resp.text
         assert "10.0.0.10" in resp.text  # BGP session peer_ip
 
     def test_detail_404_redirects(self, authed_client, app):
@@ -112,33 +117,74 @@ class TestRouteServerDetail:
 
 
 class TestRouteServerForm:
-    def test_new_form_renders(self, authed_client):
+    def test_new_form_renders(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == "/api/v1/vlans":
+                return {"items": [FAKE_VLAN]}
+            return {"id": "abc", "role": "admin", "member_id": None}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
         resp = authed_client.get("/admin/route-servers/new")
         assert resp.status_code == 200
         assert "name" in resp.text.lower()
+        assert "Production" in resp.text
 
     def test_create_redirects(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == "/api/v1/vlans":
+                return {"items": [FAKE_VLAN]}
+            return {"id": "abc", "role": "admin", "member_id": None}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
         app.state.api.post = AsyncMock(return_value={**FAKE_RS})
         resp = authed_client.post(
             "/admin/route-servers/new",
             data={
-                "name": "rs1.example.net",
-                "hostname": "rs1.example.net",
-                "asn": "65000",
-                "ip_v4": "10.0.0.1",
-                "ip_v6": "2001:db8::1",
+                "name": "RS-01",
                 "is_active": "on",
+                "notes": "Test",
             },
             follow_redirects=False,
         )
         assert resp.status_code == 302
         assert f"/admin/route-servers/{FAKE_RS['id']}" in resp.headers["location"]
 
+    def test_create_with_vlan_and_ip(self, authed_client, app):
+        pool_id = str(uuid.uuid4())
+
+        async def fake_get(path, token, params=None):
+            if path == "/api/v1/vlans":
+                return {"items": [FAKE_VLAN]}
+            return {"id": "abc", "role": "admin", "member_id": None}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        app.state.api.post = AsyncMock(return_value={**FAKE_RS})
+        resp = authed_client.post(
+            "/admin/route-servers/new",
+            data={
+                "name": "RS-01",
+                "is_active": "on",
+                "vlan_id": FAKE_VLAN["id"],
+                "ipv4": "10.0.0.1",
+                "ipv4_pool_id": pool_id,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        # Should have called post 3 times: create RS, add VLAN, assign IP
+        assert app.state.api.post.call_count == 3
+
     def test_create_validation_error_shows_form(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == "/api/v1/vlans":
+                return {"items": [FAKE_VLAN]}
+            return {"id": "abc", "role": "admin", "member_id": None}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
         app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
             "/admin/route-servers/new",
-            data={"name": "", "hostname": "", "asn": "0"},
+            data={"name": ""},
         )
         assert resp.status_code == 200
         assert "Validation error" in resp.text
@@ -147,16 +193,38 @@ class TestRouteServerForm:
         app.state.api.get = AsyncMock(return_value=FAKE_RS)
         resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}/edit")
         assert resp.status_code == 200
-        assert "rs1.example.net" in resp.text
+        assert "RS-01" in resp.text
 
     def test_edit_submit_redirects(self, authed_client, app):
         app.state.api.patch = AsyncMock(return_value={**FAKE_RS})
         resp = authed_client.post(
             f"/admin/route-servers/{FAKE_RS['id']}/edit",
-            data={"name": "rs1-updated", "hostname": "rs1.example.net", "asn": "65000"},
+            data={"name": "rs1-updated", "notes": "Updated notes"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
+
+
+class TestRouteServerVlanPools:
+    def test_vlan_pools_returns_fragment(self, authed_client, app):
+        fake_pools = [
+            {"id": str(uuid.uuid4()), "network": "10.0.0.0/24", "af": 4, "total_hosts": 254, "used_count": 5, "next_available": "10.0.0.6"},
+        ]
+
+        async def fake_get(path, token, params=None):
+            if path == "/api/v1/ip-pools/available":
+                return fake_pools
+            return {"id": "abc", "role": "admin", "member_id": None}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(f"/admin/route-servers/vlan-pools?vlan_id={uuid.uuid4()}")
+        assert resp.status_code == 200
+        assert "10.0.0.0/24" in resp.text
+        assert "10.0.0.6" in resp.text
+
+    def test_vlan_pools_empty_vlan_id(self, authed_client, app):
+        resp = authed_client.get("/admin/route-servers/vlan-pools?vlan_id=")
+        assert resp.status_code == 200
 
 
 class TestRouteServerVlans:

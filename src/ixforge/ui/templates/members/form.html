@@ -82,13 +82,14 @@
         <select id="member_type" name="member_type" class="input-field w-full">
           {% set current_type = member.member_type if member and member.member_type else '' %}
           <option value="" {% if current_type == "" %}selected{% endif %}>— Sin especificar —</option>
-          <option value="isp" {% if current_type == "isp" %}selected{% endif %}>ISP</option>
-          <option value="cdn" {% if current_type == "cdn" %}selected{% endif %}>CDN</option>
-          <option value="ixp" {% if current_type == "ixp" %}selected{% endif %}>IXP</option>
-          <option value="academic" {% if current_type == "academic" %}selected{% endif %}>Academico</option>
-          <option value="government" {% if current_type == "government" %}selected{% endif %}>Gobierno</option>
-          <option value="corporate" {% if current_type == "corporate" %}selected{% endif %}>Corporativo</option>
-          <option value="other" {% if current_type == "other" %}selected{% endif %}>Otro</option>
+          <option value="isp" {% if current_type == "isp" %}selected{% endif %}>Proveedor de Internet</option>
+          <option value="cdn" {% if current_type == "cdn" %}selected{% endif %}>Red de Contenido</option>
+          <option value="ixp" {% if current_type == "ixp" %}selected{% endif %}>Punto de Intercambio</option>
+          <option value="academico" {% if current_type == "academico" %}selected{% endif %}>Institucion Academica</option>
+          <option value="gobierno" {% if current_type == "gobierno" %}selected{% endif %}>Institucion de Gobierno</option>
+          <option value="corporativo" {% if current_type == "corporativo" %}selected{% endif %}>Corporativo</option>
+          <option value="infraestructura_critica" {% if current_type == "infraestructura_critica" %}selected{% endif %}>Infraestructura Critica</option>
+          <option value="otro" {% if current_type == "otro" %}selected{% endif %}>Otro</option>
         </select>
       </div>
 

@@ -10,7 +10,18 @@
   </td>
   <td class="py-3">
     {% if m.member_type %}
-      <span class="badge badge-blue capitalize">{{ m.member_type }}</span>
+      {% set mt_map = {
+        "isp": ("Proveedor de Internet", "blue"),
+        "cdn": ("Red de Contenido", "purple"),
+        "ixp": ("Punto de Intercambio", "teal"),
+        "academico": ("Institucion Academica", "green"),
+        "gobierno": ("Institucion de Gobierno", "yellow"),
+        "corporativo": ("Corporativo", "gray"),
+        "infraestructura_critica": ("Infraestructura Critica", "red"),
+        "otro": ("Otro", "gray"),
+      } %}
+      {% set mt = mt_map.get(m.member_type, (m.member_type, "gray")) %}
+      <span class="badge badge-{{ mt[1] }}">{{ mt[0] }}</span>
     {% else %}-{% endif %}
   </td>
   <td class="py-3 capitalize">{{ m.peering_policy }}</td>
