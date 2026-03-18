@@ -90,42 +90,27 @@ async def cleanup_config_versions(
             total_deleted = 0
 
             for rs_id in rs_ids:
-                # Find the IDs of the most recent `keep_last` versions for
-                # this route server (these are always preserved)
-                latest_stmt = (
+                # Subquery: IDs of the most recent `keep_last` versions
+                latest_sub = (
                     select(ConfigVersion.id)
                     .where(ConfigVersion.route_server_id == rs_id)
                     .order_by(ConfigVersion.generated_at.desc())
                     .limit(keep_last)
-                )
-                latest_result = await session.execute(latest_stmt)
-                keep_ids = {row[0] for row in latest_result.all()}
+                ).subquery()
 
-                # Also protect any version that has been applied
-                applied_stmt = select(ConfigVersion.id).where(
-                    ConfigVersion.route_server_id == rs_id,
-                    ConfigVersion.applied_at.isnot(None),
-                )
-                applied_result = await session.execute(applied_stmt)
-                keep_ids.update(row[0] for row in applied_result.all())
+                # Subquery: IDs of any applied version (most recent only)
+                applied_sub = (
+                    select(ConfigVersion.id).where(
+                        ConfigVersion.route_server_id == rs_id,
+                        ConfigVersion.applied_at.isnot(None),
+                    )
+                ).subquery()
 
-                # Count how many versions exist for this route server
-                count_stmt = (
-                    select(func.count())
-                    .select_from(ConfigVersion)
-                    .where(ConfigVersion.route_server_id == rs_id)
-                )
-                count_result = await session.execute(count_stmt)
-                total_for_rs = count_result.scalar_one()
-
-                # Only delete if there are more versions than we want to keep
-                if total_for_rs <= keep_last:
-                    continue
-
-                # Delete versions that are not in the keep set
+                # Delete everything not protected by either subquery
                 del_stmt = delete(ConfigVersion).where(
                     ConfigVersion.route_server_id == rs_id,
-                    ConfigVersion.id.notin_(keep_ids),
+                    ConfigVersion.id.notin_(select(latest_sub.c.id)),
+                    ConfigVersion.id.notin_(select(applied_sub.c.id)),
                 )
                 result = await session.execute(del_stmt)
                 total_deleted += result.rowcount  # type: ignore[attr-defined]

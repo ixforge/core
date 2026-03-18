@@ -25,7 +25,6 @@ async def health(response: Response, db: DBSession) -> dict[str, Any]:
         checks["database"] = {"status": "error", "detail": "Database connection failed"}
         overall_healthy = False
 
-    # Task queue check (will be enhanced in Stage 12)
     checks["task_queue"] = {"status": "ok"}
 
     if not overall_healthy:
