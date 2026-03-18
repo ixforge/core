@@ -74,6 +74,10 @@ async def delete_logo(
     await get_member(db, ixp_id, member_id)
     settings = get_settings()
     dest = _logo_path(settings.media_root, member_id)
-    if dest.exists():
-        dest.unlink()
+    await asyncio.to_thread(_delete_if_exists, dest)
     return Response(status_code=204)
+
+
+def _delete_if_exists(path: Path) -> None:
+    if path.exists():
+        path.unlink()

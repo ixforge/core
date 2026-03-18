@@ -120,7 +120,7 @@ async def portal_contacts(request: Request) -> Response:
     member_id = get_session_member_id(request)
     if member_id is None:
         return render(request, "portal/not_linked.html", {"page_title": "Cuenta no vinculada"})
-    contacts_data = await api.get("/api/v1/contacts", token, params={"member_id": member_id, "limit": 200})
+    contacts_data = await api.get(f"/api/v1/members/{member_id}/contacts", token, params={"limit": 200})
     return render(request, "portal/contacts.html", {
         "contacts": contacts_data.get("items", []),
         "page_title": "Contactos",
