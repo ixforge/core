@@ -31,11 +31,10 @@ async def _verify_trunk_vlan_ownership(
     db: DBSession, ixp_id: uuid.UUID, trunk_id: uuid.UUID, trunk_vlan_id: uuid.UUID
 ) -> None:
     """Verify that a TrunkVLAN belongs to the given trunk"""
-    from sqlalchemy import select as sa_select
     from ixforge.models.trunk import TrunkVLAN
 
     tv = await db.scalar(
-        sa_select(TrunkVLAN.id).where(
+        select(TrunkVLAN.id).where(
             TrunkVLAN.id == trunk_vlan_id,
             TrunkVLAN.trunk_id == trunk_id,
             TrunkVLAN.ixp_id == ixp_id,

@@ -28,7 +28,7 @@ async def list_ip_pools(
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[IPPoolRead]:
-    """List IP pools for a VLAN."""
+    """List IP pools for a VLAN"""
     params = CursorParams(cursor=cursor, limit=limit)
     return await ipam.list_pools(db, ixp_id, vlan_id, params)
 
@@ -40,7 +40,7 @@ async def create_ip_pool(
     ixp_id: IXPId,
     _admin: AdminUser,
 ) -> IPPool:
-    """Create an IP pool."""
+    """Create an IP pool"""
     return await ipam.create_pool(db, ixp_id, body)
 
 
@@ -51,7 +51,7 @@ async def get_pools_available(
     ixp_id: IXPId,
     vlan_id: uuid.UUID = Query(),
 ) -> list[dict[str, object]]:
-    """Get pools for a VLAN with availability info (next IP, usage stats)."""
+    """Get pools for a VLAN with availability info (next IP, usage stats)"""
     return await ipam.get_pools_with_availability(db, ixp_id, vlan_id)
 
 
@@ -62,7 +62,7 @@ async def get_ip_pool(
     _admin: AdminUser,
     ixp_id: IXPId,
 ) -> IPPool:
-    """Get IP pool details."""
+    """Get IP pool details"""
     return await ipam.get_pool(db, pool_id, ixp_id)
 
 
@@ -73,7 +73,7 @@ async def delete_ip_pool(
     _admin: AdminUser,
     ixp_id: IXPId,
 ) -> Response:
-    """Delete an IP pool."""
+    """Delete an IP pool"""
     await ipam.delete_pool(db, pool_id, ixp_id)
     return Response(status_code=204)
 
@@ -90,7 +90,7 @@ async def list_ip_assignments(
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> CursorPage[IPAssignmentRead]:
-    """List IP assignments in a pool."""
+    """List IP assignments in a pool"""
     params = CursorParams(cursor=cursor, limit=limit)
     return await ipam.list_assignments(db, ixp_id, pool_id, params)
 
@@ -124,6 +124,6 @@ async def release_ip(
     _admin: AdminUser,
     ixp_id: IXPId,
 ) -> Response:
-    """Release an IP assignment."""
+    """Release an IP assignment"""
     await ipam.release(db, assignment_id, ixp_id)
     return Response(status_code=204)

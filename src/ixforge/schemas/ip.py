@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class IPPoolCreate(BaseModel):
@@ -18,8 +18,8 @@ class IPPoolCreate(BaseModel):
         """Validate that af matches the address family of network."""
         try:
             net = ipaddress.ip_network(self.network, strict=False)
-        except ValueError:
-            return self  # Let service layer handle invalid CIDR
+        except ValueError as exc:
+            raise ValueError(f"Invalid CIDR notation: {self.network}") from exc
         if net.version != self.af:
             raise ValueError(
                 f"Address family mismatch: network is IPv{net.version} but af={self.af}"
@@ -42,6 +42,15 @@ class IPAssignmentCreate(BaseModel):
     pool_id: uuid.UUID
     trunk_vlan_id: uuid.UUID
     address: str = Field(max_length=45)
+
+    @field_validator("address")
+    @classmethod
+    def _validate_address(cls, v: str) -> str:
+        try:
+            ipaddress.ip_address(v)
+        except ValueError as exc:
+            raise ValueError(f"Invalid IP address: {v}") from exc
+        return v
 
 
 class IPAssignmentRead(BaseModel):

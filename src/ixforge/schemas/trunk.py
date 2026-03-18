@@ -7,7 +7,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ixforge.enums import TrunkState
-from ixforge.schemas.connection import _validate_mac
+from ixforge.schemas.connection import validate_mac
 
 
 class TrunkCreate(BaseModel):
@@ -20,7 +20,7 @@ class TrunkCreate(BaseModel):
     @field_validator("mac_address")
     @classmethod
     def validate_mac(cls, v: str | None) -> str | None:
-        return _validate_mac(v)
+        return validate_mac(v)
 
 
 class TrunkUpdate(BaseModel):
@@ -32,7 +32,7 @@ class TrunkUpdate(BaseModel):
     @field_validator("mac_address")
     @classmethod
     def validate_mac(cls, v: str | None) -> str | None:
-        return _validate_mac(v)
+        return validate_mac(v)
 
 
 class TrunkRead(BaseModel):

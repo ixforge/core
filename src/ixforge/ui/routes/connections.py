@@ -37,8 +37,11 @@ async def connection_transition(request: Request) -> Response:
     except APIError as e:
         add_flash(request, f"Error en transicion: {safe_detail(e)}", "error")
 
-    # Try to redirect back to the trunk detail page
+    # Redirect back to the trunk detail page if we came from there
+    from urllib.parse import urlparse
+
     referer = request.headers.get("referer", "")
-    if "/admin/trunks/" in referer:
-        return RedirectResponse(referer, status_code=302)
+    referer_path = urlparse(referer).path
+    if referer_path.startswith("/admin/trunks/"):
+        return RedirectResponse(referer_path, status_code=302)
     return RedirectResponse("/admin/trunks", status_code=302)

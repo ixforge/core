@@ -163,7 +163,7 @@
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
           <td class="py-3 font-medium">{{ c.name or "-" }}</td>
           <td class="py-3 capitalize">{{ c.type or "-" }}</td>
-          <td class="py-3">{{ c.speed or "-" }}</td>
+          <td class="py-3">{{ (c.speed ~ " Mbps") if c.speed else "-" }}</td>
           <td class="py-3">
             {% set sw = switch_map.get(c.switch_id, {}) %}
             {% if sw %}

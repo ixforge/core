@@ -6,14 +6,13 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import RedirectResponse, Response
 
+from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_portal_auth
 from ixforge.ui.session import get_session_member_id, require_token
 from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
     from starlette.requests import Request
-
-    from ixforge.ui.api_client import APIClient
 
 
 @require_portal_auth
@@ -75,9 +74,41 @@ async def portal_bgp_sessions(request: Request) -> Response:
     member_id = get_session_member_id(request)
     if member_id is None:
         return render(request, "portal/not_linked.html", {"page_title": "Cuenta no vinculada"})
-    bgp_data = await api.get("/api/v1/bgp-sessions", token, params={"member_id": member_id, "limit": 200})
+    # Fetch BGP sessions for all route servers, filtering by member's trunk VLANs
+    trunks_data = await api.get("/api/v1/trunks", token, params={"member_id": member_id, "limit": 200})
+    trunk_items = trunks_data.get("items", [])
+
+    # Collect all trunk VLAN IDs across all member trunks
+    tv_ids: set[str] = set()
+    for trunk in trunk_items:
+        try:
+            trunk_vlans = await api.get(f"/api/v1/trunks/{trunk['id']}/vlans", token)
+            tv_ids.update(tv["id"] for tv in trunk_vlans)
+        except APIError:
+            pass
+
+    sessions: list[dict[str, object]] = []
+    if tv_ids:
+        try:
+            rs_data = await api.get("/api/v1/route-servers", token, params={"limit": 200})
+            route_servers = rs_data.get("items", []) if isinstance(rs_data, dict) else rs_data
+        except APIError:
+            route_servers = []
+        for rs in route_servers:
+            try:
+                bgp_data = await api.get(
+                    "/api/v1/bgp-sessions", token,
+                    params={"route_server_id": rs["id"], "limit": 200},
+                )
+                for s in bgp_data.get("items", []):
+                    if s.get("trunk_vlan_id") in tv_ids:
+                        s["rs_name"] = rs.get("name", "")
+                        sessions.append(s)
+            except APIError:
+                pass
+
     return render(request, "portal/bgp_sessions.html", {
-        "sessions": bgp_data.get("items", []),
+        "sessions": sessions,
         "page_title": "Sesiones BGP",
     })
 
