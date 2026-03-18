@@ -55,13 +55,14 @@ class DiffResult:
     to_hash: str
 
 
-def _sanitize_protocol_name(name: str, peer_ip: str) -> str:
-    """Build a valid BIRD protocol name from member name and peer IP.
+def _sanitize_protocol_name(name: str, peer_ip: str, af: int) -> str:
+    """Build a unique valid BIRD protocol name from member name, peer IP and AF
 
-    BIRD protocol names must be alphanumeric plus underscores. Replace dots
-    and colons in IP addresses with underscores and strip other invalid chars.
+    BIRD protocol names must be alphanumeric plus underscores. Includes the
+    address family suffix to guarantee uniqueness across IPv4/IPv6 sessions
+    with the same peer IP (after sanitization and 64-char truncation).
     """
-    raw = f"{name}_{peer_ip}"
+    raw = f"{name}_{peer_ip}_v{af}"
     sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", raw)
     return sanitized[:64]
 
@@ -89,9 +90,18 @@ async def _build_peers(
     result = await session.execute(stmt)
     rows = result.all()
 
+    seen_names: set[str] = set()
     peers: list[PeerContext] = []
     for bgp_session, member in rows:
-        protocol_name = _sanitize_protocol_name(member.short_name, bgp_session.peer_ip)
+        protocol_name = _sanitize_protocol_name(member.short_name, bgp_session.peer_ip, af)
+        # Append numeric suffix on the rare collision after truncation
+        base = protocol_name
+        counter = 2
+        while protocol_name in seen_names:
+            suffix = f"_{counter}"
+            protocol_name = base[: 64 - len(suffix)] + suffix
+            counter += 1
+        seen_names.add(protocol_name)
         peers.append(
             PeerContext(
                 protocol_name=protocol_name,
