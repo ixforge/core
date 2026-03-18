@@ -78,16 +78,22 @@
         {% else %}-{% endif %}
       </p>
     </div>
-    {% if session.max_prefixes_v4 is defined and session.max_prefixes_v4 %}
+    {% if session.max_prefixes %}
     <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Max Prefixes IPv4</p>
-      <p class="font-medium">{{ session.max_prefixes_v4 }}</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Max Prefixes</p>
+      <p class="font-medium">{{ session.max_prefixes }}</p>
     </div>
     {% endif %}
-    {% if session.max_prefixes_v6 is defined and session.max_prefixes_v6 %}
+    {% if session.import_limit %}
     <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Max Prefixes IPv6</p>
-      <p class="font-medium">{{ session.max_prefixes_v6 }}</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Import Limit</p>
+      <p class="font-medium">{{ session.import_limit }}</p>
+    </div>
+    {% endif %}
+    {% if session.export_limit %}
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Export Limit</p>
+      <p class="font-medium">{{ session.export_limit }}</p>
     </div>
     {% endif %}
     <div>

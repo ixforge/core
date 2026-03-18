@@ -174,9 +174,11 @@ async def transition(
         # Requires at least 1 TrunkVLAN
         trunk_vlans = (
             await session.execute(
-                select(TrunkVLAN).where(TrunkVLAN.trunk_id == trunk_id)
+                select(TrunkVLAN)
+                .where(TrunkVLAN.trunk_id == trunk_id)
+                .options(joinedload(TrunkVLAN.vlan))
             )
-        ).scalars().all()
+        ).unique().scalars().all()
         if not trunk_vlans:
             raise ValidationError(
                 "Cannot activate trunk: at least one VLAN must be assigned"
@@ -184,7 +186,7 @@ async def transition(
 
         # For each production TrunkVLAN, at least 1 IP
         for tv in trunk_vlans:
-            vlan = await session.get(VLAN, tv.vlan_id)
+            vlan = tv.vlan
             if vlan is not None and vlan.type == VLANType.production:
                 has_ip = await session.scalar(
                     select(IPAssignment.id)

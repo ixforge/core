@@ -35,7 +35,12 @@ class TestIXFExport:
     async def test_export_with_active_member(
         self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
     ):
-        """IX-F export should include active members with trunks."""
+        """IX-F export should include active members with trunks"""
+        # Invalidate the in-memory export cache so we get fresh data
+        from ixforge.api.v1 import ixf_export as ixf_mod
+
+        ixf_mod._cache = (None, 0.0)
+
         member = Member(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
@@ -135,6 +140,11 @@ class TestIXFExport:
         assert body["version"] == "1.0"
         assert len(body["ixp_list"]) >= 1
 
+        # Verify member data is actually present in the export
+        members_in_export = body.get("member_list", [])
+        asns = [m["asnum"] for m in members_in_export]
+        assert 64700 in asns, "Active member ASN 64700 should appear in export"
+
     async def test_export_excludes_non_active_members(
         self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
     ):
@@ -154,9 +164,12 @@ class TestIXFExport:
 
         resp = await client.get("/api/v1/ixf/member-export")
         assert resp.status_code == 200
-        # No active trunks, so member_list should be empty or only contain previously active
+        # Non-active members should not appear in export
         body = resp.json()
         assert body["version"] == "1.0"
+        exported_asns = {m["asnum"] for m in body.get("member_list", [])}
+        for i in range(3):
+            assert 64800 + i not in exported_asns, "Non-active member should not appear in export"
 
     async def test_export_is_public_no_auth_required(self, client: AsyncClient, ixp: IXP):
         """The IX-F export endpoint should not require authentication."""

@@ -52,8 +52,8 @@ async def _setup_route_server(db: AsyncSession, ixp: IXP) -> RouteServer:
     return rs
 
 
-async def _setup_agent_key(db: AsyncSession, rs: RouteServer, admin_user: User) -> str:
-    """Create an agent API key scoped to the given route server. Returns raw key."""
+async def _setup_agent_key(db: AsyncSession, rs: RouteServer) -> str:
+    """Create an agent API key scoped to the given route server. Returns raw key"""
     key_hash = hash_api_key(_RAW_AGENT_KEY)
     api_key = APIKey(
         id=uuid.uuid4(),
@@ -100,7 +100,7 @@ class TestAgentConfigPoll:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
         cv = await _setup_config_version(db_session, rs)
 
         resp = await client.get(
@@ -148,7 +148,7 @@ class TestAgentConfigPoll:
     ):
         """Agent key for rs1 should not work on rs2."""
         rs1 = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs1, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs1)
 
         rs2 = RouteServer(
             id=uuid.uuid4(),
@@ -174,7 +174,7 @@ class TestAgentConfigPoll:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
 
         resp = await client.get(
             f"/api/v1/route-servers/{rs.id}/agent/config",
@@ -197,7 +197,7 @@ class TestAgentStatusReport:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
 
         # Create a member with a BGP session in unknown state
         member = Member(
@@ -285,7 +285,7 @@ class TestAgentStatusReport:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
 
         resp = await client.post(
             f"/api/v1/route-servers/{rs.id}/agent/status",
@@ -307,7 +307,7 @@ class TestAgentStatusReport:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
 
         member = Member(
             id=uuid.uuid4(),
@@ -398,7 +398,7 @@ class TestAgentHeartbeat:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
         cv = await _setup_config_version(db_session, rs)
 
         resp = await client.post(
@@ -424,7 +424,7 @@ class TestAgentHeartbeat:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
         await _setup_config_version(db_session, rs)
 
         wrong_hash = "a" * 64
@@ -449,7 +449,7 @@ class TestAgentHeartbeat:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
         cv = await _setup_config_version(db_session, rs)
 
         resp = await client.post(
@@ -479,7 +479,7 @@ class TestAgentConfigApplied:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
         cv = await _setup_config_version(db_session, rs)
         assert cv.applied_at is None
 
@@ -490,6 +490,9 @@ class TestAgentConfigApplied:
         )
         assert resp.status_code == 204
 
+        await db_session.refresh(cv)
+        assert cv.applied_at is not None
+
     async def test_confirm_nonexistent_config_hash(
         self,
         client: AsyncClient,
@@ -498,7 +501,7 @@ class TestAgentConfigApplied:
         admin_user: User,
     ):
         rs = await _setup_route_server(db_session, ixp)
-        raw_key = await _setup_agent_key(db_session, rs, admin_user)
+        raw_key = await _setup_agent_key(db_session, rs)
 
         resp = await client.post(
             f"/api/v1/route-servers/{rs.id}/agent/config/applied",

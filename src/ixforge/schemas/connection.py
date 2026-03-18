@@ -13,12 +13,12 @@ from ixforge.enums import ConnectionType as ConnectionType
 _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
 
 
-def _validate_mac(v: str | None) -> str | None:
+def validate_mac(v: str | None) -> str | None:
     if v is None:
         return None
     if not _MAC_RE.match(v):
         raise ValueError("Invalid MAC address format, expected XX:XX:XX:XX:XX:XX")
-    return v.lower()
+    return v.lower().replace("-", ":")
 
 
 class ConnectionCreate(BaseModel):

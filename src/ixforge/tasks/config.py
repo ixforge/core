@@ -24,7 +24,7 @@ logger = structlog.get_logger()
 async def generate_route_server_config(
     route_server_id: str,
     triggered_by: str | None = None,
-) -> dict[str, str]:
+) -> dict[str, str | None]:
     """Regenerate BIRD config for a single route server.
 
     Parameters

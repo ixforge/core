@@ -24,21 +24,17 @@ from ixforge.models.vlan import VLAN
 # ---------------------------------------------------------------------------
 
 
-_tv_counter = 0
-
-
 async def _make_trunk_vlan(
     db_session: AsyncSession, ixp: IXP, trunk: Trunk,
 ) -> TrunkVLAN:
     """Create a TrunkVLAN instance with a unique VLAN"""
-    global _tv_counter
-    _tv_counter += 1
+    tag = uuid.uuid4().hex[:6]
     # Each TrunkVLAN needs a unique (trunk_id, vlan_id), so create a new VLAN
     vlan = VLAN(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
-        name=f"IPAM Extra VLAN {_tv_counter}",
-        vid=2000 + _tv_counter,
+        name=f"IPAM Extra VLAN {tag}",
+        vid=2000 + hash(tag) % 1900,
         type=VLANType.production,
     )
     db_session.add(vlan)
@@ -579,7 +575,7 @@ class TestIPv6Allocation:
         )
         assert resp.status_code == 201
         body = resp.json()
-        # IPv6 has no reserved addresses (no network/broadcast concept)
+        # IPv6: no network/broadcast reserved, first host is the network address
         assert body["address"] == "2001:db8::"
         assert body["pool_id"] == str(pool.id)
 

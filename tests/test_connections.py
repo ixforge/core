@@ -108,7 +108,7 @@ class TestUpdateConnection:
     async def test_update_connection_type_consistency(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        """Changing type is rejected if other connections in trunk have a different type."""
+        """Changing type is rejected if other connections in trunk have a different type"""
         from ixforge.schemas.connection import ConnectionUpdate
 
         member, trunk, switch = await _setup(db_session, ixp)
@@ -133,7 +133,7 @@ class TestUpdateConnection:
     async def test_update_connection_type_same_type_allowed(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        """Changing type is allowed when all other connections already match."""
+        """Changing type is allowed when all other connections already match"""
         from ixforge.schemas.connection import ConnectionUpdate
 
         member, trunk, switch = await _setup(db_session, ixp)
