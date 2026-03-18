@@ -8,55 +8,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ixforge.enums import (
     BGPAdminState,
     BGPOperState,
-    ConnectionState,
-    ConnectionType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
     VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
-from ixforge.models.connection import Connection, ConnectionVLAN
-from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
-from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
-from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 
 
-async def _create_active_connection(
-    db: AsyncSession, ixp: IXP, member: Member
-) -> Connection:
-    """Create a connection in active state with full setup (VLAN + IP)."""
-    location = Location(
-        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-{uuid.uuid4().hex[:6]}",
-        city="Test", country="US",
-    )
-    db.add(location)
-    await db.flush()
-
-    switch = Switch(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        name=f"sw-{uuid.uuid4().hex[:6]}",
-        location_id=location.id,
-        is_active=True,
-    )
-    db.add(switch)
-    await db.flush()
-
-    conn = Connection(
+async def _create_trunk_with_vlan(
+    db: AsyncSession, ixp: IXP, member: Member,
+) -> TrunkVLAN:
+    """Create a trunk in active state with a VLAN assignment."""
+    trunk = Trunk(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         member_id=member.id,
-        switch_id=switch.id,
-        name=f"Ethernet{uuid.uuid4().hex[:4]}",
-        type=ConnectionType.physical,
-        state=ConnectionState.active,
-        speed=10000,
+        name=f"ae{uuid.uuid4().hex[:4]}",
+        state=TrunkState.active,
     )
-    db.add(conn)
+    db.add(trunk)
     await db.flush()
 
     vlan = VLAN(
@@ -69,36 +45,16 @@ async def _create_active_connection(
     db.add(vlan)
     await db.flush()
 
-    cv = ConnectionVLAN(
+    trunk_vlan = TrunkVLAN(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
-        connection_id=conn.id,
+        trunk_id=trunk.id,
         vlan_id=vlan.id,
     )
-    db.add(cv)
+    db.add(trunk_vlan)
     await db.flush()
 
-    pool = IPPool(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        vlan_id=vlan.id,
-        network="198.51.100.0/24",
-        af=4,
-    )
-    db.add(pool)
-    await db.flush()
-
-    assignment = IPAssignment(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        pool_id=pool.id,
-        connection_id=conn.id,
-        address=f"198.51.100.{2 + hash(uuid.uuid4()) % 200}",
-    )
-    db.add(assignment)
-    await db.flush()
-
-    return conn
+    return trunk_vlan
 
 
 async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, BGPSession]:
@@ -123,41 +79,13 @@ async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, B
     db.add(member)
     await db.flush()
 
-    location = Location(
-        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-bgp-{uuid.uuid4().hex[:6]}",
-        city="Test", country="US",
-    )
-    db.add(location)
-    await db.flush()
-
-    switch = Switch(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        name=f"sw-bgp-{uuid.uuid4().hex[:6]}",
-        location_id=location.id,
-        is_active=True,
-    )
-    db.add(switch)
-    await db.flush()
-
-    conn = Connection(
-        id=uuid.uuid4(),
-        ixp_id=ixp.id,
-        member_id=member.id,
-        switch_id=switch.id,
-        name=f"Ethernet{uuid.uuid4().hex[:4]}",
-        type=ConnectionType.physical,
-        state=ConnectionState.active,
-        speed=10000,
-    )
-    db.add(conn)
-    await db.flush()
+    trunk_vlan = await _create_trunk_with_vlan(db, ixp, member)
 
     bgp = BGPSession(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         route_server_id=rs.id,
-        connection_id=conn.id,
+        trunk_vlan_id=trunk_vlan.id,
         peer_ip="192.0.2.10",
         peer_asn=64600,
         admin_state=BGPAdminState.up,
@@ -278,14 +206,14 @@ class TestBGPSessionCreate:
         db_session.add(member)
         await db_session.flush()
 
-        conn = await _create_active_connection(db_session, ixp, member)
+        trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
 
         resp = await client.post(
             "/api/v1/bgp-sessions",
             headers=auth_headers,
             json={
                 "route_server_id": str(rs.id),
-                "connection_id": str(conn.id),
+                "trunk_vlan_id": str(trunk_vlan.id),
                 "peer_ip": "192.0.2.10",
                 "peer_asn": 64700,
                 "af": 4,
@@ -295,7 +223,7 @@ class TestBGPSessionCreate:
         assert resp.status_code == 201
         body = resp.json()
         assert body["route_server_id"] == str(rs.id)
-        assert body["connection_id"] == str(conn.id)
+        assert body["trunk_vlan_id"] == str(trunk_vlan.id)
         assert body["peer_ip"] == "192.0.2.10"
         assert body["peer_asn"] == 64700
         assert body["af"] == 4
@@ -331,11 +259,11 @@ class TestBGPSessionCreate:
         db_session.add(member)
         await db_session.flush()
 
-        conn = await _create_active_connection(db_session, ixp, member)
+        trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
 
         payload = {
             "route_server_id": str(rs.id),
-            "connection_id": str(conn.id),
+            "trunk_vlan_id": str(trunk_vlan.id),
             "peer_ip": "192.0.2.20",
             "peer_asn": 64701,
             "af": 4,
@@ -349,7 +277,7 @@ class TestBGPSessionCreate:
         )
         assert resp1.status_code == 201
 
-        # Duplicate should be rejected (same RS + conn + AF)
+        # Duplicate should be rejected (same RS + trunk_vlan + AF)
         resp2 = await client.post(
             "/api/v1/bgp-sessions",
             headers=auth_headers,
@@ -357,7 +285,7 @@ class TestBGPSessionCreate:
         )
         assert resp2.status_code == 409
 
-    async def test_create_bgp_session_inactive_connection_rejected(
+    async def test_create_bgp_session_inactive_trunk_rejected(
         self,
         client: AsyncClient,
         auth_headers: dict,
@@ -385,35 +313,34 @@ class TestBGPSessionCreate:
         db_session.add(member)
         await db_session.flush()
 
-        location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-inact-{uuid.uuid4().hex[:6]}",
-            city="Test", country="US",
-        )
-        db_session.add(location)
-        await db_session.flush()
-
-        switch = Switch(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name=f"sw-inact-{uuid.uuid4().hex[:6]}",
-            location_id=location.id,
-            is_active=True,
-        )
-        db_session.add(switch)
-        await db_session.flush()
-
-        # Connection in draft state (not active)
-        conn = Connection(
+        # Trunk in draft state (not active)
+        trunk = Trunk(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
-            switch_id=switch.id,
-            name=f"Ethernet{uuid.uuid4().hex[:4]}",
-            type=ConnectionType.physical,
-            state=ConnectionState.draft,
-            speed=10000,
+            name="ae-draft",
+            state=TrunkState.draft,
         )
-        db_session.add(conn)
+        db_session.add(trunk)
+        await db_session.flush()
+
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Draft VLAN",
+            vid=500,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        trunk_vlan = TrunkVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk.id,
+            vlan_id=vlan.id,
+        )
+        db_session.add(trunk_vlan)
         await db_session.flush()
 
         resp = await client.post(
@@ -421,7 +348,7 @@ class TestBGPSessionCreate:
             headers=auth_headers,
             json={
                 "route_server_id": str(rs.id),
-                "connection_id": str(conn.id),
+                "trunk_vlan_id": str(trunk_vlan.id),
                 "peer_ip": "192.0.2.30",
                 "peer_asn": 64702,
                 "af": 4,
@@ -467,14 +394,14 @@ class TestBGPSessionCreate:
         db_session.add(member)
         await db_session.flush()
 
-        conn = await _create_active_connection(db_session, ixp, member)
+        trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
 
         resp = await client.post(
             "/api/v1/bgp-sessions",
             headers=auth_headers,
             json={
                 "route_server_id": str(rs_other.id),
-                "connection_id": str(conn.id),
+                "trunk_vlan_id": str(trunk_vlan.id),
                 "peer_ip": "192.0.2.40",
                 "peer_asn": 64703,
                 "af": 4,
@@ -496,7 +423,7 @@ class TestBGPSessionConstraints:
             headers=auth_headers,
             json={
                 "route_server_id": str(uuid.uuid4()),
-                "connection_id": str(uuid.uuid4()),
+                "trunk_vlan_id": str(uuid.uuid4()),
                 "peer_ip": "192.0.2.10",
                 "peer_asn": 64500,
                 "af": 5,
@@ -516,7 +443,7 @@ class TestBGPSessionConstraints:
             headers=auth_headers,
             json={
                 "route_server_id": str(uuid.uuid4()),
-                "connection_id": str(uuid.uuid4()),
+                "trunk_vlan_id": str(uuid.uuid4()),
                 "peer_ip": "192.0.2.10",
                 "peer_asn": 0,
                 "af": 4,
@@ -536,7 +463,7 @@ class TestBGPSessionConstraints:
             headers=auth_headers,
             json={
                 "route_server_id": str(uuid.uuid4()),
-                "connection_id": str(uuid.uuid4()),
+                "trunk_vlan_id": str(uuid.uuid4()),
                 "peer_ip": "192.0.2.10",
                 "peer_asn": -1,
                 "af": 4,
@@ -556,7 +483,7 @@ class TestBGPSessionConstraints:
             headers=auth_headers,
             json={
                 "route_server_id": str(uuid.uuid4()),
-                "connection_id": str(uuid.uuid4()),
+                "trunk_vlan_id": str(uuid.uuid4()),
                 "peer_ip": "not-an-ip",
                 "peer_asn": 64500,
                 "af": 4,
@@ -576,7 +503,7 @@ class TestBGPSessionConstraints:
             headers=auth_headers,
             json={
                 "route_server_id": str(uuid.uuid4()),
-                "connection_id": str(uuid.uuid4()),
+                "trunk_vlan_id": str(uuid.uuid4()),
                 "peer_ip": "2001:db8::1",
                 "peer_asn": 64500,
                 "af": 4,
@@ -596,7 +523,7 @@ class TestBGPSessionConstraints:
             headers=auth_headers,
             json={
                 "route_server_id": str(uuid.uuid4()),
-                "connection_id": str(uuid.uuid4()),
+                "trunk_vlan_id": str(uuid.uuid4()),
                 "peer_ip": "192.0.2.1",
                 "peer_asn": 64500,
                 "af": 6,
@@ -670,41 +597,13 @@ class TestBGPSessionDelete:
         db_session.add(member)
         await db_session.flush()
 
-        location = Location(
-            id=uuid.uuid4(), ixp_id=other_ixp.id, name=f"DC-other-{uuid.uuid4().hex[:6]}",
-            city="Test", country="US",
-        )
-        db_session.add(location)
-        await db_session.flush()
-
-        switch = Switch(
-            id=uuid.uuid4(),
-            ixp_id=other_ixp.id,
-            name=f"sw-other-{uuid.uuid4().hex[:6]}",
-            location_id=location.id,
-            is_active=True,
-        )
-        db_session.add(switch)
-        await db_session.flush()
-
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=other_ixp.id,
-            member_id=member.id,
-            switch_id=switch.id,
-            name=f"Ethernet{uuid.uuid4().hex[:4]}",
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
+        trunk_vlan = await _create_trunk_with_vlan(db_session, other_ixp, member)
 
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=other_ixp.id,
             route_server_id=rs.id,
-            connection_id=conn.id,
+            trunk_vlan_id=trunk_vlan.id,
             peer_ip="192.0.2.99",
             peer_asn=64800,
             admin_state=BGPAdminState.up,

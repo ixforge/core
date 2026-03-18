@@ -5,11 +5,12 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.enums import ConnectionState, MemberState
+from ixforge.enums import ConnectionState, MemberState, TrunkState
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.member import Member
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.schemas.monitoring import (
     MonitoringMemberIP,
     MonitoringPortTarget,
@@ -49,29 +50,30 @@ async def build_targets(
         )
         switch_ids.append(sw.id)
 
-    # Active connections on active switches
+    # Active connections on active switches (resolve member_id via trunk)
     port_targets: list[MonitoringPortTarget] = []
     if switch_ids:
         conn_stmt = (
-            select(Connection)
+            select(Connection, Trunk.member_id)
+            .join(Trunk, Connection.trunk_id == Trunk.id)
             .where(
                 Connection.switch_id.in_(switch_ids),
                 Connection.state == ConnectionState.active,
             )
         )
         conn_result = await session.execute(conn_stmt)
-        for conn in conn_result.scalars().all():
+        for conn, member_id in conn_result.all():
             port_targets.append(
                 MonitoringPortTarget(
                     id=conn.id,
                     switch_id=conn.switch_id,
                     name=conn.name,
                     speed=conn.speed,
-                    member_id=conn.member_id,
+                    member_id=member_id,
                 )
             )
 
-    # IP addresses for active members
+    # IP addresses for active members (via trunk -> trunk_vlan -> ip_assignment)
     member_ip_stmt = (
         select(
             Member.id.label("member_id"),
@@ -79,13 +81,14 @@ async def build_targets(
             IPAssignment.address,
             IPPool.af,
         )
-        .join(Connection, Connection.member_id == Member.id)
-        .join(IPAssignment, IPAssignment.connection_id == Connection.id)
+        .join(Trunk, Trunk.member_id == Member.id)
+        .join(TrunkVLAN, TrunkVLAN.trunk_id == Trunk.id)
+        .join(IPAssignment, IPAssignment.trunk_vlan_id == TrunkVLAN.id)
         .join(IPPool, IPPool.id == IPAssignment.pool_id)
         .where(
             Member.ixp_id == ixp_id,
             Member.state == MemberState.active,
-            Connection.state == ConnectionState.active,
+            Trunk.state == TrunkState.active,
         )
     )
     member_ip_result = await session.execute(member_ip_stmt)

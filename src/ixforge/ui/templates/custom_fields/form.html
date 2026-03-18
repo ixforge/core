@@ -28,11 +28,10 @@
         {% set current_et = field.entity_type if field else '' %}
         <option value="">Seleccionar...</option>
         <option value="member" {% if current_et == "member" %}selected{% endif %}>Member</option>
+        <option value="trunk" {% if current_et == "trunk" %}selected{% endif %}>Trunk</option>
         <option value="connection" {% if current_et == "connection" %}selected{% endif %}>Connection</option>
         <option value="switch" {% if current_et == "switch" %}selected{% endif %}>Switch</option>
-        <option value="port" {% if current_et == "port" %}selected{% endif %}>Port</option>
         <option value="vlan" {% if current_et == "vlan" %}selected{% endif %}>VLAN</option>
-        <option value="ip_pool" {% if current_et == "ip_pool" %}selected{% endif %}>IP Pool</option>
       </select>
     </div>
 

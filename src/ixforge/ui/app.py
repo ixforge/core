@@ -42,6 +42,7 @@ def create_ui_app() -> Starlette:
         route_servers,
         settings,
         switches,
+        trunks,
         users,
         vlans,
     )
@@ -120,17 +121,21 @@ def create_ui_app() -> Starlette:
         Route("/admin/bgp-sessions/{session_id}", bgp_sessions.bgp_session_detail),
         Route("/admin/bgp-sessions/{session_id}/delete", bgp_sessions.bgp_session_delete, methods=["POST"]),
         Route("/admin/bgp-sessions/{session_id}/toggle", bgp_sessions.bgp_session_toggle, methods=["POST"]),
-        # Connections
-        Route("/admin/connections", connections.connection_list),
-        Route("/admin/connections/new", connections.connection_new, methods=["GET", "POST"]),
-        Route("/admin/connections/{connection_id}", connections.connection_detail),
-        Route("/admin/connections/{connection_id}/edit", connections.connection_edit, methods=["GET", "POST"]),
-        Route("/admin/connections/{connection_id}/delete", connections.connection_delete, methods=["POST"]),
+        # Trunks
+        Route("/admin/trunks", trunks.trunk_list),
+        Route("/admin/trunks/new", trunks.trunk_new, methods=["GET", "POST"]),
+        Route("/admin/trunks/{trunk_id}", trunks.trunk_detail),
+        Route("/admin/trunks/{trunk_id}/edit", trunks.trunk_edit, methods=["GET", "POST"]),
+        Route("/admin/trunks/{trunk_id}/delete", trunks.trunk_delete, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/transition", trunks.trunk_transition, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/vlans", trunks.trunk_assign_vlan, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/delete", trunks.trunk_unassign_vlan, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/ips", trunks.trunk_assign_ip, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/ips/{aid}/delete", trunks.trunk_release_ip, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/connections", trunks.trunk_add_connection, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/connections/{cid}/transition", trunks.trunk_connection_transition, methods=["POST"]),
+        # Connections (standalone)
         Route("/admin/connections/{connection_id}/transition", connections.connection_transition, methods=["POST"]),
-        Route("/admin/connections/{connection_id}/vlans", connections.connection_assign_vlan, methods=["POST"]),
-        Route("/admin/connections/{connection_id}/vlans/{vlan_id}/delete", connections.connection_unassign_vlan, methods=["POST"]),
-        Route("/admin/connections/{connection_id}/ips", connections.connection_assign_ip, methods=["POST"]),
-        Route("/admin/connections/{connection_id}/ips/{assignment_id}/delete", connections.connection_release_ip, methods=["POST"]),
         # Events
         Route("/admin/events", events.event_list),
         # Custom Fields
@@ -146,7 +151,7 @@ def create_ui_app() -> Starlette:
         Route("/portal", portal.portal_redirect),
         Route("/portal/dashboard", portal.portal_dashboard),
         Route("/portal/profile", portal.portal_profile),
-        Route("/portal/connections", portal.portal_connections),
+        Route("/portal/trunks", portal.portal_trunks),
         Route("/portal/bgp-sessions", portal.portal_bgp_sessions),
         Route("/portal/contacts", portal.portal_contacts),
         # Static

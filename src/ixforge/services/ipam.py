@@ -8,10 +8,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
-from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
-from ixforge.models.member import Member
 from ixforge.models.rs_ip_assignment import RSIPAssignment
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.ip import IPAssignmentRead, IPPoolCreate, IPPoolRead
@@ -152,31 +151,27 @@ async def _get_used_addresses(
     return {str(r) for r in result_ia.scalars()} | {str(r) for r in result_rs.scalars()}
 
 
-async def _validate_pool_connection_same_tenant(
+async def _validate_pool_trunk_vlan_same_tenant(
     session: AsyncSession,
     pool_id: uuid.UUID,
-    connection_id: uuid.UUID,
+    trunk_vlan_id: uuid.UUID,
     ixp_id: uuid.UUID,
 ) -> None:
-    """Validate that the pool and connection belong to the tenant IXP."""
+    """Validate that the pool and trunk VLAN belong to the tenant IXP."""
     pool = await session.get(IPPool, pool_id)
     if pool is None or pool.ixp_id != ixp_id:
         raise NotFoundError("IPPool", str(pool_id))
 
-    vlan = await session.get(VLAN, pool.vlan_id)
-    if vlan is None:
-        raise NotFoundError("VLAN", str(pool.vlan_id))
+    trunk_vlan = await session.get(TrunkVLAN, trunk_vlan_id)
+    if trunk_vlan is None or trunk_vlan.ixp_id != ixp_id:
+        raise NotFoundError("TrunkVLAN", str(trunk_vlan_id))
 
-    connection = await session.get(Connection, connection_id)
-    if connection is None or connection.ixp_id != ixp_id:
-        raise NotFoundError("Connection", str(connection_id))
+    trunk = await session.get(Trunk, trunk_vlan.trunk_id)
+    if trunk is None:
+        raise NotFoundError("Trunk", str(trunk_vlan.trunk_id))
 
-    member = await session.get(Member, connection.member_id)
-    if member is None:
-        raise NotFoundError("Member", str(connection.member_id))
-
-    if vlan.ixp_id != member.ixp_id:
-        raise ValidationError("IP pool and connection belong to different IXPs")
+    if trunk.ixp_id != ixp_id:
+        raise ValidationError("IP pool and trunk VLAN belong to different IXPs")
 
 
 def _validate_address_in_pool(
@@ -221,10 +216,10 @@ async def allocate_sequential(
     session: AsyncSession,
     ixp_id: uuid.UUID,
     pool_id: uuid.UUID,
-    connection_id: uuid.UUID,
+    trunk_vlan_id: uuid.UUID,
 ) -> IPAssignment:
     """Allocate the next available IP address in a pool."""
-    await _validate_pool_connection_same_tenant(session, pool_id, connection_id, ixp_id)
+    await _validate_pool_trunk_vlan_same_tenant(session, pool_id, trunk_vlan_id, ixp_id)
 
     pool = await session.get(IPPool, pool_id, with_for_update=True)
     if pool is None:
@@ -253,7 +248,7 @@ async def allocate_sequential(
         assignment = IPAssignment(
             ixp_id=ixp_id,
             pool_id=pool_id,
-            connection_id=connection_id,
+            trunk_vlan_id=trunk_vlan_id,
             address=address_str,
         )
         session.add(assignment)
@@ -270,11 +265,11 @@ async def allocate_manual(
     session: AsyncSession,
     ixp_id: uuid.UUID,
     pool_id: uuid.UUID,
-    connection_id: uuid.UUID,
+    trunk_vlan_id: uuid.UUID,
     address: str,
 ) -> IPAssignment:
     """Allocate a specific IP address from a pool."""
-    await _validate_pool_connection_same_tenant(session, pool_id, connection_id, ixp_id)
+    await _validate_pool_trunk_vlan_same_tenant(session, pool_id, trunk_vlan_id, ixp_id)
 
     pool = await session.get(IPPool, pool_id, with_for_update=True)
     if pool is None:
@@ -293,7 +288,7 @@ async def allocate_manual(
     assignment = IPAssignment(
         ixp_id=ixp_id,
         pool_id=pool_id,
-        connection_id=connection_id,
+        trunk_vlan_id=trunk_vlan_id,
         address=address_str,
     )
     session.add(assignment)

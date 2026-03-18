@@ -11,11 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
-from ixforge.enums import ConnectionState, MemberState, VLANType
-from ixforge.models.connection import Connection, ConnectionVLAN
+from ixforge.enums import ConnectionState, MemberState, TrunkState, VLANType
+from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 
 if TYPE_CHECKING:
@@ -30,8 +31,8 @@ async def generate_ixf_member_export(
 ) -> dict[str, Any]:
     """Generate IX-F Member Export JSON (schema v1.0) for a given IXP.
 
-    Only includes active members with at least one active connection
-    that has assigned IP addresses.
+    Only includes active members with at least one active trunk
+    that has at least one active connection with assigned IP addresses.
     """
     ixp = await session.get(IXP, ixp_id)
     if ixp is None:
@@ -63,14 +64,14 @@ async def generate_ixf_member_export(
 
     member_list: list[dict[str, Any]] = []
     for member in members:
-        connections = bulk_data.connections_by_member.get(member.id, [])
-        if not connections:
+        trunks = bulk_data.trunks_by_member.get(member.id, [])
+        if not trunks:
             continue
 
         connection_list: list[dict[str, Any]] = []
-        for conn in connections:
+        for trunk in trunks:
             conn_entry = _build_connection_entry(
-                conn,
+                trunk,
                 ixp,
                 vlan_vid_map,
                 bulk_data,
@@ -150,102 +151,140 @@ class _BulkData:
 
     def __init__(
         self,
-        connections_by_member: dict[uuid.UUID, list[Connection]],
-        ip_assignments_by_connection: dict[uuid.UUID, list[IPAssignment]],
-        connection_vlans_by_connection: dict[uuid.UUID, list[ConnectionVLAN]],
+        trunks_by_member: dict[uuid.UUID, list[Trunk]],
+        connections_by_trunk: dict[uuid.UUID, list[Connection]],
+        ip_assignments_by_trunk_vlan: dict[uuid.UUID, list[IPAssignment]],
+        trunk_vlans_by_trunk: dict[uuid.UUID, list[TrunkVLAN]],
         pools: dict[uuid.UUID, IPPool],
     ) -> None:
-        self.connections_by_member = connections_by_member
-        self.ip_assignments_by_connection = ip_assignments_by_connection
-        self.connection_vlans_by_connection = connection_vlans_by_connection
+        self.trunks_by_member = trunks_by_member
+        self.connections_by_trunk = connections_by_trunk
+        self.ip_assignments_by_trunk_vlan = ip_assignments_by_trunk_vlan
+        self.trunk_vlans_by_trunk = trunk_vlans_by_trunk
         self.pools = pools
 
 
 async def _load_bulk_data(session: AsyncSession, member_ids: list[uuid.UUID]) -> _BulkData:
     """Load all necessary data in bulk to avoid N+1 queries."""
+    # Load active trunks for members
     stmt = (
-        select(Connection)
+        select(Trunk)
         .where(
-            Connection.member_id.in_(member_ids),
-            Connection.state == ConnectionState.active,
+            Trunk.member_id.in_(member_ids),
+            Trunk.state == TrunkState.active,
         )
-        .order_by(Connection.member_id, Connection.created_at)
+        .order_by(Trunk.member_id, Trunk.created_at)
     )
     result = await session.execute(stmt)
-    connections = list(result.scalars().all())
+    trunks = list(result.scalars().all())
 
-    connections_by_member: dict[uuid.UUID, list[Connection]] = {}
-    for conn in connections:
-        if conn.member_id not in connections_by_member:
-            connections_by_member[conn.member_id] = []
-        connections_by_member[conn.member_id].append(conn)
+    trunks_by_member: dict[uuid.UUID, list[Trunk]] = {}
+    for trunk in trunks:
+        if trunk.member_id not in trunks_by_member:
+            trunks_by_member[trunk.member_id] = []
+        trunks_by_member[trunk.member_id].append(trunk)
 
-    connection_ids = [conn.id for conn in connections]
-    if not connection_ids:
-        return _BulkData({}, {}, {}, {})
+    trunk_ids = [t.id for t in trunks]
+    if not trunk_ids:
+        return _BulkData({}, {}, {}, {}, {})
 
-    ip_result = await session.execute(
-        select(IPAssignment)
-        .where(IPAssignment.connection_id.in_(connection_ids))
-        .order_by(IPAssignment.connection_id, IPAssignment.address)
+    # Load active connections for trunks
+    conn_result = await session.execute(
+        select(Connection)
+        .where(
+            Connection.trunk_id.in_(trunk_ids),
+            Connection.state == ConnectionState.active,
+        )
+        .order_by(Connection.trunk_id, Connection.created_at)
     )
-    all_ip_assignments = list(ip_result.scalars().all())
+    all_connections = list(conn_result.scalars().all())
 
-    ip_assignments_by_connection: dict[uuid.UUID, list[IPAssignment]] = {}
-    for ip_assign in all_ip_assignments:
-        if ip_assign.connection_id not in ip_assignments_by_connection:
-            ip_assignments_by_connection[ip_assign.connection_id] = []
-        ip_assignments_by_connection[ip_assign.connection_id].append(ip_assign)
+    connections_by_trunk: dict[uuid.UUID, list[Connection]] = {}
+    for conn in all_connections:
+        if conn.trunk_id not in connections_by_trunk:
+            connections_by_trunk[conn.trunk_id] = []
+        connections_by_trunk[conn.trunk_id].append(conn)
 
-    cv_result = await session.execute(
-        select(ConnectionVLAN).where(ConnectionVLAN.connection_id.in_(connection_ids))
+    # Load trunk VLANs
+    tv_result = await session.execute(
+        select(TrunkVLAN).where(TrunkVLAN.trunk_id.in_(trunk_ids))
     )
-    all_conn_vlans = list(cv_result.scalars().all())
+    all_trunk_vlans = list(tv_result.scalars().all())
 
-    connection_vlans_by_connection: dict[uuid.UUID, list[ConnectionVLAN]] = {}
-    for cv in all_conn_vlans:
-        if cv.connection_id not in connection_vlans_by_connection:
-            connection_vlans_by_connection[cv.connection_id] = []
-        connection_vlans_by_connection[cv.connection_id].append(cv)
+    trunk_vlans_by_trunk: dict[uuid.UUID, list[TrunkVLAN]] = {}
+    trunk_vlan_ids: list[uuid.UUID] = []
+    for tv in all_trunk_vlans:
+        if tv.trunk_id not in trunk_vlans_by_trunk:
+            trunk_vlans_by_trunk[tv.trunk_id] = []
+        trunk_vlans_by_trunk[tv.trunk_id].append(tv)
+        trunk_vlan_ids.append(tv.id)
 
-    pool_ids = list({ip.pool_id for ip in all_ip_assignments})
+    # Load IP assignments by trunk_vlan_id
+    ip_assignments_by_trunk_vlan: dict[uuid.UUID, list[IPAssignment]] = {}
+    if trunk_vlan_ids:
+        ip_result = await session.execute(
+            select(IPAssignment)
+            .where(IPAssignment.trunk_vlan_id.in_(trunk_vlan_ids))
+            .order_by(IPAssignment.trunk_vlan_id, IPAssignment.address)
+        )
+        all_ip_assignments = list(ip_result.scalars().all())
+
+        for ip_assign in all_ip_assignments:
+            if ip_assign.trunk_vlan_id not in ip_assignments_by_trunk_vlan:
+                ip_assignments_by_trunk_vlan[ip_assign.trunk_vlan_id] = []
+            ip_assignments_by_trunk_vlan[ip_assign.trunk_vlan_id].append(ip_assign)
+
+        pool_ids = list({ip.pool_id for ip in all_ip_assignments})
+    else:
+        pool_ids = []
+
     pools: dict[uuid.UUID, IPPool] = {}
     if pool_ids:
         pool_result = await session.execute(select(IPPool).where(IPPool.id.in_(pool_ids)))
         pools = {p.id: p for p in pool_result.scalars().all()}
 
     return _BulkData(
-        connections_by_member=connections_by_member,
-        ip_assignments_by_connection=ip_assignments_by_connection,
-        connection_vlans_by_connection=connection_vlans_by_connection,
+        trunks_by_member=trunks_by_member,
+        connections_by_trunk=connections_by_trunk,
+        ip_assignments_by_trunk_vlan=ip_assignments_by_trunk_vlan,
+        trunk_vlans_by_trunk=trunk_vlans_by_trunk,
         pools=pools,
     )
 
 
 def _build_connection_entry(
-    conn: Connection,
+    trunk: Trunk,
     ixp: IXP,
     vlan_vid_map: dict[uuid.UUID, int],
     bulk_data: _BulkData,
 ) -> dict[str, Any] | None:
-    """Build a single connection entry for the IX-F export.
+    """Build a single IX-F connection entry from a Trunk.
 
-    Returns None if the connection has no IP assignments (skip it).
+    Trunk = IX-F connection, Connection = IX-F interface (if_list item).
+    Returns None if the trunk has no IP assignments (skip it).
     """
-    ip_assignments = bulk_data.ip_assignments_by_connection.get(conn.id, [])
-    if not ip_assignments:
+    # Collect all IP assignments across trunk VLANs
+    trunk_vlans = bulk_data.trunk_vlans_by_trunk.get(trunk.id, [])
+    all_ip_assignments: list[IPAssignment] = []
+    for tv in trunk_vlans:
+        all_ip_assignments.extend(bulk_data.ip_assignments_by_trunk_vlan.get(tv.id, []))
+
+    if not all_ip_assignments:
         return None
 
+    # Build if_list from the trunk's active connections
+    connections = bulk_data.connections_by_trunk.get(trunk.id, [])
     if_list: list[dict[str, Any]] = []
-    if conn.switch_id is not None:
-        if_entry: dict[str, Any] = {
-            "switch_id": str(conn.switch_id),
-            "if_speed": conn.speed * 1_000_000,
-            "if_type": "LAN",
-        }
-        if_list.append(if_entry)
+    for conn in connections:
+        if conn.switch_id is not None:
+            if_entry: dict[str, Any] = {
+                "switch_id": str(conn.switch_id),
+                "if_speed": conn.speed * 1_000_000,
+                "if_type": "LAN",
+            }
+            if_list.append(if_entry)
 
-    vlan_list = _build_vlan_list(conn.id, ip_assignments, vlan_vid_map, bulk_data)
+    vlan_list = _build_vlan_list(trunk.id, all_ip_assignments, vlan_vid_map, bulk_data)
 
     return {
         "ixp_id": ixp.peeringdb_id or 0,
@@ -256,7 +295,7 @@ def _build_connection_entry(
 
 
 def _build_vlan_list(
-    connection_id: uuid.UUID,
+    trunk_id: uuid.UUID,
     ip_assignments: list[IPAssignment],
     vlan_vid_map: dict[uuid.UUID, int],
     bulk_data: _BulkData,
@@ -264,9 +303,9 @@ def _build_vlan_list(
     """Build the vlan_list for a connection entry.
 
     Groups IP assignments by their VLAN (via the IP pool -> VLAN relationship)
-    and the connection's VLAN assignments.
+    and the trunk's VLAN assignments.
     """
-    conn_vlans = bulk_data.connection_vlans_by_connection.get(connection_id, [])
+    trunk_vlans = bulk_data.trunk_vlans_by_trunk.get(trunk_id, [])
 
     vlan_ips: dict[uuid.UUID, dict[str, str]] = {}
     for ip_assign in ip_assignments:
@@ -284,9 +323,9 @@ def _build_vlan_list(
             vlan_ips[vlan_uuid]["ipv6"] = ip_assign.address
 
     vlan_uuids = set(vlan_ips.keys())
-    for cv in conn_vlans:
-        if cv.vlan_id not in vlan_uuids:
-            vlan_uuids.add(cv.vlan_id)
+    for tv in trunk_vlans:
+        if tv.vlan_id not in vlan_uuids:
+            vlan_uuids.add(tv.vlan_id)
 
     vlan_list: list[dict[str, Any]] = []
     for vlan_uuid in sorted(vlan_uuids, key=lambda v: vlan_vid_map.get(v, 0)):

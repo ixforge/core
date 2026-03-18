@@ -60,7 +60,7 @@ async def member_detail(request: Request) -> Response:
 
     try:
         member = await api.get(f"/api/v1/members/{member_id}", token)
-        connections = await api.get("/api/v1/connections", token, params={"member_id": member_id, "limit": 50})
+        trunks_data = await api.get("/api/v1/trunks", token, params={"member_id": member_id, "limit": 200})
     except APIError as e:
         if e.status_code == 404:
             add_flash(request, "Miembro no encontrado", "error")
@@ -77,7 +77,7 @@ async def member_detail(request: Request) -> Response:
 
     return render(request, "members/detail.html", {
         "member": member,
-        "connections": connections.get("items", []),
+        "trunks": trunks_data.get("items", []),
         "contacts": contacts,
         "page_title": member.get("name", "Miembro"),
     })

@@ -6,11 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.enums import BGPAdminState, BGPOperState, ConnectionState
+from ixforge.enums import BGPAdminState, BGPOperState, TrunkState
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
-from ixforge.models.connection import Connection
 from ixforge.models.route_server import RouteServer
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.schemas.bgp_session import BGPSessionCreate, BGPSessionRead
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.services.base import paginate
@@ -28,17 +28,18 @@ async def create(
     if rs is None or rs.ixp_id != ixp_id:
         raise NotFoundError("RouteServer")
 
-    conn = await session.get(Connection, data.connection_id)
-    if conn is None or conn.ixp_id != ixp_id:
-        raise NotFoundError("Connection")
+    trunk_vlan = await session.get(TrunkVLAN, data.trunk_vlan_id)
+    if trunk_vlan is None or trunk_vlan.ixp_id != ixp_id:
+        raise NotFoundError("TrunkVLAN")
 
-    if conn.state != ConnectionState.active:
-        raise ValidationError("Connection must be active to create a BGP session")
+    trunk = await session.get(Trunk, trunk_vlan.trunk_id)
+    if trunk is None or trunk.state != TrunkState.active:
+        raise ValidationError("Trunk must be active to create a BGP session")
 
     bgp_session = BGPSession(
         ixp_id=ixp_id,
         route_server_id=data.route_server_id,
-        connection_id=data.connection_id,
+        trunk_vlan_id=data.trunk_vlan_id,
         peer_ip=data.peer_ip,
         peer_asn=data.peer_asn,
         af=data.af,
@@ -96,14 +97,15 @@ async def list_sessions_for_member(
     member_id: uuid.UUID | None,
     params: CursorParams,
 ) -> CursorPage[BGPSessionRead]:
-    """List BGP sessions for a route server filtered by member's connections."""
+    """List BGP sessions for a route server filtered by member's trunks."""
     stmt = (
         select(BGPSession)
-        .join(Connection, BGPSession.connection_id == Connection.id)
+        .join(TrunkVLAN, BGPSession.trunk_vlan_id == TrunkVLAN.id)
+        .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
         .where(
             BGPSession.route_server_id == route_server_id,
             BGPSession.ixp_id == ixp_id,
-            Connection.member_id == member_id,
+            Trunk.member_id == member_id,
         )
     )
     return await paginate(
