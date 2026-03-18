@@ -22,6 +22,7 @@ from ixforge.api.v1.route_server_vlans import rs_vlans_router
 from ixforge.api.v1.route_servers import route_servers_router
 from ixforge.api.v1.rs_ip import rs_ip_router
 from ixforge.api.v1.switches import switches_router
+from ixforge.api.v1.trunks import trunks_router
 from ixforge.api.v1.users import users_router
 from ixforge.api.v1.vlan_members import vlan_members_router
 from ixforge.api.v1.vlans import vlans_router
@@ -42,6 +43,7 @@ v1_router.include_router(vlans_router)
 v1_router.include_router(vlan_members_router)
 v1_router.include_router(ip_pools_router)
 v1_router.include_router(ixp_router)
+v1_router.include_router(trunks_router)
 v1_router.include_router(connections_router)
 v1_router.include_router(route_servers_router)
 v1_router.include_router(rs_vlans_router)

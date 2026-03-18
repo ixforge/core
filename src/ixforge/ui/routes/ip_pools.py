@@ -61,23 +61,30 @@ async def ip_pool_detail(request: Request) -> Response:
     vlan_map = {v["id"]: v for v in vlans_data.get("items", [])}
     assignments = assignments_data.get("items", []) if isinstance(assignments_data, dict) else assignments_data
 
-    # Resolve connection IDs to readable labels (API returns member_name)
-    connection_map: dict[str, Any] = {}
-    connection_ids = {a["connection_id"] for a in assignments if a.get("connection_id")}
-    for conn_id in connection_ids:
+    # Resolve trunk_vlan_ids to readable labels
+    trunk_vlan_map: dict[str, Any] = {}
+    tv_ids = {a["trunk_vlan_id"] for a in assignments if a.get("trunk_vlan_id")}
+    if tv_ids:
+        # Fetch all trunks and find matching trunk_vlans
         try:
-            conn = await api.get(f"/api/v1/connections/{conn_id}", token)
-            member_name = conn.get("member_name", "")
-            conn_name = conn.get("name", "")
-            if member_name and conn_name:
-                label = f"{member_name} / {conn_name}"
-            elif member_name:
-                label = member_name
-            elif conn_name:
-                label = conn_name
-            else:
-                label = conn.get("type", "conexion")
-            connection_map[conn_id] = {"label": label}
+            trunks_data = await api.get("/api/v1/trunks", token, params={"limit": 200})
+            for t in trunks_data.get("items", []):
+                try:
+                    tvs = await api.get(f"/api/v1/trunks/{t['id']}/vlans", token)
+                    for tv in tvs:
+                        if tv.get("id") in tv_ids:
+                            member_name = t.get("member_name", "")
+                            trunk_name = t.get("name", "")
+                            vlan_name = tv.get("vlan_name", "")
+                            label = f"{member_name} / {trunk_name}"
+                            if vlan_name:
+                                label += f" ({vlan_name})"
+                            trunk_vlan_map[tv["id"]] = {
+                                "label": label,
+                                "trunk_id": t["id"],
+                            }
+                except APIError:
+                    pass
         except APIError:
             pass
 
@@ -85,7 +92,7 @@ async def ip_pool_detail(request: Request) -> Response:
         "pool": pool,
         "assignments": assignments,
         "vlan_map": vlan_map,
-        "connection_map": connection_map,
+        "trunk_vlan_map": trunk_vlan_map,
         "page_title": f"Pool {pool.get('network', '')}",
     })
 

@@ -287,46 +287,45 @@
   {% endif %}
 </div>
 
-{# Connections #}
+{# Trunks #}
 <div class="card">
   <div class="flex justify-between items-center mb-4">
-    <h2 class="text-lg font-semibold">Conexiones</h2>
+    <h2 class="text-lg font-semibold">Trunks</h2>
+    <a href="/admin/trunks/new" class="btn-primary btn-sm">Nuevo Trunk</a>
   </div>
-  {% if connections %}
+  {% if trunks %}
   <div class="overflow-x-auto">
     <table class="w-full">
       <thead>
         <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
           <th class="pb-3 font-medium">Nombre</th>
-          <th class="pb-3 font-medium">Tipo</th>
           <th class="pb-3 font-medium">Estado</th>
-          <th class="pb-3 font-medium">Velocidad</th>
           <th class="pb-3 font-medium">MAC</th>
         </tr>
       </thead>
       <tbody class="divide-y dark:divide-gray-700">
-        {% for c in connections %}
+        {% for t in trunks %}
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
           <td class="py-3">
-            <a href="/admin/connections/{{ c.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
-              {{ c.name or "-" }}
+            <a href="/admin/trunks/{{ t.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+              {{ t.name or "-" }}
             </a>
           </td>
-          <td class="py-3 capitalize">{{ c.type or "-" }}</td>
           <td class="py-3">
-            {% if c.state == "active" %}<span class="badge badge-green">Activo</span>
-            {% elif c.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
-            {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
+            {% if t.state == "active" %}<span class="badge badge-green">Activo</span>
+            {% elif t.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+            {% elif t.state == "draft" %}<span class="badge badge-blue">Borrador</span>
+            {% elif t.state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
+            {% else %}<span class="badge badge-gray">{{ t.state }}</span>{% endif %}
           </td>
-          <td class="py-3">{{ c.speed or "-" }}</td>
-          <td class="py-3"><code class="text-sm">{{ c.mac_address or "-" }}</code></td>
+          <td class="py-3"><code class="text-sm">{{ t.mac_address or "-" }}</code></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
-  <p class="text-gray-500 dark:text-gray-400 text-center py-4">Este miembro no tiene conexiones</p>
+  <p class="text-gray-500 dark:text-gray-400 text-center py-4">Este miembro no tiene trunks</p>
   {% endif %}
 </div>
 {% endblock %}

@@ -15,7 +15,7 @@ ip_pools_router = APIRouter(tags=["ip-pools"])
 
 
 class IPAllocateRequest(BaseModel):
-    connection_id: uuid.UUID
+    trunk_vlan_id: uuid.UUID
     address: str | None = None
 
 
@@ -113,8 +113,8 @@ async def allocate_ip(
     otherwise the next available address is assigned sequentially.
     """
     if body.address is not None:
-        return await ipam.allocate_manual(db, ixp_id, pool_id, body.connection_id, body.address)
-    return await ipam.allocate_sequential(db, ixp_id, pool_id, body.connection_id)
+        return await ipam.allocate_manual(db, ixp_id, pool_id, body.trunk_vlan_id, body.address)
+    return await ipam.allocate_sequential(db, ixp_id, pool_id, body.trunk_vlan_id)
 
 
 @ip_pools_router.delete("/ip-assignments/{assignment_id}", status_code=204)

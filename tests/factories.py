@@ -21,12 +21,13 @@ from ixforge.enums import (
     CustomFieldType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
     VLANType,
 )
 from ixforge.models.api_key import APIKey
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
-from ixforge.models.connection import Connection, ConnectionVLAN
+from ixforge.models.connection import Connection
 from ixforge.models.contact import Contact
 from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.models.event import Event
@@ -35,6 +36,7 @@ from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import User, UserRole
 from ixforge.models.vlan import VLAN
 from ixforge.services.auth import hash_password
@@ -125,6 +127,30 @@ class VLANFactory(_NoDBFactory):
     extra_data = None
 
 
+class TrunkFactory(_NoDBFactory):
+    class Meta:
+        model = Trunk
+
+    id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
+    member_id = factory.LazyFunction(uuid.uuid4)
+    name = factory.Sequence(lambda n: f"ae{n}")
+    state = TrunkState.draft
+    mac_address = factory.Sequence(lambda n: f"00:11:22:33:44:{n:02x}")
+    notes = None
+    extra_data = None
+
+
+class TrunkVLANFactory(_NoDBFactory):
+    class Meta:
+        model = TrunkVLAN
+
+    id = factory.LazyFunction(uuid.uuid4)
+    ixp_id = factory.LazyFunction(uuid.uuid4)
+    trunk_id = factory.LazyFunction(uuid.uuid4)
+    vlan_id = factory.LazyFunction(uuid.uuid4)
+
+
 class IPPoolFactory(_NoDBFactory):
     class Meta:
         model = IPPool
@@ -143,7 +169,7 @@ class IPAssignmentFactory(_NoDBFactory):
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
     pool_id = factory.LazyFunction(uuid.uuid4)
-    connection_id = factory.LazyFunction(uuid.uuid4)
+    trunk_vlan_id = factory.LazyFunction(uuid.uuid4)
     address = factory.Sequence(lambda n: f"192.0.2.{n + 2}")
 
 
@@ -153,24 +179,13 @@ class ConnectionFactory(_NoDBFactory):
 
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
-    member_id = factory.LazyFunction(uuid.uuid4)
+    trunk_id = factory.LazyFunction(uuid.uuid4)
     switch_id = factory.LazyFunction(uuid.uuid4)
     name = factory.Sequence(lambda n: f"Ethernet{n + 1}")
     type = ConnectionType.physical
     state = ConnectionState.draft
-    mac_address = factory.Sequence(lambda n: f"00:11:22:33:44:{n:02x}")
     speed = 10000
     extra_data = None
-
-
-class ConnectionVLANFactory(_NoDBFactory):
-    class Meta:
-        model = ConnectionVLAN
-
-    id = factory.LazyFunction(uuid.uuid4)
-    ixp_id = factory.LazyFunction(uuid.uuid4)
-    connection_id = factory.LazyFunction(uuid.uuid4)
-    vlan_id = factory.LazyFunction(uuid.uuid4)
 
 
 class RouteServerFactory(_NoDBFactory):
@@ -194,7 +209,7 @@ class BGPSessionFactory(_NoDBFactory):
     id = factory.LazyFunction(uuid.uuid4)
     ixp_id = factory.LazyFunction(uuid.uuid4)
     route_server_id = factory.LazyFunction(uuid.uuid4)
-    connection_id = factory.LazyFunction(uuid.uuid4)
+    trunk_vlan_id = factory.LazyFunction(uuid.uuid4)
     peer_ip = factory.Sequence(lambda n: f"192.0.2.{n + 2}")
     peer_asn = factory.Sequence(lambda n: 64512 + n)
     admin_state = BGPAdminState.up

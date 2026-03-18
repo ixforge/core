@@ -27,17 +27,13 @@ async def index(request: Request) -> Response:
     all_switch_items = switches.get("items", [])
     all_vlan_items = vlans.get("items", [])
 
-    # Connections require member_id — aggregate per member
-    all_connection_items: list[dict[str, Any]] = []
-    for member in all_member_items:
-        try:
-            conn_data = await api.get(
-                "/api/v1/connections", token,
-                params={"member_id": member["id"], "limit": 200},
-            )
-            all_connection_items.extend(conn_data.get("items", []))
-        except APIError:
-            pass
+    # Fetch all trunks
+    all_trunk_items: list[dict[str, Any]] = []
+    try:
+        trunk_data = await api.get("/api/v1/trunks", token, params={"limit": 200})
+        all_trunk_items = trunk_data.get("items", [])
+    except APIError:
+        pass
 
     # Optional fetches - don't fail dashboard if these endpoints aren't available
     route_servers_items: list[dict[str, Any]] = []
@@ -63,7 +59,7 @@ async def index(request: Request) -> Response:
 
     active_members = [m for m in all_member_items if m.get("state") == "active"]
     active_switches = [s for s in all_switch_items if s.get("is_active")]
-    active_connections = [c for c in all_connection_items if c.get("state") == "active"]
+    active_trunks = [t for t in all_trunk_items if t.get("state") == "active"]
     active_rs = [r for r in route_servers_items if r.get("is_active")]
 
     return render(request, "dashboard/index.html", {
@@ -74,8 +70,8 @@ async def index(request: Request) -> Response:
         "vlan_count": len(all_vlan_items),
         "switch_count": len(all_switch_items),
         "active_switch_count": len(active_switches),
-        "connection_count": len(all_connection_items),
-        "active_connection_count": len(active_connections),
+        "trunk_count": len(all_trunk_items),
+        "active_trunk_count": len(active_trunks),
         "rs_count": len(route_servers_items),
         "active_rs_count": len(active_rs),
         "user_count": len(users_items),

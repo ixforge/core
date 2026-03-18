@@ -20,11 +20,10 @@
               hx-swap="outerHTML">
         <option value="" {% if filter_entity_type == "" %}selected{% endif %}>Todos</option>
         <option value="member" {% if filter_entity_type == "member" %}selected{% endif %}>Member</option>
+        <option value="trunk" {% if filter_entity_type == "trunk" %}selected{% endif %}>Trunk</option>
         <option value="connection" {% if filter_entity_type == "connection" %}selected{% endif %}>Connection</option>
         <option value="switch" {% if filter_entity_type == "switch" %}selected{% endif %}>Switch</option>
-
         <option value="vlan" {% if filter_entity_type == "vlan" %}selected{% endif %}>VLAN</option>
-        <option value="ip_pool" {% if filter_entity_type == "ip_pool" %}selected{% endif %}>IP Pool</option>
       </select>
     </div>
   </div>

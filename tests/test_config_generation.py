@@ -12,6 +12,8 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
+    VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
@@ -20,6 +22,8 @@ from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
+from ixforge.models.vlan import VLAN
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -49,7 +53,7 @@ async def _setup_active_peer(
     peer_ip: str = "192.0.2.2",
     peer_asn: int = 64512,
     af: int = 4,
-) -> tuple[Member, Connection, BGPSession]:
+) -> tuple[Member, Trunk, BGPSession]:
     member = Member(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
@@ -60,6 +64,35 @@ async def _setup_active_peer(
         peering_policy=PeeringPolicy.open,
     )
     db.add(member)
+
+    trunk = Trunk(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        member_id=member.id,
+        name=f"ae-{peer_asn}",
+        state=TrunkState.active,
+    )
+    db.add(trunk)
+    await db.flush()
+
+    vlan = VLAN(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"VLAN-{peer_asn}",
+        vid=100 + peer_asn % 3900,
+        type=VLANType.production,
+    )
+    db.add(vlan)
+    await db.flush()
+
+    trunk_vlan = TrunkVLAN(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        trunk_id=trunk.id,
+        vlan_id=vlan.id,
+    )
+    db.add(trunk_vlan)
+    await db.flush()
 
     location = Location(
         id=uuid.uuid4(),
@@ -83,7 +116,7 @@ async def _setup_active_peer(
     conn = Connection(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
-        member_id=member.id,
+        trunk_id=trunk.id,
         switch_id=switch.id,
         name=f"eth-{peer_asn}",
         type=ConnectionType.physical,
@@ -97,7 +130,7 @@ async def _setup_active_peer(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         route_server_id=rs.id,
-        connection_id=conn.id,
+        trunk_vlan_id=trunk_vlan.id,
         peer_ip=peer_ip,
         peer_asn=peer_asn,
         admin_state=BGPAdminState.up,
@@ -107,7 +140,7 @@ async def _setup_active_peer(
     )
     db.add(bgp)
     await db.flush()
-    return member, conn, bgp
+    return member, trunk, bgp
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +215,7 @@ class TestConfigGeneration:
     ):
         rs = await _setup_route_server(db_session, ixp)
 
-        # Create a suspended member with a BGP session
+        # Create a suspended member with a BGP session via active trunk
         member = Member(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
@@ -194,36 +227,40 @@ class TestConfigGeneration:
         )
         db_session.add(member)
 
-        location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-susp", city="Test", country="US",
-        )
-        db_session.add(location)
-        await db_session.flush()
-
-        switch = Switch(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-susp", location_id=location.id,
-        )
-        db_session.add(switch)
-        await db_session.flush()
-
-        conn = Connection(
+        trunk = Trunk(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
-            switch_id=switch.id,
-            name="eth-susp",
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
+            name="ae-susp",
+            state=TrunkState.active,
         )
-        db_session.add(conn)
+        db_session.add(trunk)
+        await db_session.flush()
+
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="VLAN-susp",
+            vid=700,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        trunk_vlan = TrunkVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk.id,
+            vlan_id=vlan.id,
+        )
+        db_session.add(trunk_vlan)
         await db_session.flush()
 
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
-            connection_id=conn.id,
+            trunk_vlan_id=trunk_vlan.id,
             peer_ip="192.0.2.99",
             peer_asn=64700,
             admin_state=BGPAdminState.up,
@@ -263,36 +300,40 @@ class TestConfigGeneration:
         )
         db_session.add(member)
 
-        location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-adn", city="Test", country="US",
-        )
-        db_session.add(location)
-        await db_session.flush()
-
-        switch = Switch(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-adn", location_id=location.id,
-        )
-        db_session.add(switch)
-        await db_session.flush()
-
-        conn = Connection(
+        trunk = Trunk(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             member_id=member.id,
-            switch_id=switch.id,
-            name="eth-adn",
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
+            name="ae-adn",
+            state=TrunkState.active,
         )
-        db_session.add(conn)
+        db_session.add(trunk)
+        await db_session.flush()
+
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="VLAN-adn",
+            vid=800,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        trunk_vlan = TrunkVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk.id,
+            vlan_id=vlan.id,
+        )
+        db_session.add(trunk_vlan)
         await db_session.flush()
 
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
-            connection_id=conn.id,
+            trunk_vlan_id=trunk_vlan.id,
             peer_ip="192.0.2.88",
             peer_asn=64800,
             admin_state=BGPAdminState.down,

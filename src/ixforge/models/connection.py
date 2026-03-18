@@ -1,4 +1,4 @@
-"""Connection and ConnectionVLAN models."""
+"""Connection model."""
 
 import uuid
 
@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
 )
@@ -15,7 +16,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ixforge.enums import ConnectionState, ConnectionType
 from ixforge.models.base import Base, ExtraDataMixin, TenantMixin, TimestampMixin, UUIDPrimaryKey
-from ixforge.models.types import MACADDR
 
 
 class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
@@ -25,9 +25,9 @@ class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Ba
         CheckConstraint("speed > 0", name="ck_connections_speed_positive"),
     )
 
-    member_id: Mapped[uuid.UUID] = mapped_column(
+    trunk_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
-        ForeignKey("members.id", ondelete="CASCADE"),
+        ForeignKey("trunks.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -47,28 +47,9 @@ class Connection(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Ba
         nullable=False,
         default=ConnectionState.draft,
     )
-    mac_address: Mapped[str | None] = mapped_column(MACADDR, nullable=True)
     speed: Mapped[int] = mapped_column(Integer, nullable=False, comment="Speed in Mbps")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Relationships for eager loading display names — forward refs resolved by SQLAlchemy
-    member: Mapped["Member"] = relationship(lazy="raise")  # type: ignore[name-defined]  # noqa: F821
-
-
-class ConnectionVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
-    __tablename__ = "connection_vlans"
-    __table_args__ = (
-        UniqueConstraint("connection_id", "vlan_id", name="uq_connection_vlans_conn_vlan"),
-    )
-
-    connection_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("connections.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    vlan_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("vlans.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+    trunk: Mapped["Trunk"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        back_populates="connections", lazy="raise"
     )

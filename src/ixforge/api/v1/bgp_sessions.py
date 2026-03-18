@@ -9,7 +9,7 @@ from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
 from ixforge.enums import BGPAdminState
 from ixforge.exceptions import ForbiddenError
 from ixforge.models.bgp_session import BGPSession
-from ixforge.models.connection import Connection
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import UserRole
 from ixforge.schemas.bgp_session import BGPSessionCreate, BGPSessionRead
 from ixforge.schemas.common import CursorPage, CursorParams
@@ -66,8 +66,11 @@ async def get_bgp_session(
     if user.role == UserRole.member:
         if user.member_id is None:
             raise ForbiddenError("Member user without assigned member cannot access BGP sessions")
-        connection = await db.get(Connection, bgp_session.connection_id)
-        if connection is None or connection.ixp_id != ixp_id or connection.member_id != user.member_id:
+        trunk_vlan = await db.get(TrunkVLAN, bgp_session.trunk_vlan_id)
+        if trunk_vlan is None:
+            raise ForbiddenError("You do not have access to this BGP session")
+        trunk = await db.get(Trunk, trunk_vlan.trunk_id)
+        if trunk is None or trunk.ixp_id != ixp_id or trunk.member_id != user.member_id:
             raise ForbiddenError("You do not have access to this BGP session")
 
     return bgp_session

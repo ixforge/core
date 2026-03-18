@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.enums import ConnectionType, MemberState, PeeringPolicy, VLANType
+from ixforge.enums import ConnectionType, MemberState, PeeringPolicy, TrunkState, VLANType
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
@@ -15,6 +15,7 @@ from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.rs_ip import RSIPAssignmentCreate
 from ixforge.services import rs_ip as svc
@@ -98,9 +99,16 @@ class TestRSIPService:
         )
         db_session.add(switch)
         await db_session.flush()
+        trunk = Trunk(ixp_id=ixp.id, member_id=member.id, name="ae0", state=TrunkState.active)
+        db_session.add(trunk)
+        vlan = VLAN(id=uuid.uuid4(), ixp_id=ixp.id, name="Peering", vid=100, type=VLANType.production)
+        db_session.add(vlan)
+        await db_session.flush()
+        trunk_vlan = TrunkVLAN(ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan.id)
+        db_session.add(trunk_vlan)
         connection = Connection(
             ixp_id=ixp.id,
-            member_id=member.id,
+            trunk_id=trunk.id,
             type=ConnectionType.physical,
             switch_id=switch.id,
             name="eth-test",
@@ -111,7 +119,7 @@ class TestRSIPService:
         member_assign = IPAssignment(
             ixp_id=ixp.id,
             pool_id=pool_v4.id,
-            connection_id=connection.id,
+            trunk_vlan_id=trunk_vlan.id,
             address="192.0.2.1",
         )
         db_session.add(member_assign)
@@ -178,9 +186,14 @@ class TestRSIPGlobalUniqueness:
         )
         db_session.add(switch)
         await db_session.flush()
+        trunk = Trunk(ixp_id=ixp.id, member_id=member.id, name="ae0", state=TrunkState.active)
+        db_session.add(trunk)
+        await db_session.flush()
+        trunk_vlan = TrunkVLAN(ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan2.id)
+        db_session.add(trunk_vlan)
         connection = Connection(
             ixp_id=ixp.id,
-            member_id=member.id,
+            trunk_id=trunk.id,
             type=ConnectionType.physical,
             switch_id=switch.id,
             name="eth-gu",
@@ -192,7 +205,7 @@ class TestRSIPGlobalUniqueness:
         member_assign = IPAssignment(
             ixp_id=ixp.id,
             pool_id=pool2.id,
-            connection_id=connection.id,
+            trunk_vlan_id=trunk_vlan.id,
             address="192.0.2.1",
         )
         db_session.add(member_assign)

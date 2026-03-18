@@ -7,9 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
-from ixforge.models.connection import Connection, ConnectionVLAN
-from ixforge.models.ip import IPAssignment
 from ixforge.models.member import Member
+from ixforge.models.trunk import Trunk
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.member import MemberCreate, MemberRead, MemberState, MemberUpdate
 from ixforge.services import custom_fields
@@ -142,26 +141,16 @@ async def update(
     return member
 
 
-async def _has_complete_connection(session: AsyncSession, member_id: uuid.UUID) -> bool:
-    """Check whether the member has at least one connection with a VLAN and IP."""
-    stmt = select(Connection.id).where(Connection.member_id == member_id)
-    result = await session.execute(stmt)
-    connection_ids = [row[0] for row in result.all()]
+async def _has_complete_trunk(session: AsyncSession, member_id: uuid.UUID) -> bool:
+    """Check whether the member has at least one active trunk."""
+    from ixforge.enums import TrunkState
 
-    for conn_id in connection_ids:
-        has_vlan = await session.scalar(
-            select(ConnectionVLAN.id).where(ConnectionVLAN.connection_id == conn_id).limit(1)
-        )
-        if has_vlan is None:
-            continue
-
-        has_ip = await session.scalar(
-            select(IPAssignment.id).where(IPAssignment.connection_id == conn_id).limit(1)
-        )
-        if has_ip is not None:
-            return True
-
-    return False
+    stmt = select(Trunk.id).where(
+        Trunk.member_id == member_id,
+        Trunk.state == TrunkState.active,
+    ).limit(1)
+    result = await session.scalar(stmt)
+    return result is not None
 
 
 async def transition(
@@ -183,32 +172,31 @@ async def transition(
             details={"current_state": current, "target_state": target_state},
         )
 
-    # provisioning -> active requires a complete connection
+    # provisioning -> active requires an active trunk
     if (
         current == MemberState.provisioning
         and target_state == MemberState.active
-        and not await _has_complete_connection(session, member_id)
+        and not await _has_complete_trunk(session, member_id)
     ):
         raise ValidationError(
-            "Cannot activate member: at least one connection must have "
-            "a VLAN and IP assigned"
+            "Cannot activate member: at least one trunk must be active"
         )
 
-    # Termination requires all connections to be decommissioned first
+    # Termination requires all trunks to be decommissioned first
     if target_state == MemberState.terminated:
-        from ixforge.enums import ConnectionState
+        from ixforge.enums import TrunkState
 
-        active_conn = await session.scalar(
-            select(Connection.id)
+        active_trunk = await session.scalar(
+            select(Trunk.id)
             .where(
-                Connection.member_id == member_id,
-                Connection.state != ConnectionState.decommissioned,
+                Trunk.member_id == member_id,
+                Trunk.state != TrunkState.decommissioned,
             )
             .limit(1)
         )
-        if active_conn is not None:
+        if active_trunk is not None:
             raise ValidationError(
-                "Cannot terminate member: all connections must be decommissioned first"
+                "Cannot terminate member: all trunks must be decommissioned first"
             )
 
     old_state = member.state
