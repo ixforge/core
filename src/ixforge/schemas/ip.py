@@ -40,14 +40,14 @@ class IPPoolRead(BaseModel):
 
 class IPAssignmentCreate(BaseModel):
     pool_id: uuid.UUID
-    connection_id: uuid.UUID
+    trunk_vlan_id: uuid.UUID
     address: str = Field(max_length=45)
 
 
 class IPAssignmentRead(BaseModel):
     id: uuid.UUID
     pool_id: uuid.UUID
-    connection_id: uuid.UUID
+    trunk_vlan_id: uuid.UUID
     address: str
     created_at: datetime
     updated_at: datetime

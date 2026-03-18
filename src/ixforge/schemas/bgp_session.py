@@ -12,7 +12,7 @@ from ixforge.enums import BGPAdminState, BGPOperState
 
 class BGPSessionCreate(BaseModel):
     route_server_id: uuid.UUID
-    connection_id: uuid.UUID
+    trunk_vlan_id: uuid.UUID
     peer_ip: str
     peer_asn: int = Field(..., gt=0)
     af: Literal[4, 6]
@@ -36,7 +36,7 @@ class BGPSessionCreate(BaseModel):
 class BGPSessionRead(BaseModel):
     id: uuid.UUID
     route_server_id: uuid.UUID
-    connection_id: uuid.UUID
+    trunk_vlan_id: uuid.UUID
     peer_ip: str
     peer_asn: int
     admin_state: BGPAdminState

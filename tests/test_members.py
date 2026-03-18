@@ -11,18 +11,20 @@ from ixforge.enums import (
     CustomFieldEntityType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
     VLANType,
 )
 from ixforge.enums import (
     CustomFieldType as CFType,
 )
-from ixforge.models.connection import Connection, ConnectionVLAN
+from ixforge.models.connection import Connection
 from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.member import MemberCreate, MemberUpdate
 
@@ -277,6 +279,95 @@ class TestMemberCRUD:
 # ---------------------------------------------------------------------------
 
 
+async def _create_active_trunk_setup(
+    db_session: AsyncSession, ixp: IXP, member: Member,
+) -> tuple[Trunk, TrunkVLAN, Connection, VLAN, IPPool, IPAssignment]:
+    """Create a complete active trunk with VLAN, connection, and IP assignment."""
+    trunk = Trunk(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        member_id=member.id,
+        name=f"ae{uuid.uuid4().hex[:4]}",
+        state=TrunkState.active,
+    )
+    db_session.add(trunk)
+    await db_session.flush()
+
+    location = Location(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"DC-{uuid.uuid4().hex[:6]}",
+        city="Test",
+        country="US",
+    )
+    db_session.add(location)
+    await db_session.flush()
+
+    switch = Switch(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"sw-{uuid.uuid4().hex[:6]}",
+        location_id=location.id,
+        is_active=True,
+    )
+    db_session.add(switch)
+    await db_session.flush()
+
+    vlan = VLAN(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"VLAN-{uuid.uuid4().hex[:6]}",
+        vid=100 + hash(uuid.uuid4()) % 3900,
+        type=VLANType.production,
+    )
+    db_session.add(vlan)
+    await db_session.flush()
+
+    trunk_vlan = TrunkVLAN(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        trunk_id=trunk.id,
+        vlan_id=vlan.id,
+    )
+    db_session.add(trunk_vlan)
+    await db_session.flush()
+
+    conn = Connection(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        trunk_id=trunk.id,
+        switch_id=switch.id,
+        name=f"Ethernet{uuid.uuid4().hex[:4]}",
+        type=ConnectionType.physical,
+        state=ConnectionState.active,
+        speed=10000,
+    )
+    db_session.add(conn)
+    await db_session.flush()
+
+    pool = IPPool(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        vlan_id=vlan.id,
+        network="192.0.2.0/24",
+        af=4,
+    )
+    db_session.add(pool)
+    await db_session.flush()
+
+    ip_assignment = IPAssignment(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        pool_id=pool.id,
+        trunk_vlan_id=trunk_vlan.id,
+        address="192.0.2.2",
+    )
+    db_session.add(ip_assignment)
+    await db_session.flush()
+
+    return trunk, trunk_vlan, conn, vlan, pool, ip_assignment
+
+
 class TestMemberStateMachine:
     async def test_prospect_to_provisioning(
         self,
@@ -305,14 +396,14 @@ class TestMemberStateMachine:
         assert resp.status_code == 200
         assert resp.json()["state"] == "provisioning"
 
-    async def test_provisioning_to_active_with_connection(
+    async def test_provisioning_to_active_with_trunk(
         self,
         client: AsyncClient,
         auth_headers: dict,
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """Provisioning -> active requires at least one complete connection."""
+        """Provisioning -> active requires at least one active trunk."""
         member = Member(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
@@ -325,78 +416,8 @@ class TestMemberStateMachine:
         db_session.add(member)
         await db_session.flush()
 
-        # Create the supporting infrastructure
-        location = Location(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="DC-test",
-            city="Test",
-            country="US",
-        )
-        db_session.add(location)
-        await db_session.flush()
-
-        switch = Switch(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="sw-test",
-            location_id=location.id,
-            is_active=True,
-        )
-        db_session.add(switch)
-        await db_session.flush()
-
-        vlan = VLAN(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="Peering VLAN",
-            vid=100,
-            type=VLANType.production,
-        )
-        db_session.add(vlan)
-        await db_session.flush()
-
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            switch_id=switch.id,
-            name="Ethernet1",
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
-
-        conn_vlan = ConnectionVLAN(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            connection_id=conn.id,
-            vlan_id=vlan.id,
-        )
-        db_session.add(conn_vlan)
-        await db_session.flush()
-
-        pool = IPPool(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            vlan_id=vlan.id,
-            network="192.0.2.0/24",
-            af=4,
-        )
-        db_session.add(pool)
-        await db_session.flush()
-
-        ip_assignment = IPAssignment(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            pool_id=pool.id,
-            connection_id=conn.id,
-            address="192.0.2.2",
-        )
-        db_session.add(ip_assignment)
-        await db_session.flush()
+        # Create an active trunk
+        await _create_active_trunk_setup(db_session, ixp, member)
 
         # Now transition should succeed
         resp = await client.post(
@@ -488,19 +509,19 @@ class TestMemberStateMachine:
         assert resp.status_code == 200
         assert resp.json()["state"] == "terminated"
 
-    async def test_provisioning_to_active_without_connection_rejected(
+    async def test_provisioning_to_active_without_trunk_rejected(
         self,
         client: AsyncClient,
         auth_headers: dict,
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """Provisioning -> active without a complete connection should fail."""
+        """Provisioning -> active without an active trunk should fail."""
         member = Member(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
-            name="No Conn Net",
-            short_name="NCON",
+            name="No Trunk Net",
+            short_name="NTRK",
             asn=65006,
             state=MemberState.provisioning,
             peering_policy=PeeringPolicy.open,
@@ -515,19 +536,19 @@ class TestMemberStateMachine:
         )
         assert resp.status_code == 422
 
-    async def test_terminate_member_with_active_connection_rejected(
+    async def test_terminate_member_with_active_trunk_rejected(
         self,
         client: AsyncClient,
         auth_headers: dict,
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """Cannot terminate a member that has non-decommissioned connections."""
+        """Cannot terminate a member that has non-decommissioned trunks."""
         member = Member(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
-            name="Term Conn Net",
-            short_name="TCN",
+            name="Term Trunk Net",
+            short_name="TTN",
             asn=65007,
             state=MemberState.provisioning,
             peering_policy=PeeringPolicy.open,
@@ -535,79 +556,11 @@ class TestMemberStateMachine:
         db_session.add(member)
         await db_session.flush()
 
-        location = Location(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="DC-term",
-            city="Test",
-            country="US",
+        trunk, trunk_vlan, conn, vlan, pool, ip_assignment = await _create_active_trunk_setup(
+            db_session, ixp, member,
         )
-        db_session.add(location)
-        await db_session.flush()
 
-        switch = Switch(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="sw-term",
-            location_id=location.id,
-            is_active=True,
-        )
-        db_session.add(switch)
-        await db_session.flush()
-
-        vlan = VLAN(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            name="Peering VLAN",
-            vid=200,
-            type=VLANType.production,
-        )
-        db_session.add(vlan)
-        await db_session.flush()
-
-        conn = Connection(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            member_id=member.id,
-            switch_id=switch.id,
-            name="Ethernet1",
-            type=ConnectionType.physical,
-            state=ConnectionState.active,
-            speed=10000,
-        )
-        db_session.add(conn)
-        await db_session.flush()
-
-        conn_vlan = ConnectionVLAN(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            connection_id=conn.id,
-            vlan_id=vlan.id,
-        )
-        db_session.add(conn_vlan)
-        await db_session.flush()
-
-        pool = IPPool(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            vlan_id=vlan.id,
-            network="198.51.100.0/24",
-            af=4,
-        )
-        db_session.add(pool)
-        await db_session.flush()
-
-        ip_assignment = IPAssignment(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            pool_id=pool.id,
-            connection_id=conn.id,
-            address="198.51.100.2",
-        )
-        db_session.add(ip_assignment)
-        await db_session.flush()
-
-        # Activate the member (has complete connection)
+        # Activate the member (has active trunk)
         resp = await client.post(
             f"/api/v1/members/{member.id}/transition",
             headers=auth_headers,
@@ -616,7 +569,7 @@ class TestMemberStateMachine:
         assert resp.status_code == 200
         assert resp.json()["state"] == "active"
 
-        # Try to terminate with active connection -> should fail
+        # Try to terminate with active trunk -> should fail
         resp = await client.post(
             f"/api/v1/members/{member.id}/transition",
             headers=auth_headers,
@@ -624,32 +577,9 @@ class TestMemberStateMachine:
         )
         assert resp.status_code == 422
 
-        # Decommission the connection: disable, release resources, decommission
-        resp = await client.post(
-            f"/api/v1/connections/{conn.id}/transition",
-            headers=auth_headers,
-            json={"state": "disabled"},
-        )
-        assert resp.status_code == 200
-
-        resp = await client.delete(
-            f"/api/v1/connections/{conn.id}/ips/{ip_assignment.id}",
-            headers=auth_headers,
-        )
-        assert resp.status_code == 204
-
-        resp = await client.delete(
-            f"/api/v1/connections/{conn.id}/vlans/{vlan.id}",
-            headers=auth_headers,
-        )
-        assert resp.status_code == 204
-
-        resp = await client.post(
-            f"/api/v1/connections/{conn.id}/transition",
-            headers=auth_headers,
-            json={"state": "decommissioned"},
-        )
-        assert resp.status_code == 200
+        # Decommission the trunk: set trunk state directly for test
+        trunk.state = TrunkState.decommissioned
+        await db_session.flush()
 
         # Now termination should succeed
         resp = await client.post(

@@ -240,16 +240,18 @@ async def _seed_data() -> None:
         ConnectionType,
         MemberState,
         PeeringPolicy,
+        TrunkState,
         VLANType,
     )
     from ixforge.models.bgp_session import BGPSession
-    from ixforge.models.connection import Connection, ConnectionVLAN
+    from ixforge.models.connection import Connection
     from ixforge.models.ip import IPAssignment, IPPool
     from ixforge.models.ixp import IXP
     from ixforge.models.location import Location
     from ixforge.models.member import Member
     from ixforge.models.route_server import RouteServer
     from ixforge.models.switch import Switch
+    from ixforge.models.trunk import Trunk, TrunkVLAN
     from ixforge.models.vlan import VLAN
 
     session_factory = get_session_factory()
@@ -363,39 +365,59 @@ async def _seed_data() -> None:
         await session.flush()
         print("Created 2 IP pools (IPv4 + IPv6)")
 
-        # -- Connections for active members with VLANs and IPs --
+        # -- Trunks, Connections, VLANs, IPs for active members --
         active_members = [m for m in members if m.state == MemberState.active]
-        connections: list[Connection] = []
+        all_trunks: list[Trunk] = []
+        all_connections: list[Connection] = []
+        all_trunk_vlans: list[TrunkVLAN] = []
         ip_offset = 1  # Start from .1 (skip network .0)
+
         for i, m in enumerate(active_members):
-            conn = Connection(
+            # Create Trunk
+            trunk = Trunk(
                 ixp_id=ixp.id,
                 member_id=m.id,
+                name="ae0",
+                state=TrunkState.active,
+                mac_address=f"00:11:22:33:44:{i:02x}",
+            )
+            session.add(trunk)
+            all_trunks.append(trunk)
+        await session.flush()
+        print(f"Created {len(all_trunks)} trunks")
+
+        for i, trunk in enumerate(all_trunks):
+            # Create Connection under each Trunk
+            conn = Connection(
+                ixp_id=ixp.id,
+                trunk_id=trunk.id,
                 switch_id=switches[0].id,
                 name=f"Ethernet{i + 1}",
                 type=ConnectionType.physical,
                 speed=10000,
                 state=ConnectionState.active,
-                mac_address=f"00:11:22:33:44:{i:02x}",
             )
             session.add(conn)
-            connections.append(conn)
-        await session.flush()
-        print(f"Created {len(connections)} connections")
+            all_connections.append(conn)
 
-        # Attach VLANs and IPs to connections
-        for i, conn in enumerate(connections):
-            cv = ConnectionVLAN(
+            # Assign production VLAN to trunk
+            tv = TrunkVLAN(
                 ixp_id=ixp.id,
-                connection_id=conn.id,
+                trunk_id=trunk.id,
                 vlan_id=vlan_prod.id,
             )
-            session.add(cv)
+            session.add(tv)
+            all_trunk_vlans.append(tv)
+        await session.flush()
+        print(f"Created {len(all_connections)} connections")
+        print(f"Created {len(all_trunk_vlans)} trunk VLANs")
 
+        # Assign IPs to trunk VLANs
+        for i, tv in enumerate(all_trunk_vlans):
             ip4 = IPAssignment(
                 ixp_id=ixp.id,
                 pool_id=pool_v4.id,
-                connection_id=conn.id,
+                trunk_vlan_id=tv.id,
                 address=f"192.0.2.{ip_offset + i}",
             )
             session.add(ip4)
@@ -403,7 +425,7 @@ async def _seed_data() -> None:
             ip6 = IPAssignment(
                 ixp_id=ixp.id,
                 pool_id=pool_v6.id,
-                connection_id=conn.id,
+                trunk_vlan_id=tv.id,
                 address=f"2001:db8::{ip_offset + i}",
             )
             session.add(ip6)
@@ -424,16 +446,17 @@ async def _seed_data() -> None:
         await session.flush()
         print(f"Created {len(route_servers)} route servers")
 
-        # -- BGP Sessions (one per active connection per route server) --
+        # -- BGP Sessions (one per trunk VLAN per route server) --
         bgp_count = 0
-        for conn_obj in connections:
-            member_obj = next(m for m in members if m.id == conn_obj.member_id)
+        for j, tv in enumerate(all_trunk_vlans):
+            trunk_obj = all_trunks[j]
+            member_obj = next(m for m in members if m.id == trunk_obj.member_id)
             for rs in route_servers:
                 bgp = BGPSession(
                     ixp_id=ixp.id,
                     route_server_id=rs.id,
-                    connection_id=conn_obj.id,
-                    peer_ip=f"192.0.2.{ip_offset + connections.index(conn_obj)}",
+                    trunk_vlan_id=tv.id,
+                    peer_ip=f"192.0.2.{ip_offset + j}",
                     peer_asn=member_obj.asn,
                     admin_state=BGPAdminState.up,
                     oper_state=BGPOperState.up,

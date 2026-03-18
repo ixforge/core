@@ -32,9 +32,9 @@ class IPAssignment(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    connection_id: Mapped[uuid.UUID] = mapped_column(
+    trunk_vlan_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
-        ForeignKey("connections.id", ondelete="CASCADE"),
+        ForeignKey("trunk_vlans.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

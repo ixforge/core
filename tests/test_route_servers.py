@@ -12,6 +12,7 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
     VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
@@ -23,6 +24,7 @@ from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.rs_ip_assignment import RSIPAssignment
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 
 
@@ -213,10 +215,21 @@ class TestRouteServerCRUD:
         db_session.add(switch)
         await db_session.flush()
 
+        trunk = Trunk(
+            id=uuid.uuid4(), ixp_id=ixp.id, member_id=member.id,
+            name="ae0", state=TrunkState.active,
+        )
+        db_session.add(trunk)
+        vlan = VLAN(id=uuid.uuid4(), ixp_id=ixp.id, name="Peering", vid=100, type=VLANType.production)
+        db_session.add(vlan)
+        await db_session.flush()
+        trunk_vlan = TrunkVLAN(id=uuid.uuid4(), ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan.id)
+        db_session.add(trunk_vlan)
+
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
-            member_id=member.id,
+            trunk_id=trunk.id,
             switch_id=switch.id,
             name="eth-del",
             type=ConnectionType.physical,
@@ -230,7 +243,7 @@ class TestRouteServerCRUD:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
-            connection_id=conn.id,
+            trunk_vlan_id=trunk_vlan.id,
             peer_ip="192.0.2.10",
             peer_asn=64600,
             admin_state=BGPAdminState.up,

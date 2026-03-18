@@ -11,14 +11,14 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ixforge.enums import BGPAdminState, ConnectionState, MemberState
+from ixforge.enums import BGPAdminState, MemberState, TrunkState
 from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
-from ixforge.models.connection import Connection
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.services.templates.loader import get_template_env, get_template_snapshots
 
 logger = structlog.get_logger()
@@ -73,14 +73,15 @@ async def _build_peers(
 ) -> list[PeerContext]:
     """Gather active BGP sessions for the given address family and build peer contexts."""
     stmt = (
-        select(BGPSession, Connection, Member)
-        .join(Connection, BGPSession.connection_id == Connection.id)
-        .join(Member, Connection.member_id == Member.id)
+        select(BGPSession, Member)
+        .join(TrunkVLAN, BGPSession.trunk_vlan_id == TrunkVLAN.id)
+        .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
+        .join(Member, Trunk.member_id == Member.id)
         .where(
             BGPSession.route_server_id == route_server_id,
             BGPSession.af == af,
             BGPSession.admin_state == BGPAdminState.up,
-            Connection.state == ConnectionState.active,
+            Trunk.state == TrunkState.active,
             Member.state == MemberState.active,
         )
         .order_by(BGPSession.peer_asn, BGPSession.peer_ip)
@@ -89,7 +90,7 @@ async def _build_peers(
     rows = result.all()
 
     peers: list[PeerContext] = []
-    for bgp_session, _connection, member in rows:
+    for bgp_session, member in rows:
         protocol_name = _sanitize_protocol_name(member.short_name, bgp_session.peer_ip)
         peers.append(
             PeerContext(

@@ -11,9 +11,9 @@ from sqlalchemy import select
 
 from ixforge.database import get_session_factory, tenant_context
 from ixforge.models.bgp_session import BGPSession
-from ixforge.models.connection import Connection
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.services.config_generation import generate_config
 from ixforge.tasks.setup import app
 
@@ -103,12 +103,13 @@ async def regenerate_configs_for_member(
         tenant_context.set(member.ixp_id)
 
         # Find all distinct route servers that have BGP sessions linked to
-        # connections owned by this member
+        # trunk VLANs owned by this member's trunks
         stmt = (
             select(RouteServer.id)
             .join(BGPSession, BGPSession.route_server_id == RouteServer.id)
-            .join(Connection, BGPSession.connection_id == Connection.id)
-            .where(Connection.member_id == member_uuid)
+            .join(TrunkVLAN, BGPSession.trunk_vlan_id == TrunkVLAN.id)
+            .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
+            .where(Trunk.member_id == member_uuid)
             .distinct()
         )
         result = await session.execute(stmt)
@@ -127,17 +128,17 @@ async def regenerate_configs_for_member(
     return results
 
 
-@app.task(name="regenerate_configs_for_connection", queue="config")
-async def regenerate_configs_for_connection(
-    connection_id: str,
+@app.task(name="regenerate_configs_for_trunk", queue="config")
+async def regenerate_configs_for_trunk(
+    trunk_id: str,
     triggered_by: str | None = None,
 ) -> list[dict[str, str]]:
-    """Regenerate config for all route servers that have sessions on a connection.
+    """Regenerate config for all route servers that have sessions on a trunk.
 
     Parameters
     ----------
-    connection_id:
-        UUID of the connection whose state changed.
+    trunk_id:
+        UUID of the trunk whose state changed.
     triggered_by:
         Optional description of the triggering event.
 
@@ -145,27 +146,28 @@ async def regenerate_configs_for_connection(
     -------
     List of dicts with ``route_server_id`` for each queued generation.
     """
-    conn_uuid = uuid.UUID(connection_id)
-    log = logger.bind(connection_id=connection_id, triggered_by=triggered_by)
-    log.info("regenerate_configs_for_connection.started")
+    trunk_uuid = uuid.UUID(trunk_id)
+    log = logger.bind(trunk_id=trunk_id, triggered_by=triggered_by)
+    log.info("regenerate_configs_for_trunk.started")
 
     session_factory = get_session_factory()
     async with session_factory() as session:
-        conn = await session.get(Connection, conn_uuid)
-        if conn is None:
-            log.warning("regenerate_configs_for_connection.connection_not_found")
+        trunk = await session.get(Trunk, trunk_uuid)
+        if trunk is None:
+            log.warning("regenerate_configs_for_trunk.trunk_not_found")
             return []
-        tenant_context.set(conn.ixp_id)
+        tenant_context.set(trunk.ixp_id)
 
         stmt = (
             select(BGPSession.route_server_id)
-            .where(BGPSession.connection_id == conn_uuid)
+            .join(TrunkVLAN, BGPSession.trunk_vlan_id == TrunkVLAN.id)
+            .where(TrunkVLAN.trunk_id == trunk_uuid)
             .distinct()
         )
         result = await session.execute(stmt)
         rs_ids = [row[0] for row in result.all()]
 
-    log.info("regenerate_configs_for_connection.found_route_servers", count=len(rs_ids))
+    log.info("regenerate_configs_for_trunk.found_route_servers", count=len(rs_ids))
 
     results = []
     for rs_id in rs_ids:

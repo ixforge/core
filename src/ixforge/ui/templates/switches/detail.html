@@ -60,7 +60,6 @@
 <div class="card">
   <div class="flex justify-between items-center mb-4">
     <h2 class="text-lg font-semibold">Conexiones</h2>
-    <a href="/admin/connections/new?switch_id={{ switch.id }}" class="btn-primary btn-sm">Nueva Conexion</a>
   </div>
   {% if connections %}
   <div class="overflow-x-auto">
@@ -69,9 +68,9 @@
         <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
           <th class="pb-3 font-medium">Nombre</th>
           <th class="pb-3 font-medium">Velocidad</th>
+          <th class="pb-3 font-medium">Trunk</th>
           <th class="pb-3 font-medium">Miembro</th>
           <th class="pb-3 font-medium">Estado</th>
-          <th class="pb-3 font-medium">Acciones</th>
         </tr>
       </thead>
       <tbody class="divide-y dark:divide-gray-700">
@@ -79,6 +78,13 @@
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
           <td class="py-3 font-medium">{{ c.name or "-" }}</td>
           <td class="py-3">{{ c.speed or "-" }}</td>
+          <td class="py-3">
+            {% if c.trunk_id %}
+            <a href="/admin/trunks/{{ c.trunk_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ c.trunk_name or "-" }}</a>
+            {% else %}
+            <span class="text-sm text-gray-400">-</span>
+            {% endif %}
+          </td>
           <td class="py-3">
             {% if c.member_name %}
             <a href="/admin/members/{{ c.member_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ c.member_name }}</a>
@@ -93,12 +99,6 @@
             {% elif c.state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
             {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
           </td>
-          <td class="py-3">
-            <div class="flex gap-2">
-              <a href="/admin/connections/{{ c.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
-              <a href="/admin/connections/{{ c.id }}/edit" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Editar</a>
-            </div>
-          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -107,7 +107,6 @@
   {% else %}
   <p class="text-gray-500 dark:text-gray-400 text-center py-4">
     Este switch no tiene conexiones.
-    <a href="/admin/connections/new?switch_id={{ switch.id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">Nueva Conexion</a>
   </p>
   {% endif %}
 </div>

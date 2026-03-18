@@ -69,11 +69,11 @@
       </p>
     </div>
     <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Conexion</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Trunk</p>
       <p class="font-medium">
-        {% if session.connection_id %}
-        <a href="/admin/connections/{{ session.connection_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
-          {{ connection_label or "-" }}
+        {% if trunk_id %}
+        <a href="/admin/trunks/{{ trunk_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+          {{ trunk_label or "-" }}
         </a>
         {% else %}-{% endif %}
       </p>

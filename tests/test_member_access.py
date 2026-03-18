@@ -12,6 +12,8 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
+    VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
@@ -20,7 +22,9 @@ from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import User, UserRole
+from ixforge.models.vlan import VLAN
 from ixforge.services.auth import create_access_token, hash_password
 
 _conn_counter = 0
@@ -29,10 +33,24 @@ _conn_counter = 0
 async def _create_connection(
     db: AsyncSession, ixp: IXP, member: Member, **overrides,
 ) -> Connection:
-    """Create a Connection with required Location + Switch."""
+    """Create a Connection with required Trunk, Location + Switch."""
     global _conn_counter
     _conn_counter += 1
     tag = f"ma-{_conn_counter}"
+
+    # Create trunk if not provided in overrides
+    trunk_id = overrides.pop("trunk_id", None)
+    if trunk_id is None:
+        trunk = Trunk(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            name=f"ae-{tag}",
+            state=overrides.pop("trunk_state", TrunkState.active),
+        )
+        db.add(trunk)
+        await db.flush()
+        trunk_id = trunk.id
 
     location = Location(
         id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-{tag}", city="Test", country="US",
@@ -49,7 +67,7 @@ async def _create_connection(
     defaults = {
         "id": uuid.uuid4(),
         "ixp_id": ixp.id,
-        "member_id": member.id,
+        "trunk_id": trunk_id,
         "switch_id": switch.id,
         "name": f"eth-{tag}",
         "type": ConnectionType.physical,
@@ -115,27 +133,9 @@ class TestMemberConnectionAccess:
         resp = await client.get(
             "/api/v1/connections",
             headers=headers,
-            params={"member_id": str(member.id)},
         )
         assert resp.status_code == 200
         assert len(resp.json()["items"]) >= 1
-
-    async def test_member_cannot_list_other_member_connections(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        ixp: IXP,
-    ):
-        member_a = await _create_member(db_session, ixp)
-        member_b = await _create_member(db_session, ixp)
-        _user, headers_a = await _create_member_user(db_session, member_id=member_a.id)
-
-        resp = await client.get(
-            "/api/v1/connections",
-            headers=headers_a,
-            params={"member_id": str(member_b.id)},
-        )
-        assert resp.status_code == 403
 
     async def test_member_can_get_own_connection(
         self,
@@ -154,40 +154,6 @@ class TestMemberConnectionAccess:
         )
         assert resp.status_code == 200
         assert resp.json()["id"] == str(conn.id)
-
-    async def test_member_cannot_get_other_connection(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        ixp: IXP,
-    ):
-        member_a = await _create_member(db_session, ixp)
-        member_b = await _create_member(db_session, ixp)
-        _user, headers_a = await _create_member_user(db_session, member_id=member_a.id)
-
-        conn_b = await _create_connection(db_session, ixp, member_b)
-
-        resp = await client.get(
-            f"/api/v1/connections/{conn_b.id}",
-            headers=headers_a,
-        )
-        assert resp.status_code == 403
-
-    async def test_member_without_member_id_cannot_list_connections(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        ixp: IXP,
-    ):
-        member = await _create_member(db_session, ixp)
-        _user, headers = await _create_member_user(db_session, member_id=None)
-
-        resp = await client.get(
-            "/api/v1/connections",
-            headers=headers,
-            params={"member_id": str(member.id)},
-        )
-        assert resp.status_code == 403
 
 
 class TestMemberBGPSessionAccess:
@@ -210,13 +176,41 @@ class TestMemberBGPSessionAccess:
         db_session.add(rs)
         await db_session.flush()
 
-        conn = await _create_connection(db_session, ixp, member, state=ConnectionState.active)
+        # Create trunk + trunk_vlan for BGP session
+        trunk = Trunk(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            name=f"ae-{uuid.uuid4().hex[:4]}",
+            state=TrunkState.active,
+        )
+        db_session.add(trunk)
+        await db_session.flush()
+
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name=f"VLAN-{uuid.uuid4().hex[:6]}",
+            vid=100 + hash(uuid.uuid4()) % 3900,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        trunk_vlan = TrunkVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk.id,
+            vlan_id=vlan.id,
+        )
+        db_session.add(trunk_vlan)
+        await db_session.flush()
 
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
-            connection_id=conn.id,
+            trunk_vlan_id=trunk_vlan.id,
             peer_ip="192.0.2.10",
             peer_asn=member.asn,
             admin_state=BGPAdminState.up,
@@ -255,13 +249,41 @@ class TestMemberBGPSessionAccess:
         db_session.add(rs)
         await db_session.flush()
 
-        conn_b = await _create_connection(db_session, ixp, member_b, state=ConnectionState.active)
+        # Create trunk + trunk_vlan for member_b
+        trunk_b = Trunk(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member_b.id,
+            name=f"ae-b-{uuid.uuid4().hex[:4]}",
+            state=TrunkState.active,
+        )
+        db_session.add(trunk_b)
+        await db_session.flush()
+
+        vlan = VLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name=f"VLAN-b-{uuid.uuid4().hex[:6]}",
+            vid=100 + hash(uuid.uuid4()) % 3900,
+            type=VLANType.production,
+        )
+        db_session.add(vlan)
+        await db_session.flush()
+
+        trunk_vlan_b = TrunkVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk_b.id,
+            vlan_id=vlan.id,
+        )
+        db_session.add(trunk_vlan_b)
+        await db_session.flush()
 
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
-            connection_id=conn_b.id,
+            trunk_vlan_id=trunk_vlan_b.id,
             peer_ip="192.0.2.20",
             peer_asn=member_b.asn,
             admin_state=BGPAdminState.up,

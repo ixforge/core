@@ -5,7 +5,7 @@ from ixforge.models.asn_cache import ASNCache
 from ixforge.models.base import Base
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
-from ixforge.models.connection import Connection, ConnectionVLAN
+from ixforge.models.connection import Connection
 from ixforge.models.contact import Contact
 from ixforge.models.custom_field import CustomFieldDefinition
 from ixforge.models.event import Event
@@ -17,6 +17,7 @@ from ixforge.models.route_server import RouteServer
 from ixforge.models.route_server_vlan import RouteServerVLAN
 from ixforge.models.rs_ip_assignment import RSIPAssignment
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import User
 from ixforge.models.vlan import VLAN
 from ixforge.models.vlan_member import VLANMember
@@ -30,7 +31,6 @@ __all__ = [
     "Base",
     "ConfigVersion",
     "Connection",
-    "ConnectionVLAN",
     "Contact",
     "CustomFieldDefinition",
     "Event",
@@ -42,6 +42,8 @@ __all__ = [
     "RouteServer",
     "RouteServerVLAN",
     "Switch",
+    "Trunk",
+    "TrunkVLAN",
     "User",
     "VLANMember",
 ]

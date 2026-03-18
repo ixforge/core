@@ -69,24 +69,34 @@ async def bgp_session_detail(request: Request) -> Response:
         except APIError:
             pass
 
-    # Resolve connection info
-    connection_label = ""
-    if session.get("connection_id"):
+    # Resolve trunk+VLAN info from trunk_vlan_id
+    trunk_label = ""
+    trunk_id = ""
+    if session.get("trunk_vlan_id"):
+        # Find the trunk that owns this trunk_vlan
         try:
-            conn = await api.get(f"/api/v1/connections/{session['connection_id']}", token)
-            if conn.get("member_id"):
+            trunks_data = await api.get("/api/v1/trunks", token, params={"limit": 200})
+            for t in trunks_data.get("items", []):
                 try:
-                    member = await api.get(f"/api/v1/members/{conn['member_id']}", token)
-                    connection_label = member.get("name", "")
+                    tvs = await api.get(f"/api/v1/trunks/{t['id']}/vlans", token)
+                    for tv in tvs:
+                        if tv.get("id") == session["trunk_vlan_id"]:
+                            trunk_id = t["id"]
+                            member_name = t.get("member_name", "")
+                            trunk_label = f"{member_name} / {t.get('name', '')}"
+                            break
                 except APIError:
                     pass
+                if trunk_id:
+                    break
         except APIError:
             pass
 
     return render(request, "bgp_sessions/detail.html", {
         "session": session,
         "rs_name": rs_name,
-        "connection_label": connection_label,
+        "trunk_label": trunk_label,
+        "trunk_id": trunk_id,
         "page_title": f"BGP Session - {session.get('peer_ip', '')}",
     })
 

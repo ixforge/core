@@ -10,14 +10,16 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
+    TrunkState,
     VLANType,
 )
-from ixforge.models.connection import Connection, ConnectionVLAN
+from ixforge.models.connection import Connection
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.switch import Switch
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 
 
@@ -33,7 +35,7 @@ class TestIXFExport:
     async def test_export_with_active_member(
         self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
     ):
-        """IX-F export should include active members with connections."""
+        """IX-F export should include active members with trunks."""
         member = Member(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
@@ -44,6 +46,16 @@ class TestIXFExport:
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
+
+        trunk = Trunk(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            name="ae-ixf",
+            state=TrunkState.active,
+        )
+        db_session.add(trunk)
+        await db_session.flush()
 
         location = Location(
             id=uuid.uuid4(),
@@ -75,10 +87,19 @@ class TestIXFExport:
         db_session.add(vlan)
         await db_session.flush()
 
+        trunk_vlan = TrunkVLAN(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk.id,
+            vlan_id=vlan.id,
+        )
+        db_session.add(trunk_vlan)
+        await db_session.flush()
+
         conn = Connection(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
-            member_id=member.id,
+            trunk_id=trunk.id,
             switch_id=sw.id,
             name="Ethernet1",
             type=ConnectionType.physical,
@@ -87,14 +108,6 @@ class TestIXFExport:
         )
         db_session.add(conn)
         await db_session.flush()
-
-        cv = ConnectionVLAN(
-            id=uuid.uuid4(),
-            ixp_id=ixp.id,
-            connection_id=conn.id,
-            vlan_id=vlan.id,
-        )
-        db_session.add(cv)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -110,7 +123,7 @@ class TestIXFExport:
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             pool_id=pool.id,
-            connection_id=conn.id,
+            trunk_vlan_id=trunk_vlan.id,
             address="198.51.100.10",
         )
         db_session.add(ip)
@@ -126,13 +139,13 @@ class TestIXFExport:
         self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
     ):
         """Prospect and suspended members should not appear in IX-F export."""
-        for state in [MemberState.prospect, MemberState.suspended, MemberState.terminated]:
+        for i, state in enumerate([MemberState.prospect, MemberState.suspended, MemberState.terminated]):
             m = Member(
                 id=uuid.uuid4(),
                 ixp_id=ixp.id,
                 name=f"Non Active {state}",
-                short_name=f"NA{state[:2].upper()}",
-                asn=64800 + hash(state) % 100,
+                short_name=f"NA{state[:2].upper()}{i}",
+                asn=64800 + i,
                 state=state,
                 peering_policy=PeeringPolicy.open,
             )
@@ -141,7 +154,7 @@ class TestIXFExport:
 
         resp = await client.get("/api/v1/ixf/member-export")
         assert resp.status_code == 200
-        # No active connections, so member_list should be empty or only contain previously active
+        # No active trunks, so member_list should be empty or only contain previously active
         body = resp.json()
         assert body["version"] == "1.0"
 

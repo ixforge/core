@@ -70,8 +70,7 @@ class TestPortalDashboard:
     def test_member_renders_dashboard(self, member_client, app):
         app.state.api.get = AsyncMock(side_effect=[
             FAKE_MEMBER,
-            {"items": []},  # connections
-            {"items": []},  # bgp-sessions
+            {"items": []},  # trunks
         ])
         resp = member_client.get("/portal/dashboard")
         assert resp.status_code == 200
@@ -94,15 +93,15 @@ class TestPortalProfile:
         assert resp.status_code == 200
 
 
-class TestPortalConnections:
-    def test_member_renders_connections(self, member_client, app):
+class TestPortalTrunks:
+    def test_member_renders_trunks(self, member_client, app):
         app.state.api.get = AsyncMock(return_value={"items": []})
-        resp = member_client.get("/portal/connections")
+        resp = member_client.get("/portal/trunks")
         assert resp.status_code == 200
 
     def test_no_auth_redirects(self, app):
         client = TestClient(app, follow_redirects=False)
-        resp = client.get("/portal/connections")
+        resp = client.get("/portal/trunks")
         assert resp.status_code == 302
         assert resp.headers["location"] == "/login"
 
@@ -135,7 +134,7 @@ class TestPortalAccessControl:
 
     @pytest.mark.parametrize("path", [
         "/portal/profile",
-        "/portal/connections",
+        "/portal/trunks",
         "/portal/bgp-sessions",
         "/portal/contacts",
     ])

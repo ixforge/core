@@ -22,11 +22,11 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "bgp_sessions"
     __table_args__ = (
         UniqueConstraint(
-            "route_server_id", "connection_id", "af",
-            name="uq_bgp_sessions_rs_conn_af",
+            "route_server_id", "trunk_vlan_id", "af",
+            name="uq_bgp_sessions_rs_trunk_vlan_af",
         ),
         CheckConstraint("peer_asn > 0", name="ck_bgp_sessions_peer_asn_positive"),
-        Index("ix_bgp_sessions_rs_conn", "route_server_id", "connection_id"),
+        Index("ix_bgp_sessions_rs_trunk_vlan", "route_server_id", "trunk_vlan_id"),
         CheckConstraint("af IN (4, 6)", name="ck_bgp_sessions_af_valid"),
     )
 
@@ -36,9 +36,9 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    connection_id: Mapped[uuid.UUID] = mapped_column(
+    trunk_vlan_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
-        ForeignKey("connections.id", ondelete="CASCADE"),
+        ForeignKey("trunk_vlans.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

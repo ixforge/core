@@ -7,9 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.exceptions import ConflictError, NotFoundError
-from ixforge.models.connection import ConnectionVLAN
 from ixforge.models.ip import IPPool
 from ixforge.models.route_server_vlan import RouteServerVLAN
+from ixforge.models.trunk import TrunkVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.vlan import VLANCreate, VLANRead, VLANUpdate
@@ -94,11 +94,11 @@ async def delete(session: AsyncSession, ixp_id: uuid.UUID, vlan_id: uuid.UUID) -
     if has_pool is not None:
         raise ConflictError("Cannot delete VLAN: IP pools are still associated")
 
-    has_cv = await session.scalar(
-        select(ConnectionVLAN.id).where(ConnectionVLAN.vlan_id == vlan_id).limit(1)
+    has_tv = await session.scalar(
+        select(TrunkVLAN.id).where(TrunkVLAN.vlan_id == vlan_id).limit(1)
     )
-    if has_cv is not None:
-        raise ConflictError("Cannot delete VLAN: connections are still using it")
+    if has_tv is not None:
+        raise ConflictError("Cannot delete VLAN: trunks are still using it")
 
     has_rs_vlan = await session.scalar(
         select(RouteServerVLAN.id).where(RouteServerVLAN.vlan_id == vlan_id).limit(1)

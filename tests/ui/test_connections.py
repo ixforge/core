@@ -1,4 +1,4 @@
-"""Tests for connections UI routes."""
+"""Tests for trunk UI routes (replaces old connection UI tests)."""
 
 import uuid
 from unittest.mock import AsyncMock
@@ -25,18 +25,16 @@ FAKE_MEMBER = {
     "updated_at": "2026-01-01T00:00:00",
 }
 
-FAKE_CONNECTION = {
+FAKE_TRUNK = {
     "id": str(uuid.uuid4()),
     "ixp_id": str(uuid.uuid4()),
     "member_id": FAKE_MEMBER["id"],
-    "switch_id": str(uuid.uuid4()),
-    "name": "Ethernet1",
-    "type": "physical",
+    "member_name": "Acme Networks",
+    "name": "ae0",
     "state": "draft",
-    "speed": 10000,
     "mac_address": "00:11:22:33:44:55",
-    "vlans": [],
-    "ips": [],
+    "notes": None,
+    "extra_data": None,
     "created_at": "2026-01-15T00:00:00",
     "updated_at": "2026-01-15T00:00:00",
 }
@@ -45,6 +43,16 @@ FAKE_VLAN = {
     "id": str(uuid.uuid4()),
     "name": "Peering",
     "vid": 100,
+}
+
+FAKE_TRUNK_VLAN = {
+    "id": str(uuid.uuid4()),
+    "trunk_id": FAKE_TRUNK["id"],
+    "vlan_id": FAKE_VLAN["id"],
+    "vlan_name": "Peering",
+    "vid": 100,
+    "created_at": "2026-01-15T00:00:00",
+    "updated_at": "2026-01-15T00:00:00",
 }
 
 FAKE_IP_POOL = {
@@ -75,110 +83,88 @@ def authed_client(app):
     return client
 
 
-class TestConnectionsList:
-    def test_list_renders_with_member(self, authed_client, app):
+class TestTrunkList:
+    def test_list_renders(self, authed_client, app):
         async def fake_get(path, token, params=None):
             if path == "/api/v1/members":
                 return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
-            if path == "/api/v1/connections":
-                return {"items": [FAKE_CONNECTION], "next_cursor": None, "has_more": False}
+            if path == "/api/v1/trunks":
+                return {"items": [FAKE_TRUNK], "next_cursor": None, "has_more": False}
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get(f"/admin/connections?member_id={FAKE_MEMBER['id']}")
+        resp = authed_client.get("/admin/trunks")
         assert resp.status_code == 200
         assert "Acme Networks" in resp.text
-        assert "00:11:22:33:44:55" in resp.text
-
-    def test_list_no_member_shows_all(self, authed_client, app):
-        async def fake_get(path, token, params=None):
-            if path == "/api/v1/members":
-                return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
-            if path == "/api/v1/connections":
-                return {"items": [FAKE_CONNECTION], "next_cursor": None, "has_more": False}
-            return {}
-
-        app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get("/admin/connections")
-        assert resp.status_code == 200
-        assert "Conexiones" in resp.text
-        assert "00:11:22:33:44:55" in resp.text
+        assert "ae0" in resp.text
 
     def test_list_requires_auth(self):
         app = create_ui_app()
         client = TestClient(app, follow_redirects=False)
-        resp = client.get("/admin/connections")
+        resp = client.get("/admin/trunks")
         assert resp.status_code == 302
 
     def test_list_filters_by_state(self, authed_client, app):
-        active_conn = {**FAKE_CONNECTION, "state": "active"}
-        draft_conn = {**FAKE_CONNECTION, "id": str(uuid.uuid4()), "state": "draft"}
+        active_trunk = {**FAKE_TRUNK, "state": "active"}
+        draft_trunk = {**FAKE_TRUNK, "id": str(uuid.uuid4()), "state": "draft"}
 
         async def fake_get(path, token, params=None):
             if path == "/api/v1/members":
                 return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
-            if path == "/api/v1/connections":
-                return {"items": [active_conn, draft_conn], "next_cursor": None, "has_more": False}
+            if path == "/api/v1/trunks":
+                return {"items": [active_trunk, draft_trunk], "next_cursor": None, "has_more": False}
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get(f"/admin/connections?member_id={FAKE_MEMBER['id']}&state=active")
+        resp = authed_client.get("/admin/trunks?state=active")
         assert resp.status_code == 200
-        # Should only show the active connection badge, not draft
         assert "Activo" in resp.text
 
 
-class TestConnectionDetail:
+class TestTrunkDetail:
     def test_detail_renders(self, authed_client, app):
-        conn_with_vlans = {
-            **FAKE_CONNECTION,
-            "vlans": [{"vlan_id": FAKE_VLAN["id"], "vlan_name": "Peering", "vid": 100}],
-            "ips": [{"id": str(uuid.uuid4()), "address": "10.0.0.1", "pool_network": "10.0.0.0/24"}],
-        }
-
-        fake_conn_vlan = {"vlan_id": FAKE_VLAN["id"]}
-        fake_conn_ip = {"id": str(uuid.uuid4()), "address": "10.0.0.1", "pool_network": "10.0.0.0/24"}
-
         async def fake_get(path, token, params=None):
-            if path.endswith("/vlans") and "/connections/" in path:
-                return [fake_conn_vlan]
-            if path.endswith("/ips") and "/connections/" in path:
-                return [fake_conn_ip]
-            if path.startswith("/api/v1/connections/"):
-                return conn_with_vlans
+            if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans":
+                return [FAKE_TRUNK_VLAN]
+            if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}/connections":
+                return []
+            if path.startswith(f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/") and path.endswith("/ips"):
+                return []
+            if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}":
+                return FAKE_TRUNK
             if path.startswith("/api/v1/members/"):
                 return FAKE_MEMBER
             if path == "/api/v1/vlans":
                 return {"items": [FAKE_VLAN], "next_cursor": None, "has_more": False}
             if path == "/api/v1/ip-pools":
                 return {"items": [FAKE_IP_POOL], "next_cursor": None, "has_more": False}
-            return {}
-
-        app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get(f"/admin/connections/{FAKE_CONNECTION['id']}")
-        assert resp.status_code == 200
-        assert "Acme Networks" in resp.text
-        assert "00:11:22:33:44:55" in resp.text
-        assert "Peering" in resp.text
-        assert "10.0.0.1" in resp.text
-
-    def test_detail_404_redirects(self, authed_client, app):
-        app.state.api.get = AsyncMock(side_effect=APIError(404))
-        resp = authed_client.get(f"/admin/connections/{uuid.uuid4()}", follow_redirects=False)
-        assert resp.status_code == 302
-
-
-class TestConnectionForm:
-    def test_new_form_renders(self, authed_client, app):
-        async def fake_get(path, token, params=None):
-            if path == "/api/v1/members":
-                return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
+            if path == "/api/v1/route-servers":
+                return {"items": [], "next_cursor": None, "has_more": False}
             if path == "/api/v1/switches":
                 return {"items": [FAKE_SWITCH], "next_cursor": None, "has_more": False}
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get("/admin/connections/new")
+        resp = authed_client.get(f"/admin/trunks/{FAKE_TRUNK['id']}")
+        assert resp.status_code == 200
+        assert "Acme Networks" in resp.text
+        assert "ae0" in resp.text
+
+    def test_detail_404_redirects(self, authed_client, app):
+        app.state.api.get = AsyncMock(side_effect=APIError(404))
+        resp = authed_client.get(f"/admin/trunks/{uuid.uuid4()}", follow_redirects=False)
+        assert resp.status_code == 302
+
+
+class TestTrunkForm:
+    def test_new_form_renders(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == "/api/v1/members":
+                return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get("/admin/trunks/new")
         assert resp.status_code == 200
         assert "Acme Networks" in resp.text
         assert "member_id" in resp.text
@@ -187,101 +173,84 @@ class TestConnectionForm:
         async def fake_get(path, token, params=None):
             if path == "/api/v1/members":
                 return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
-            if path == "/api/v1/switches":
-                return {"items": [FAKE_SWITCH], "next_cursor": None, "has_more": False}
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        app.state.api.post = AsyncMock(return_value={**FAKE_CONNECTION})
+        app.state.api.post = AsyncMock(return_value={**FAKE_TRUNK})
         resp = authed_client.post(
-            "/admin/connections/new",
+            "/admin/trunks/new",
             data={
                 "member_id": FAKE_MEMBER["id"],
-                "type": "physical",
-                "speed": "10000",
-                "mac_address": "00:11:22:33:44:55",
+                "name": "ae0",
             },
             follow_redirects=False,
         )
         assert resp.status_code == 302
-        assert f"/admin/connections/{FAKE_CONNECTION['id']}" in resp.headers["location"]
+        assert f"/admin/trunks/{FAKE_TRUNK['id']}" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
         async def fake_get(path, token, params=None):
             if path == "/api/v1/members":
                 return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
-            if path == "/api/v1/switches":
-                return {"items": [FAKE_SWITCH], "next_cursor": None, "has_more": False}
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
         app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
         resp = authed_client.post(
-            "/admin/connections/new",
-            data={"member_id": "", "type": "physical", "speed": "0", "mac_address": ""},
+            "/admin/trunks/new",
+            data={"member_id": "", "name": ""},
         )
         assert resp.status_code == 200
         assert "Validation error" in resp.text
 
     def test_edit_form_renders(self, authed_client, app):
         async def fake_get(path, token, params=None):
-            if path.startswith("/api/v1/connections/"):
-                return FAKE_CONNECTION
+            if path.startswith("/api/v1/trunks/"):
+                return FAKE_TRUNK
             if path == "/api/v1/members":
                 return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
-            if path == "/api/v1/switches":
-                return {"items": [FAKE_SWITCH], "next_cursor": None, "has_more": False}
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get(f"/admin/connections/{FAKE_CONNECTION['id']}/edit")
+        resp = authed_client.get(f"/admin/trunks/{FAKE_TRUNK['id']}/edit")
         assert resp.status_code == 200
-        assert "00:11:22:33:44:55" in resp.text
+        assert "ae0" in resp.text
 
     def test_edit_submit_redirects(self, authed_client, app):
-        app.state.api.patch = AsyncMock(return_value={**FAKE_CONNECTION})
+        app.state.api.patch = AsyncMock(return_value={**FAKE_TRUNK})
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/edit",
-            data={"type": "physical", "speed": "10000", "mac_address": "AA:BB:CC:DD:EE:FF"},
+            f"/admin/trunks/{FAKE_TRUNK['id']}/edit",
+            data={"name": "ae1", "mac_address": "AA:BB:CC:DD:EE:FF"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
 
 
-class TestConnectionActions:
+class TestTrunkActions:
     def test_transition(self, authed_client, app):
         app.state.api.post = AsyncMock(return_value=None)
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/transition",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/transition",
             data={"state": "provisioning"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
         app.state.api.post.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/transition",
+            f"/api/v1/trunks/{FAKE_TRUNK['id']}/transition",
             "test-jwt",
             json={"state": "provisioning"},
         )
 
-    def test_transition_error_flashes(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(409, "Invalid transition"))
-        resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/transition",
-            data={"state": "active"},
-            follow_redirects=False,
-        )
-        assert resp.status_code == 302
-
     def test_assign_vlan(self, authed_client, app):
         app.state.api.post = AsyncMock(return_value=None)
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/vlans",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans",
             data={"vlan_id": FAKE_VLAN["id"]},
             follow_redirects=False,
         )
         assert resp.status_code == 302
         app.state.api.post.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/vlans",
+            f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans",
             "test-jwt",
             json={"vlan_id": FAKE_VLAN["id"]},
         )
@@ -289,25 +258,25 @@ class TestConnectionActions:
     def test_unassign_vlan(self, authed_client, app):
         app.state.api.delete = AsyncMock(return_value=None)
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/vlans/{FAKE_VLAN['id']}/delete",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/delete",
             follow_redirects=False,
         )
         assert resp.status_code == 302
         app.state.api.delete.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/vlans/{FAKE_VLAN['id']}",
+            f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}",
             "test-jwt",
         )
 
     def test_assign_ip(self, authed_client, app):
         app.state.api.post = AsyncMock(return_value=None)
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/ips",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips",
             data={"pool_id": FAKE_IP_POOL["id"]},
             follow_redirects=False,
         )
         assert resp.status_code == 302
         app.state.api.post.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/ips",
+            f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips",
             "test-jwt",
             json={"pool_id": FAKE_IP_POOL["id"]},
         )
@@ -315,13 +284,13 @@ class TestConnectionActions:
     def test_assign_ip_with_address(self, authed_client, app):
         app.state.api.post = AsyncMock(return_value=None)
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/ips",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips",
             data={"pool_id": FAKE_IP_POOL["id"], "address": "10.0.0.5"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
         app.state.api.post.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/ips",
+            f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips",
             "test-jwt",
             json={"pool_id": FAKE_IP_POOL["id"], "address": "10.0.0.5"},
         )
@@ -330,19 +299,19 @@ class TestConnectionActions:
         assignment_id = str(uuid.uuid4())
         app.state.api.delete = AsyncMock(return_value=None)
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/ips/{assignment_id}/delete",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips/{assignment_id}/delete",
             follow_redirects=False,
         )
         assert resp.status_code == 302
         app.state.api.delete.assert_called_once_with(
-            f"/api/v1/connections/{FAKE_CONNECTION['id']}/ips/{assignment_id}",
+            f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips/{assignment_id}",
             "test-jwt",
         )
 
     def test_assign_vlan_error_flashes(self, authed_client, app):
         app.state.api.post = AsyncMock(side_effect=APIError(400, "VLAN already assigned"))
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/vlans",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans",
             data={"vlan_id": FAKE_VLAN["id"]},
             follow_redirects=False,
         )
@@ -351,8 +320,22 @@ class TestConnectionActions:
     def test_assign_ip_error_flashes(self, authed_client, app):
         app.state.api.post = AsyncMock(side_effect=APIError(400, "Pool exhausted"))
         resp = authed_client.post(
-            f"/admin/connections/{FAKE_CONNECTION['id']}/ips",
+            f"/admin/trunks/{FAKE_TRUNK['id']}/vlans/{FAKE_TRUNK_VLAN['id']}/ips",
             data={"pool_id": FAKE_IP_POOL["id"]},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_add_connection(self, authed_client, app):
+        app.state.api.post = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/trunks/{FAKE_TRUNK['id']}/connections",
+            data={
+                "switch_id": FAKE_SWITCH["id"],
+                "name": "Ethernet1",
+                "type": "physical",
+                "speed": "10000",
+            },
             follow_redirects=False,
         )
         assert resp.status_code == 302

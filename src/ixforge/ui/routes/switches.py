@@ -54,9 +54,24 @@ async def switch_detail(request: Request) -> Response:
             return RedirectResponse("/admin/switches", status_code=302)
         raise
 
+    # Resolve trunk names for each connection
+    conn_items = connections_data.get("items", [])
+    trunk_cache: dict[str, Any] = {}
+    for c in conn_items:
+        tid = c.get("trunk_id", "")
+        if tid and tid not in trunk_cache:
+            try:
+                trunk_cache[tid] = await api.get(f"/api/v1/trunks/{tid}", token)
+            except APIError:
+                trunk_cache[tid] = {}
+        trunk = trunk_cache.get(tid, {})
+        c["trunk_name"] = trunk.get("name", "")
+        c["member_name"] = trunk.get("member_name", "")
+        c["member_id"] = trunk.get("member_id", "")
+
     return render(request, "switches/detail.html", {
         "switch": switch,
-        "connections": connections_data.get("items", []),
+        "connections": conn_items,
         "page_title": switch.get("name", "Switch"),
     })
 
