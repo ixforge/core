@@ -26,6 +26,10 @@ class BGPSessionCreate(BaseModel):
             addr = ipaddress.ip_address(self.peer_ip)
         except ValueError as exc:
             raise ValueError(f"Invalid IP address: {self.peer_ip}") from exc
+        if addr.is_loopback or addr.is_multicast or addr.is_unspecified or addr.is_link_local:
+            raise ValueError(
+                f"peer_ip {self.peer_ip} cannot be loopback, multicast, unspecified, or link-local"
+            )
         if self.af == 4 and addr.version != 4:
             raise ValueError("peer_ip must be an IPv4 address when af=4")
         if self.af == 6 and addr.version != 6:

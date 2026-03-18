@@ -2,7 +2,7 @@
 
 factory-boy does not natively support async SQLAlchemy, so these factories
 build model instances in-memory (``Meta.strategy = BUILD_STRATEGY``).
-Tests persist objects explicitly via ``session.add()`` + ``session.flush()``.
+Tests persist objects explicitly via ``session.add()`` + ``session.flush()``
 """
 
 import uuid

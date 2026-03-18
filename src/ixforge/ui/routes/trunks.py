@@ -170,10 +170,12 @@ async def trunk_new(request: Request) -> Response:
 
     if request.method == "GET":
         members_data = await api.get("/api/v1/members", token, params={"limit": 200})
+        preselect_member_id = request.query_params.get("member_id", "")
 
         return render(request, "trunks/form.html", {
             "trunk": None,
             "members": members_data.get("items", []),
+            "preselect_member_id": preselect_member_id,
             "errors": {},
             "page_title": "Nuevo Trunk",
         })
@@ -375,7 +377,7 @@ async def trunk_add_connection(request: Request) -> Response:
         "switch_id": str(form.get("switch_id", "")),
         "name": str(form.get("name", "")),
         "type": str(form.get("type", "physical")),
-        "speed": int(str(form.get("speed", 0)) or 0),
+        "speed": int(str(form.get("speed", 0)) or 0) if str(form.get("speed", "")).isdigit() else 0,
     }
 
     try:

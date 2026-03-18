@@ -361,16 +361,14 @@ class TestConfigGeneration:
         )
         assert resp.status_code == 404
 
-    async def test_generate_produces_different_hash_per_timestamp(
+    async def test_generate_idempotent_same_input(
         self,
         client: AsyncClient,
         auth_headers: dict,
         db_session: AsyncSession,
         ixp: IXP,
     ):
-        """Each generation includes generated_at timestamp, so consecutive calls may differ."""
-        import asyncio
-
+        """Consecutive generations with same input should succeed"""
         rs = await _setup_route_server(db_session, ixp)
         await _setup_active_peer(db_session, ixp, rs)
 
@@ -378,13 +376,10 @@ class TestConfigGeneration:
             f"/api/v1/route-servers/{rs.id}/config/generate",
             headers=auth_headers,
         )
-        # Esperar un poco para que cambie el timestamp
-        await asyncio.sleep(0.01)
         resp2 = await client.post(
             f"/api/v1/route-servers/{rs.id}/config/generate",
             headers=auth_headers,
         )
-        # Ambas deben ser exitosas, el hash puede o no diferir segun el timestamp
         assert resp1.status_code == 201
         assert resp2.status_code == 201
         assert len(resp1.json()["config_hash"]) == 64

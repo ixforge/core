@@ -29,7 +29,7 @@
       <select id="member_id" name="member_id" class="input-field w-full" required>
         <option value="">Seleccionar miembro...</option>
         {% for m in members %}
-        <option value="{{ m.id }}" {% if trunk and trunk.member_id == m.id %}selected{% endif %}>{{ m.name }} (AS{{ m.asn }})</option>
+        <option value="{{ m.id }}" {% if (trunk and trunk.member_id == m.id) or (not trunk and preselect_member_id == m.id) %}selected{% endif %}>{{ m.name }} (AS{{ m.asn }})</option>
         {% endfor %}
       </select>
     </div>

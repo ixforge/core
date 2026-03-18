@@ -27,16 +27,11 @@ from ixforge.models.user import User, UserRole
 from ixforge.models.vlan import VLAN
 from ixforge.services.auth import create_access_token, hash_password
 
-_conn_counter = 0
-
-
 async def _create_connection(
     db: AsyncSession, ixp: IXP, member: Member, **overrides,
 ) -> Connection:
-    """Create a Connection with required Trunk, Location + Switch."""
-    global _conn_counter
-    _conn_counter += 1
-    tag = f"ma-{_conn_counter}"
+    """Create a Connection with required Trunk, Location + Switch"""
+    tag = f"ma-{uuid.uuid4().hex[:6]}"
 
     # Create trunk if not provided in overrides
     trunk_id = overrides.pop("trunk_id", None)
