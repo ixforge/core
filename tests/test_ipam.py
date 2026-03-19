@@ -977,7 +977,7 @@ class TestPoolCreationVLANValidation:
         ixp: IXP,
     ):
         """Creating a pool with a vlan_id belonging to a different IXP must fail."""
-        other_ixp = IXP(name="Other IXP Pool", short_name="OIP", asn=65200, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP Pool", short_name="OIP", asn=65200, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         vlan = VLAN(

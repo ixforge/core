@@ -64,7 +64,7 @@ class TestRSIPService:
         assert rs.ip_v4 is None
 
     async def test_assign_wrong_pool_ixp_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer) -> None:
-        other_ixp = IXP(name="Other IXP", short_name="OTH", asn=65200, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP", short_name="OTH", asn=65200, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         vlan2 = VLAN(ixp_id=other_ixp.id, name="V", vid=20, type=VLANType.production)
@@ -138,7 +138,7 @@ class TestRSIPService:
 
     async def test_assign_rs_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool) -> None:
         """Assigning an IP to a RS that belongs to a different IXP should raise NotFoundError"""
-        other_ixp = IXP(name="Other IXP RS", short_name="ORS", asn=65300, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP RS", short_name="ORS", asn=65300, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         with pytest.raises(NotFoundError):
@@ -146,7 +146,7 @@ class TestRSIPService:
 
     async def test_list_assignments_rs_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer) -> None:
         """Listing assignments for a RS that belongs to a different IXP should raise NotFoundError"""
-        other_ixp = IXP(name="Other IXP List", short_name="ORL", asn=65301, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP List", short_name="ORL", asn=65301, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         with pytest.raises(NotFoundError):
