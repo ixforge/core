@@ -98,14 +98,21 @@ def _run_createsuperuser() -> None:
 
 async def _create_admin_user(email: str, password: str, full_name: str) -> None:
     """Insert the admin user into the database."""
-    from sqlalchemy import select
+    from sqlalchemy import func, select
 
     from ixforge.database import get_session_factory
+    from ixforge.models.ixp import IXP
     from ixforge.models.user import User, UserRole
     from ixforge.services.auth import hash_password
 
     session_factory = get_session_factory()
     async with session_factory() as session:
+        # Verify at least one IXP exists
+        ixp_count = await session.scalar(select(func.count()).select_from(IXP))
+        if not ixp_count:
+            print("Error: no IXP configured. Run setup via the web UI first.")
+            sys.exit(1)
+
         result = await session.execute(select(User).where(User.email == email))
         existing = result.scalar_one_or_none()
         if existing is not None:
@@ -228,255 +235,6 @@ def _run_restore(archive: str) -> None:
     print("Restore completed successfully.")
 
 
-async def _seed_data() -> None:
-    """Insert sample development data (idempotent)."""
-    from sqlalchemy import select
-
-    from ixforge.database import get_session_factory
-    from ixforge.enums import (
-        BGPAdminState,
-        BGPOperState,
-        ConnectionState,
-        ConnectionType,
-        MemberState,
-        PeeringPolicy,
-        TrunkState,
-        VLANType,
-    )
-    from ixforge.models.bgp_session import BGPSession
-    from ixforge.models.connection import Connection
-    from ixforge.models.ip import IPAssignment, IPPool
-    from ixforge.models.ixp import IXP
-    from ixforge.models.location import Location
-    from ixforge.models.member import Member
-    from ixforge.models.route_server import RouteServer
-    from ixforge.models.switch import Switch
-    from ixforge.models.trunk import Trunk, TrunkVLAN
-    from ixforge.models.vlan import VLAN
-
-    session_factory = get_session_factory()
-    async with session_factory() as session:
-        # Check idempotency: skip if an IXP named "Demo IXP" already exists
-        result = await session.execute(select(IXP).where(IXP.short_name == "DEMO"))
-        if result.scalar_one_or_none() is not None:
-            print("Seed data already exists, skipping.")
-            return
-
-        # -- IXP --
-        ixp = IXP(
-            name="Demo IXP",
-            short_name="DEMO",
-            asn=65000,
-            website="https://demo-ixp.example.net",
-            country="US",
-            city="San Francisco",
-        )
-        session.add(ixp)
-        await session.flush()
-        print(f"Created IXP: {ixp.name} (id={ixp.id})")
-
-        # -- Members in various states --
-        members_data = [
-            ("Acme Networks", "ACME", 64512, MemberState.active, PeeringPolicy.open),
-            ("Beta Corp", "BETA", 64513, MemberState.provisioning, PeeringPolicy.selective),
-            ("Gamma Telecom", "GAMMA", 64514, MemberState.prospect, PeeringPolicy.open),
-            ("Delta ISP", "DELTA", 64515, MemberState.suspended, PeeringPolicy.restrictive),
-            ("Epsilon Cloud", "EPSILON", 64516, MemberState.active, PeeringPolicy.open),
-        ]
-        members: list[Member] = []
-        for name, short, asn, state, policy in members_data:
-            m = Member(
-                ixp_id=ixp.id,
-                name=name,
-                short_name=short,
-                asn=asn,
-                state=state,
-                peering_policy=policy,
-                website=f"https://{short.lower()}.example.net",
-            )
-            session.add(m)
-            members.append(m)
-        await session.flush()
-        print(f"Created {len(members)} members")
-
-        # -- Location --
-        location = Location(
-            ixp_id=ixp.id,
-            name="DC-01",
-            city="Buenos Aires",
-            country="AR",
-        )
-        session.add(location)
-        await session.flush()
-        print(f"Created location: {location.name}")
-
-        # -- Switches --
-        switches: list[Switch] = []
-        for i in range(2):
-            sw = Switch(
-                ixp_id=ixp.id,
-                name=f"switch-{i + 1:02d}",
-                vendor="Arista",
-                model="DCS-7280SR-48C6",
-                management_ip=f"10.0.0.{i + 1}",
-                is_active=True,
-                location_id=location.id,
-            )
-            session.add(sw)
-            switches.append(sw)
-        await session.flush()
-        print(f"Created {len(switches)} switches")
-
-        # -- VLANs --
-        vlan_prod = VLAN(
-            ixp_id=ixp.id,
-            name="Production Peering",
-            vid=100,
-            type=VLANType.production,
-            description="Main peering VLAN",
-        )
-        vlan_quar = VLAN(
-            ixp_id=ixp.id,
-            name="Quarantine",
-            vid=999,
-            type=VLANType.quarantine,
-            description="Quarantine VLAN for new members",
-        )
-        session.add(vlan_prod)
-        session.add(vlan_quar)
-        await session.flush()
-        print("Created 2 VLANs")
-
-        # -- IP Pools --
-        pool_v4 = IPPool(
-            ixp_id=ixp.id,
-            vlan_id=vlan_prod.id,
-            network="192.0.2.0/24",
-            af=4,
-        )
-        pool_v6 = IPPool(
-            ixp_id=ixp.id,
-            vlan_id=vlan_prod.id,
-            network="2001:db8::/64",
-            af=6,
-        )
-        session.add(pool_v4)
-        session.add(pool_v6)
-        await session.flush()
-        print("Created 2 IP pools (IPv4 + IPv6)")
-
-        # -- Trunks, Connections, VLANs, IPs for active members --
-        active_members = [m for m in members if m.state == MemberState.active]
-        all_trunks: list[Trunk] = []
-        all_connections: list[Connection] = []
-        all_trunk_vlans: list[TrunkVLAN] = []
-        ip_offset = 1  # Start from .1 (skip network .0)
-
-        for i, m in enumerate(active_members):
-            # Create Trunk
-            trunk = Trunk(
-                ixp_id=ixp.id,
-                member_id=m.id,
-                name="ae0",
-                state=TrunkState.active,
-                mac_address=f"00:11:22:33:44:{i:02x}",
-            )
-            session.add(trunk)
-            all_trunks.append(trunk)
-        await session.flush()
-        print(f"Created {len(all_trunks)} trunks")
-
-        for i, trunk in enumerate(all_trunks):
-            # Create Connection under each Trunk
-            conn = Connection(
-                ixp_id=ixp.id,
-                trunk_id=trunk.id,
-                switch_id=switches[0].id,
-                name=f"Ethernet{i + 1}",
-                type=ConnectionType.physical,
-                speed=10000,
-                state=ConnectionState.active,
-            )
-            session.add(conn)
-            all_connections.append(conn)
-
-            # Assign production VLAN to trunk
-            tv = TrunkVLAN(
-                ixp_id=ixp.id,
-                trunk_id=trunk.id,
-                vlan_id=vlan_prod.id,
-            )
-            session.add(tv)
-            all_trunk_vlans.append(tv)
-        await session.flush()
-        print(f"Created {len(all_connections)} connections")
-        print(f"Created {len(all_trunk_vlans)} trunk VLANs")
-
-        # Assign IPs to trunk VLANs
-        for i, tv in enumerate(all_trunk_vlans):
-            ip4 = IPAssignment(
-                ixp_id=ixp.id,
-                pool_id=pool_v4.id,
-                trunk_vlan_id=tv.id,
-                address=f"192.0.2.{ip_offset + i}",
-            )
-            session.add(ip4)
-
-            ip6 = IPAssignment(
-                ixp_id=ixp.id,
-                pool_id=pool_v6.id,
-                trunk_vlan_id=tv.id,
-                address=f"2001:db8::{ip_offset + i}",
-            )
-            session.add(ip6)
-        await session.flush()
-
-        # -- Route Servers --
-        route_servers: list[RouteServer] = []
-        for i in range(2):
-            rs = RouteServer(
-                ixp_id=ixp.id,
-                name=f"rs{i + 1}",
-                ip_v4=f"192.0.2.{250 + i}",
-                ip_v6=f"2001:db8::{250 + i}",
-                is_active=True,
-            )
-            session.add(rs)
-            route_servers.append(rs)
-        await session.flush()
-        print(f"Created {len(route_servers)} route servers")
-
-        # -- BGP Sessions (one per trunk VLAN per route server) --
-        bgp_count = 0
-        for j, tv in enumerate(all_trunk_vlans):
-            trunk_obj = all_trunks[j]
-            member_obj = next(m for m in members if m.id == trunk_obj.member_id)
-            for rs in route_servers:
-                bgp = BGPSession(
-                    ixp_id=ixp.id,
-                    route_server_id=rs.id,
-                    trunk_vlan_id=tv.id,
-                    peer_ip=f"192.0.2.{ip_offset + j}",
-                    peer_asn=member_obj.asn,
-                    admin_state=BGPAdminState.up,
-                    oper_state=BGPOperState.up,
-                    af=4,
-                    max_prefixes=100,
-                )
-                session.add(bgp)
-                bgp_count += 1
-        await session.flush()
-        print(f"Created {bgp_count} BGP sessions")
-
-        await session.commit()
-        print("Seed data created successfully.")
-
-
-def _run_seed() -> None:
-    """Seed the database with sample development data."""
-    asyncio.run(_seed_data())
-
-
 def _run_ui() -> None:
     """Start the UI portal server."""
     import uvicorn
@@ -499,7 +257,6 @@ _COMMANDS = {
     "worker": "Start background task workers",
     "upgrade": "Run database migrations (alembic upgrade head)",
     "createsuperuser": "Create an admin user",
-    "seed": "Seed database with sample development data",
     "backup": "Create a compressed database backup",
     "restore": "Restore database from a backup archive",
 }
@@ -537,8 +294,6 @@ def main() -> None:
         _run_upgrade()
     elif command == "createsuperuser":
         _run_createsuperuser()
-    elif command == "seed":
-        _run_seed()
     elif command == "backup":
         _run_backup()
     elif command == "restore":
