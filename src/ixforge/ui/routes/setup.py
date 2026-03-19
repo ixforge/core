@@ -33,17 +33,25 @@ async def setup_submit(request: Request) -> Response:
     password = str(form.get("password", ""))
     password_confirm = str(form.get("password_confirm", ""))
 
+    # Build safe form data (strip passwords for re-rendering on error)
+    form_data = {k: v for k, v in form.items() if k not in ("password", "password_confirm")}
+
     if password != password_confirm:
         return render(request, "setup.html", {
             "errors": {"error": {"message": "Las contraseñas no coinciden"}},
-            "form": dict(form),
+            "form": form_data,
         })
+
+    try:
+        asn = int(form.get("asn", 0))
+    except (ValueError, TypeError):
+        asn = 0
 
     payload = {
         "ixp": {
             "name": str(form.get("name", "")),
             "short_name": str(form.get("short_name", "")),
-            "asn": int(form.get("asn", 0)) if form.get("asn") else 0,
+            "asn": asn,
             "website": str(form.get("website", "")) or None,
             "country": str(form.get("country", "")),
             "city": str(form.get("city", "")),
@@ -64,7 +72,7 @@ async def setup_submit(request: Request) -> Response:
             return RedirectResponse("/login", status_code=302)
         return render(request, "setup.html", {
             "errors": exc.detail if isinstance(exc.detail, dict) else {"error": {"message": str(exc.detail)}},
-            "form": dict(form),
+            "form": form_data,
         })
 
     # Mark as configured in app state cache
