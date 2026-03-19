@@ -1,0 +1,77 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Setup - IXForge{% endblock %}
+{% block content %}
+<div class="w-full max-w-lg">
+  <div class="text-center mb-8">
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Bienvenido a IXForge</h1>
+    <p class="mt-2 text-gray-600 dark:text-gray-400">Configura tu IXP para comenzar</p>
+  </div>
+  <div class="card">
+    {% if errors and errors.error is defined %}
+    <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 text-sm">
+      <p>{{ errors.error.message }}</p>
+      {% if errors.error.details is defined and errors.error.details is iterable and errors.error.details is not string %}
+        {% for err in errors.error.details %}
+          <p>{{ err.msg if err.msg is defined else err }}</p>
+        {% endfor %}
+      {% endif %}
+    </div>
+    {% endif %}
+    <form method="post" class="space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Datos del IXP</h3>
+        <div class="space-y-3">
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre</label>
+            <input type="text" name="name" id="name" required class="input-field" placeholder="ej: PatagoniaIX" value="{{ form.name if form else '' }}">
+          </div>
+          <div>
+            <label for="short_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre corto</label>
+            <input type="text" name="short_name" id="short_name" required class="input-field" placeholder="ej: PTGIX" maxlength="50" value="{{ form.short_name if form else '' }}">
+          </div>
+          <div>
+            <label for="asn" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ASN</label>
+            <input type="number" name="asn" id="asn" required class="input-field" placeholder="ej: 65000" min="1" value="{{ form.asn if form else '' }}">
+          </div>
+          <div>
+            <label for="website" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sitio web <span class="text-gray-400">(opcional)</span></label>
+            <input type="url" name="website" id="website" class="input-field" placeholder="ej: https://patagoniaix.net" value="{{ form.website if form else '' }}">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="country" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pais</label>
+              <input type="text" name="country" id="country" required class="input-field" placeholder="ej: CL" maxlength="2" value="{{ form.country if form else '' }}">
+            </div>
+            <div>
+              <label for="city" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ciudad</label>
+              <input type="text" name="city" id="city" required class="input-field" placeholder="ej: Santiago" value="{{ form.city if form else '' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Cuenta de Administrador</h3>
+        <div class="space-y-3">
+          <div>
+            <label for="full_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre completo</label>
+            <input type="text" name="full_name" id="full_name" required class="input-field" value="{{ form.full_name if form else '' }}">
+          </div>
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+            <input type="email" name="email" id="email" required class="input-field" value="{{ form.email if form else '' }}">
+          </div>
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
+            <input type="password" name="password" id="password" required class="input-field" minlength="8">
+          </div>
+          <div>
+            <label for="password_confirm" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar contraseña</label>
+            <input type="password" name="password_confirm" id="password_confirm" required class="input-field" minlength="8">
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary w-full">Iniciar IXForge</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
