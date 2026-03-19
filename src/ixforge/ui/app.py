@@ -11,13 +11,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 from ixforge.config import get_settings
 from ixforge.ui.api_client import APIClient
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+    from starlette.types import ASGIApp, Receive, Scope, Send
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -75,7 +76,6 @@ def create_ui_app() -> Starlette:
     from ixforge.ui.routes import (
         auth,
         bgp_sessions,
-        setup,
         connections,
         custom_fields,
         dashboard,
@@ -87,6 +87,7 @@ def create_ui_app() -> Starlette:
         portal,
         route_servers,
         settings,
+        setup,
         switches,
         trunks,
         users,
