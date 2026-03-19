@@ -54,7 +54,7 @@ class TestRSVLANService:
             await svc.remove_vlan(db_session, ixp.id, rs.id, vlan.id)
 
     async def test_add_vlan_rs_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        other_ixp = IXP(name="Other IXP A", short_name="OTA", asn=65100, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP A", short_name="OTA", asn=65100, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         rs = RouteServer(ixp_id=other_ixp.id, name="RS-other-a")
@@ -66,7 +66,7 @@ class TestRSVLANService:
             await svc.add_vlan(db_session, ixp.id, rs.id, vlan.id)
 
     async def test_add_vlan_vlan_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        other_ixp = IXP(name="Other IXP B", short_name="OTB", asn=65101, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP B", short_name="OTB", asn=65101, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         rs = RouteServer(ixp_id=ixp.id, name="RS-local-b")
@@ -78,7 +78,7 @@ class TestRSVLANService:
             await svc.add_vlan(db_session, ixp.id, rs.id, vlan.id)
 
     async def test_remove_vlan_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        other_ixp = IXP(name="Other IXP C", short_name="OTC", asn=65102, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP C", short_name="OTC", asn=65102, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         rs = RouteServer(ixp_id=other_ixp.id, name="RS-other-c")

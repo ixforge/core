@@ -4,7 +4,7 @@
 def test_location_schema():
     from ixforge.schemas.location import LocationCreate
 
-    loc = LocationCreate(name="DC1", city="Buenos Aires", country="AR")
+    loc = LocationCreate(name="DC1", city="Santiago", country="CL")
     assert loc.name == "DC1"
 
 

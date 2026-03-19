@@ -16,7 +16,7 @@ from ixforge.services import locations as loc_svc
 
 class TestLocationService:
     async def test_create_location(self, db_session: AsyncSession, ixp: IXP) -> None:
-        loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="BA", country="AR"))
+        loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="SCL", country="CL"))
         assert loc.id is not None
         assert loc.name == "DC1"
         assert loc.ixp_id == ixp.id
@@ -100,12 +100,12 @@ class TestLocationsAPI:
         await db_session.flush()
         resp = await client.patch(
             f"/api/v1/locations/{loc.id}",
-            json={"name": "DC-new", "city": "Buenos Aires"},
+            json={"name": "DC-new", "city": "Santiago"},
             headers=auth_headers,
         )
         assert resp.status_code == 200
         assert resp.json()["name"] == "DC-new"
-        assert resp.json()["city"] == "Buenos Aires"
+        assert resp.json()["city"] == "Santiago"
 
     async def test_delete_location_api(
         self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession

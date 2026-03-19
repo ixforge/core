@@ -62,7 +62,7 @@ class TestVLANMemberService:
             await svc.remove_member(db_session, ixp.id, vlan.id, member.id)
 
     async def test_add_member_wrong_ixp_vlan_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        other_ixp = IXP(name="Other IXP", short_name="OTH", asn=65300, country="AR", city="X")
+        other_ixp = IXP(name="Other IXP", short_name="OTH", asn=65300, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         vlan = VLAN(ixp_id=other_ixp.id, name="OtherVLAN", vid=200, type=VLANType.private)

@@ -16,14 +16,14 @@ class TestMemberExtendedFields:
         data = MemberCreate(
             name="Test ISP", short_name="TISP", asn=65001,
             member_type=MemberType.isp, description="Un ISP de prueba",
-            city="Buenos Aires", country="AR",
+            city="Santiago", country="CL",
             connection_date=date(2024, 1, 1),
             contract_type=ContractType.standard, notes="Notes here",
             skip_ixf_export=False,
         )
         member = await svc.create(db_session, ixp.id, data)
         assert member.member_type == MemberType.isp
-        assert member.country == "AR"
+        assert member.country == "CL"
         assert member.skip_ixf_export is False
 
     async def test_update_member_extended_fields(self, db_session: AsyncSession, ixp: IXP) -> None:
