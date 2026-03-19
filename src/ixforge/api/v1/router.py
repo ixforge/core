@@ -11,6 +11,7 @@ from ixforge.api.v1.contacts import contacts_router
 from ixforge.api.v1.custom_fields import custom_fields_router
 from ixforge.api.v1.events import events_router
 from ixforge.api.v1.health import health_router
+from ixforge.api.v1.setup import setup_router
 from ixforge.api.v1.ip_pools import ip_pools_router
 from ixforge.api.v1.ixf_export import ixf_router
 from ixforge.api.v1.ixp import ixp_router
@@ -30,6 +31,7 @@ from ixforge.api.v1.vlans import vlans_router
 v1_router = APIRouter()
 v1_router.include_router(agent_router)
 v1_router.include_router(health_router)
+v1_router.include_router(setup_router)
 v1_router.include_router(auth_router)
 v1_router.include_router(users_router)
 v1_router.include_router(config_router)
