@@ -11,6 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from ixforge.config import get_settings
 from ixforge.ui.api_client import APIClient
@@ -19,6 +20,50 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
 _STATIC_DIR = Path(__file__).parent / "static"
+
+
+class SetupRedirectMiddleware:
+    """Redirect all routes to /setup when no IXP is configured."""
+
+    _EXEMPT_PREFIXES = ("/setup", "/static", "/media")
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if any(path.startswith(p) for p in self._EXEMPT_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+
+        # Check cache first
+        app = scope.get("app")
+        if app and getattr(app.state, "ixp_configured", False):
+            await self.app(scope, receive, send)
+            return
+
+        # Check via API
+        try:
+            api = app.state.api if app else None
+            if api:
+                status = await api.get_public("/api/v1/setup/status")
+                if status.get("configured"):
+                    if app:
+                        app.state.ixp_configured = True
+                    await self.app(scope, receive, send)
+                    return
+        except Exception:
+            # Fail open: let the request through
+            await self.app(scope, receive, send)
+            return
+
+        # Not configured: redirect to /setup
+        response = RedirectResponse("/setup", status_code=302)
+        await response(scope, receive, send)
 
 
 def create_ui_app() -> Starlette:
@@ -30,6 +75,7 @@ def create_ui_app() -> Starlette:
     from ixforge.ui.routes import (
         auth,
         bgp_sessions,
+        setup,
         connections,
         custom_fields,
         dashboard,
@@ -54,6 +100,9 @@ def create_ui_app() -> Starlette:
         Route("/login", auth.login_page, methods=["GET"]),
         Route("/login", auth.login_submit, methods=["POST"]),
         Route("/logout", auth.logout, methods=["POST"]),
+        # Setup
+        Route("/setup", setup.setup_page, methods=["GET"]),
+        Route("/setup", setup.setup_submit, methods=["POST"]),
         # Dashboard
         Route("/admin", dashboard.index),
         # Members
@@ -172,6 +221,7 @@ def create_ui_app() -> Starlette:
         same_site="lax",
         https_only=not config.debug,
     )
+    app.add_middleware(SetupRedirectMiddleware)
 
     app.state.api = APIClient(base_url=config.core_url)
 
