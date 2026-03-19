@@ -227,7 +227,7 @@ class TestTrunkCRUD:
         self, db_session: AsyncSession, ixp: IXP
     ):
         other_ixp = IXP(
-            name="Other IXP", short_name="OIXP", asn=65999, country="AR", city="X"
+            name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X"
         )
         db_session.add(other_ixp)
         await db_session.flush()
@@ -655,7 +655,7 @@ class TestTrunkVLAN:
         self, db_session: AsyncSession, ixp: IXP
     ):
         other_ixp = IXP(
-            name="Other IXP", short_name="OIXP", asn=65999, country="AR", city="X"
+            name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X"
         )
         db_session.add(other_ixp)
         await db_session.flush()
@@ -1022,7 +1022,7 @@ class TestTrunkConnection:
         self, db_session: AsyncSession, ixp: IXP
     ):
         other_ixp = IXP(
-            name="Other IXP", short_name="OIXP", asn=65999, country="AR", city="X"
+            name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X"
         )
         db_session.add(other_ixp)
         await db_session.flush()

@@ -12,9 +12,9 @@ from ixforge.ui.app import create_ui_app
 FAKE_LOCATION = {
     "id": str(uuid.uuid4()),
     "ixp_id": str(uuid.uuid4()),
-    "name": "Datacenter Buenos Aires",
-    "city": "Buenos Aires",
-    "country": "AR",
+    "name": "Datacenter Santiago",
+    "city": "Santiago",
+    "country": "CL",
     "created_at": "2026-01-01T00:00:00",
     "updated_at": "2026-01-01T00:00:00",
 }
@@ -40,7 +40,7 @@ class TestLocationList:
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_LOCATION]})
         resp = authed_client.get("/admin/locations")
         assert resp.status_code == 200
-        assert "Datacenter Buenos Aires" in resp.text
+        assert "Datacenter Santiago" in resp.text
 
     def test_list_requires_auth(self):
         app = create_ui_app()
@@ -64,7 +64,7 @@ class TestLocationNew:
         app.state.api.post = AsyncMock(return_value={**FAKE_LOCATION})
         resp = authed_client.post(
             "/admin/locations/new",
-            data={"name": "Datacenter Buenos Aires", "city": "Buenos Aires", "country": "AR"},
+            data={"name": "Datacenter Santiago", "city": "Santiago", "country": "CL"},
             follow_redirects=False,
         )
         assert resp.status_code == 302
@@ -92,13 +92,13 @@ class TestLocationEdit:
         app.state.api.get = AsyncMock(return_value=FAKE_LOCATION)
         resp = authed_client.get(f"/admin/locations/{FAKE_LOCATION['id']}/edit")
         assert resp.status_code == 200
-        assert "Datacenter Buenos Aires" in resp.text
+        assert "Datacenter Santiago" in resp.text
 
     def test_edit_submit_redirects(self, authed_client, app):
         app.state.api.patch = AsyncMock(return_value={**FAKE_LOCATION})
         resp = authed_client.post(
             f"/admin/locations/{FAKE_LOCATION['id']}/edit",
-            data={"name": "Updated Location", "city": "Mendoza", "country": "AR"},
+            data={"name": "Updated Location", "city": "Valparaíso", "country": "CL"},
             follow_redirects=False,
         )
         assert resp.status_code == 302

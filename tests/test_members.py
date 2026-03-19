@@ -185,11 +185,11 @@ class TestMemberCRUD:
                 "name": "Country Test Net",
                 "short_name": "CTN",
                 "asn": 64550,
-                "country": "ar",
+                "country": "cl",
             },
         )
         assert resp.status_code == 201
-        assert resp.json()["country"] == "AR"
+        assert resp.json()["country"] == "CL"
 
     async def test_create_member_country_invalid_rejected(self) -> None:
         """Country with non-alpha characters should be rejected at schema level"""
