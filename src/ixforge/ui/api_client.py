@@ -73,6 +73,20 @@ class APIClient:
         token: str = resp.json()["access_token"]
         return token
 
+    async def get_public(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """GET without authentication (for public endpoints like setup/status)."""
+        resp = await self._client.get(path, params=params)
+        self._check(resp)
+        return resp.json()
+
+    async def post_public(self, path: str, json: dict[str, Any] | None = None) -> Any:
+        """POST without authentication (for public endpoints like setup)."""
+        resp = await self._client.post(path, json=json)
+        self._check(resp)
+        if resp.status_code == 204:
+            return None
+        return resp.json()
+
     async def post_file(self, path: str, token: str, *, field: str, upload: Any) -> Any:
         await upload.seek(0)
         files = {field: (upload.filename, await upload.read(), upload.content_type)}
