@@ -1,4 +1,39 @@
 services:
+  core:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["run"]
+    ports:
+      - "8000:8000"
+    environment:
+      IXFORGE_DATABASE_URL: postgresql+asyncpg://ixforge:ixforge@postgres:5432/ixforge
+      IXFORGE_SECRET_KEY: dev-secret-key-not-for-production-at-least-32-chars
+      IXFORGE_DEBUG: "true"
+    volumes:
+      - ../src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  portal:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["ui"]
+    ports:
+      - "8001:8001"
+    environment:
+      IXFORGE_CORE_URL: http://core:8000
+      IXFORGE_SECRET_KEY: dev-secret-key-not-for-production-at-least-32-chars
+      IXFORGE_DEBUG: "true"
+    volumes:
+      - ../src:/app/src
+    depends_on:
+      - core
+    restart: unless-stopped
+
   postgres:
     image: postgres:17
     environment:

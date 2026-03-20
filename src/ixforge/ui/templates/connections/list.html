@@ -1,0 +1,57 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <a href="/admin/connections/new" class="btn-primary">Nueva Conexion</a>
+</div>
+
+{# Filtros #}
+<div class="card mb-6">
+  <div class="flex flex-col sm:flex-row gap-4">
+    <div>
+      <label for="state" class="block text-sm font-medium mb-1">Estado</label>
+      <select name="state"
+              id="state"
+              class="input-field"
+              hx-get="/admin/connections"
+              hx-target="#table-body"
+              hx-trigger="change">
+        <option value="" {% if filter_state == "" %}selected{% endif %}>Todos</option>
+        <option value="draft" {% if filter_state == "draft" %}selected{% endif %}>Draft</option>
+        <option value="provisioning" {% if filter_state == "provisioning" %}selected{% endif %}>Provisioning</option>
+        <option value="active" {% if filter_state == "active" %}selected{% endif %}>Activo</option>
+        <option value="disabled" {% if filter_state == "disabled" %}selected{% endif %}>Deshabilitado</option>
+        <option value="decommissioned" {% if filter_state == "decommissioned" %}selected{% endif %}>Decomisionado</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+{# Tabla #}
+{% if connections %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Puerto</th>
+          <th class="pb-3 font-medium">Trunk</th>
+          <th class="pb-3 font-medium">Miembro</th>
+          <th class="pb-3 font-medium">Switch</th>
+          <th class="pb-3 font-medium">Tipo</th>
+          <th class="pb-3 font-medium">Velocidad</th>
+          <th class="pb-3 font-medium">Estado</th>
+        </tr>
+      </thead>
+      <tbody id="table-body" class="divide-y dark:divide-gray-700">
+        {% include "connections/list_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay conexiones") }}
+{% endif %}
+{% endblock %}

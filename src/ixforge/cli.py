@@ -22,7 +22,6 @@ def _run_server() -> None:
         "ixforge.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.debug,
     )
 
 
@@ -247,7 +246,6 @@ def _run_ui() -> None:
         factory=True,
         host="0.0.0.0",
         port=settings.ui_port,
-        reload=settings.debug,
     )
 
 
