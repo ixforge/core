@@ -15,7 +15,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import BGPAdminState, BGPOperState
 from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
-from ixforge.models.types import INET
 
 
 class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
@@ -25,7 +24,6 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
             "route_server_id", "trunk_vlan_id", "af",
             name="uq_bgp_sessions_rs_trunk_vlan_af",
         ),
-        CheckConstraint("peer_asn > 0", name="ck_bgp_sessions_peer_asn_positive"),
         Index("ix_bgp_sessions_rs_trunk_vlan", "route_server_id", "trunk_vlan_id"),
         CheckConstraint("af IN (4, 6)", name="ck_bgp_sessions_af_valid"),
     )
@@ -42,8 +40,6 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    peer_ip: Mapped[str] = mapped_column(INET, nullable=False)
-    peer_asn: Mapped[int] = mapped_column(Integer, nullable=False)
     admin_state: Mapped[BGPAdminState] = mapped_column(
         Enum(BGPAdminState, name="bgp_admin_state"),
         nullable=False,
@@ -56,5 +52,3 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     )
     af: Mapped[int] = mapped_column(Integer, nullable=False, comment="Address family: 4 or 6")
     max_prefixes: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    import_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    export_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
