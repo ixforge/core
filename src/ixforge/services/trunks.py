@@ -10,7 +10,7 @@ from ixforge.enums import ConnectionState, MemberState, TrunkState, VLANType
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
-from ixforge.models.ip import IPAssignment
+from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.member import Member
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
@@ -447,10 +447,13 @@ async def release_ip(
     if assignment is None or assignment.ixp_id != ixp_id:
         raise NotFoundError("IPAssignment", str(assignment_id))
 
+    ip_pool = await session.get(IPPool, assignment.pool_id)
+    if ip_pool is None:
+        raise NotFoundError("IPPool", str(assignment.pool_id))
     has_bgp = await session.scalar(
         select(BGPSession.id).where(
             BGPSession.trunk_vlan_id == assignment.trunk_vlan_id,
-            BGPSession.peer_ip == assignment.address,
+            BGPSession.af == ip_pool.af,
         ).limit(1)
     )
     if has_bgp is not None:

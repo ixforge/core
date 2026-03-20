@@ -136,6 +136,19 @@ async def route_server_detail(request: Request) -> Response:
                 pool["vlan_vid"] = vlan.get("vid", "")
             all_pools.extend(pools_data.get("items", []))
 
+    # Fetch trunk VLANs for inline BGP session form
+    trunks_data = await api.get("/api/v1/trunks", token, params={"limit": 200})
+    trunk_vlans: list[Any] = []
+    for t in trunks_data.get("items", []):
+        try:
+            tvs = await api.get(f"/api/v1/trunks/{t['id']}/vlans", token)
+            for tv in tvs:
+                tv["trunk_name"] = t.get("name", "")
+                tv["member_name"] = t.get("member_name", "")
+                trunk_vlans.append(tv)
+        except APIError:
+            pass
+
     return render(request, "route_servers/detail.html", {
         "rs": rs,
         "bgp_sessions": bgp_sessions,
@@ -144,6 +157,7 @@ async def route_server_detail(request: Request) -> Response:
         "available_vlans": available_vlans,
         "rs_ips": rs_ips,
         "all_pools": all_pools,
+        "trunk_vlans": trunk_vlans,
         "page_title": rs.get("name", "Route Server"),
     })
 
@@ -369,6 +383,37 @@ async def route_server_config_diff(request: Request) -> Response:
         "diff": diff,
         "page_title": f"Config Diff - {rs.get('name', '')}",
     })
+
+
+@require_auth
+async def route_server_add_bgp_session(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    rs_id = request.path_params["route_server_id"]
+    form = await request.form()
+
+    try:
+        af = int(str(form.get("af", 4)))
+    except (ValueError, TypeError):
+        af = 4
+
+    payload: dict[str, Any] = {
+        "route_server_id": rs_id,
+        "trunk_vlan_id": str(form.get("trunk_vlan_id", "")),
+        "af": af,
+    }
+    max_prefixes = str(form.get("max_prefixes", "")).strip()
+    if max_prefixes:
+        with contextlib.suppress(ValueError, TypeError):
+            payload["max_prefixes"] = int(max_prefixes)
+
+    try:
+        await api.post("/api/v1/bgp-sessions", token, json=payload)
+        add_flash(request, "Sesion BGP creada", "success")
+    except APIError as e:
+        add_flash(request, f"Error creando sesion BGP: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/route-servers/{rs_id}", status_code=302)
 
 
 @require_auth

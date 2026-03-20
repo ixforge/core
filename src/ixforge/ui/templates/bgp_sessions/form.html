@@ -1,0 +1,112 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+      {% for err in errors.error.details if errors.error.details is iterable and errors.error.details is not string %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% else %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/admin/bgp-sessions/new" x-data="bgpSessionForm()">
+    {# Route Server #}
+    <div class="mb-4">
+      <label for="route_server_id" class="block text-sm font-medium mb-1">Route Server</label>
+      <select id="route_server_id" name="route_server_id" required class="input-field w-full">
+        <option value="" disabled {% if not (bgp_session and bgp_session.route_server_id) and not preselect_rs_id %}selected{% endif %}>— Seleccionar Route Server —</option>
+        {% for rs in route_servers %}
+        <option value="{{ rs.id }}" {% if (bgp_session and bgp_session.route_server_id == rs.id) or preselect_rs_id == rs.id %}selected{% endif %}>
+          {{ rs.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# Miembro #}
+    <div class="mb-4">
+      <label for="member_id" class="block text-sm font-medium mb-1">Miembro</label>
+      <select id="member_id" name="member_id" required class="input-field w-full"
+              x-model="selectedMember" @change="filterTrunkVlans()">
+        <option value="" disabled>— Seleccionar miembro —</option>
+        {% for m in members %}
+        <option value="{{ m.id }}">{{ m.name }} (AS{{ m.asn }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# Trunk VLAN #}
+    <div class="mb-4">
+      <label for="trunk_vlan_id" class="block text-sm font-medium mb-1">Trunk VLAN</label>
+      <select id="trunk_vlan_id" name="trunk_vlan_id" required class="input-field w-full"
+              x-model="selectedTrunkVlan" :disabled="!selectedMember">
+        <option value="" disabled selected>— Seleccionar trunk VLAN —</option>
+        <template x-for="tv in filteredTrunkVlans" :key="tv.id">
+          <option :value="tv.id" x-text="tv.trunk_name + ' - ' + tv.vlan_name + ' (VID ' + tv.vid + ')'"></option>
+        </template>
+      </select>
+      <p class="text-xs text-gray-500 mt-1" x-show="!selectedMember">Selecciona un miembro primero</p>
+    </div>
+
+    {# AF #}
+    <div class="mb-4">
+      <label for="af" class="block text-sm font-medium mb-1">Address Family</label>
+      <select id="af" name="af" required class="input-field w-full">
+        {% set current_af = bgp_session.af|string if bgp_session and bgp_session.af else '4' %}
+        <option value="4" {% if current_af == '4' %}selected{% endif %}>IPv4</option>
+        <option value="6" {% if current_af == '6' %}selected{% endif %}>IPv6</option>
+      </select>
+    </div>
+
+    {# Max Prefixes #}
+    <div class="mb-6">
+      <label for="max_prefixes" class="block text-sm font-medium mb-1">Max Prefixes</label>
+      <input type="number"
+             id="max_prefixes"
+             name="max_prefixes"
+             value="{{ bgp_session.max_prefixes if bgp_session and bgp_session.max_prefixes else '' }}"
+             class="input-field w-full"
+             min="1"
+             placeholder="Opcional">
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">Crear</button>
+      <a href="/admin/bgp-sessions" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function bgpSessionForm() {
+  const trunkVlans = {{ trunk_vlans_json | safe }};
+  return {
+    selectedMember: '',
+    selectedTrunkVlan: '{{ bgp_session.trunk_vlan_id if bgp_session and bgp_session.trunk_vlan_id else '' }}',
+    allTrunkVlans: trunkVlans,
+    filteredTrunkVlans: [],
+    filterTrunkVlans() {
+      this.filteredTrunkVlans = this.allTrunkVlans.filter(tv => tv.member_id === this.selectedMember);
+      if (!this.filteredTrunkVlans.find(tv => tv.id === this.selectedTrunkVlan)) {
+        this.selectedTrunkVlan = '';
+      }
+    },
+    init() {
+      if (this.selectedMember) this.filterTrunkVlans();
+    }
+  }
+}
+</script>
+{% endblock %}

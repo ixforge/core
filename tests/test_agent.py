@@ -21,6 +21,7 @@ from ixforge.models.api_key import APIKey
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
+from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.location import Location
 from ixforge.models.member import Member
@@ -247,13 +248,25 @@ class TestAgentStatusReport:
         db_session.add(conn)
         await db_session.flush()
 
+        pool = IPPool(
+            id=uuid.uuid4(), ixp_id=ixp.id, vlan_id=vlan.id,
+            network="192.0.2.0/24", af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        ip = IPAssignment(
+            id=uuid.uuid4(), ixp_id=ixp.id, pool_id=pool.id,
+            trunk_vlan_id=trunk_vlan.id, address="192.0.2.10",
+        )
+        db_session.add(ip)
+        await db_session.flush()
+
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
             trunk_vlan_id=trunk_vlan.id,
-            peer_ip="192.0.2.10",
-            peer_asn=64550,
             admin_state=BGPAdminState.up,
             oper_state=BGPOperState.unknown,
             af=4,
@@ -356,13 +369,25 @@ class TestAgentStatusReport:
         db_session.add(conn)
         await db_session.flush()
 
+        pool = IPPool(
+            id=uuid.uuid4(), ixp_id=ixp.id, vlan_id=vlan.id,
+            network="192.0.2.0/24", af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        ip = IPAssignment(
+            id=uuid.uuid4(), ixp_id=ixp.id, pool_id=pool.id,
+            trunk_vlan_id=trunk_vlan.id, address="192.0.2.20",
+        )
+        db_session.add(ip)
+        await db_session.flush()
+
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
             trunk_vlan_id=trunk_vlan.id,
-            peer_ip="192.0.2.20",
-            peer_asn=64560,
             admin_state=BGPAdminState.up,
             oper_state=BGPOperState.up,
             af=4,

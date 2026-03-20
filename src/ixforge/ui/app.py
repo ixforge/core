@@ -149,6 +149,7 @@ def create_ui_app() -> Starlette:
         Route("/admin/route-servers/{rs_id}/vlans/{vlan_id}/remove", route_servers.rs_vlan_remove, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/ips/assign", route_servers.rs_ip_assign, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/ips/{assignment_id}/release", route_servers.rs_ip_release, methods=["POST"]),
+        Route("/admin/route-servers/{route_server_id}/bgp-sessions", route_servers.route_server_add_bgp_session, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/delete", route_servers.route_server_delete, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/config/generate", route_servers.route_server_config_generate, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/config/history", route_servers.route_server_config_history),
@@ -168,6 +169,7 @@ def create_ui_app() -> Starlette:
         Route("/admin/ip-pools/{pool_id}/delete", ip_pools.ip_pool_delete, methods=["POST"]),
         # BGP Sessions
         Route("/admin/bgp-sessions", bgp_sessions.bgp_session_list),
+        Route("/admin/bgp-sessions/new", bgp_sessions.bgp_session_new, methods=["GET", "POST"]),
         Route("/admin/bgp-sessions/{session_id}", bgp_sessions.bgp_session_detail),
         Route("/admin/bgp-sessions/{session_id}/delete", bgp_sessions.bgp_session_delete, methods=["POST"]),
         Route("/admin/bgp-sessions/{session_id}/toggle", bgp_sessions.bgp_session_toggle, methods=["POST"]),

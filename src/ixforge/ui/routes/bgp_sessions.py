@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import json
 from typing import TYPE_CHECKING, Any
 
 from starlette.responses import RedirectResponse, Response
@@ -13,6 +15,87 @@ from ixforge.ui.templating import render
 
 if TYPE_CHECKING:
     from starlette.requests import Request
+
+
+@require_auth
+async def bgp_session_new(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+
+    rs_data = await api.get("/api/v1/route-servers", token, params={"limit": 200})
+    route_servers = rs_data.get("items", [])
+    members_data = await api.get("/api/v1/members", token, params={"limit": 200})
+    members = members_data.get("items", [])
+    trunks_data = await api.get("/api/v1/trunks", token, params={"limit": 200})
+    trunks = trunks_data.get("items", [])
+
+    # Build trunk_vlans list with names for the form
+    trunk_vlans = []
+    for t in trunks:
+        try:
+            tvs = await api.get(f"/api/v1/trunks/{t['id']}/vlans", token)
+            for tv in tvs:
+                tv["trunk_name"] = t.get("name", "")
+                tv["member_id"] = t.get("member_id", "")
+                trunk_vlans.append(tv)
+        except APIError:
+            pass
+
+    trunk_vlans_json = json.dumps([
+        {
+            "id": tv["id"],
+            "trunk_name": tv.get("trunk_name", ""),
+            "member_id": tv.get("member_id", ""),
+            "vlan_name": tv.get("vlan_name", tv.get("name", "")),
+            "vid": tv.get("vid", ""),
+        }
+        for tv in trunk_vlans
+    ])
+
+    if request.method == "GET":
+        preselect_rs_id = request.query_params.get("route_server_id", "")
+        return render(request, "bgp_sessions/form.html", {
+            "bgp_session": None,
+            "route_servers": route_servers,
+            "members": members,
+            "trunk_vlans_json": trunk_vlans_json,
+            "preselect_rs_id": preselect_rs_id,
+            "errors": {},
+            "page_title": "Nueva Sesion BGP",
+        })
+
+    form = await request.form()
+    try:
+        af = int(str(form.get("af", 4)))
+    except (ValueError, TypeError):
+        af = 4
+
+    payload: dict[str, Any] = {
+        "route_server_id": str(form.get("route_server_id", "")),
+        "trunk_vlan_id": str(form.get("trunk_vlan_id", "")),
+        "af": af,
+    }
+    max_prefixes = str(form.get("max_prefixes", "")).strip()
+    if max_prefixes:
+        with contextlib.suppress(ValueError, TypeError):
+            payload["max_prefixes"] = int(max_prefixes)
+
+    try:
+        await api.post("/api/v1/bgp-sessions", token, json=payload)
+        add_flash(request, "Sesion BGP creada", "success")
+        return RedirectResponse("/admin/bgp-sessions", status_code=302)
+    except APIError as e:
+        if e.status_code in (400, 409, 422):
+            return render(request, "bgp_sessions/form.html", {
+                "bgp_session": payload,
+                "route_servers": route_servers,
+                "members": members,
+                "trunk_vlans_json": trunk_vlans_json,
+                "preselect_rs_id": "",
+                "errors": e.detail,
+                "page_title": "Nueva Sesion BGP",
+            })
+        raise
 
 
 @require_auth

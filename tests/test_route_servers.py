@@ -244,8 +244,6 @@ class TestRouteServerCRUD:
             ixp_id=ixp.id,
             route_server_id=rs.id,
             trunk_vlan_id=trunk_vlan.id,
-            peer_ip="192.0.2.10",
-            peer_asn=64600,
             admin_state=BGPAdminState.up,
             oper_state=BGPOperState.up,
             af=4,

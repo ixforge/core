@@ -16,7 +16,10 @@ from ixforge.metrics import bgp_sessions_active
 from ixforge.models.api_key import APIKey
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
+from ixforge.models.ip import IPAssignment, IPPool
+from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.schemas.agent import (
     AgentConfigApplied,
     AgentConfigResponse,
@@ -147,12 +150,46 @@ async def report_agent_status(
     if rs is None:
         raise NotFoundError("RouteServer", str(route_server_id))
 
-    # Load all BGP sessions for this route server, keyed by (peer_ip, af)
-    stmt = select(BGPSession).where(BGPSession.route_server_id == route_server_id)
+    # Load all BGP sessions for this RS with their peer IPs resolved via subquery
+    # Use DISTINCT ON to avoid duplicates when a trunk_vlan has multiple IPs of the same AF
+    ip_subq = (
+        select(
+            IPAssignment.trunk_vlan_id,
+            IPAssignment.address,
+            IPPool.af,
+        )
+        .join(IPPool, IPAssignment.pool_id == IPPool.id)
+        .distinct(IPAssignment.trunk_vlan_id, IPPool.af)
+        .order_by(IPAssignment.trunk_vlan_id, IPPool.af, IPAssignment.address)
+        .subquery()
+    )
+
+    stmt = (
+        select(BGPSession, ip_subq.c.address)
+        .join(
+            ip_subq,
+            (BGPSession.trunk_vlan_id == ip_subq.c.trunk_vlan_id)
+            & (BGPSession.af == ip_subq.c.af),
+        )
+        .where(BGPSession.route_server_id == route_server_id)
+    )
     result = await db.execute(stmt)
     sessions_by_peer: dict[tuple[str, int], BGPSession] = {
-        (s.peer_ip, s.af): s for s in result.scalars().all()
+        (str(addr), s.af): s for s, addr in result.all()
     }
+
+    # Pre-load ASN mapping for event data
+    stmt_asn = (
+        select(TrunkVLAN.id, Member.asn)
+        .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
+        .join(Member, Trunk.member_id == Member.id)
+        .where(TrunkVLAN.id.in_(
+            select(BGPSession.trunk_vlan_id)
+            .where(BGPSession.route_server_id == route_server_id)
+        ))
+    )
+    asn_result = await db.execute(stmt_asn)
+    asn_by_tv: dict[uuid.UUID, int] = {row[0]: row[1] for row in asn_result.all()}
 
     updated = 0
     unchanged = 0
@@ -174,6 +211,8 @@ async def report_agent_status(
         session.oper_state = new_state
         updated += 1
 
+        peer_asn = asn_by_tv.get(session.trunk_vlan_id, 0)
+
         # Emit events for meaningful state transitions
         if old_state == BGPOperState.up and new_state == BGPOperState.down:
             await create_event(
@@ -184,8 +223,8 @@ async def report_agent_status(
                 resource_type="bgp_session",
                 resource_id=session.id,
                 data={
-                    "peer_ip": session.peer_ip,
-                    "peer_asn": session.peer_asn,
+                    "peer_ip": report.peer_ip,
+                    "peer_asn": peer_asn,
                     "route_server_id": str(route_server_id),
                     "previous_state": old_state,
                     "new_state": new_state,
@@ -202,8 +241,8 @@ async def report_agent_status(
                 resource_type="bgp_session",
                 resource_id=session.id,
                 data={
-                    "peer_ip": session.peer_ip,
-                    "peer_asn": session.peer_asn,
+                    "peer_ip": report.peer_ip,
+                    "peer_asn": peer_asn,
                     "route_server_id": str(route_server_id),
                     "previous_state": old_state,
                     "new_state": new_state,

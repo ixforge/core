@@ -15,6 +15,7 @@ from ixforge.enums import BGPAdminState, MemberState, TrunkState
 from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
+from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
@@ -73,11 +74,29 @@ async def _build_peers(
     af: int,
 ) -> list[PeerContext]:
     """Gather active BGP sessions for the given address family and build peer contexts."""
+    # Use DISTINCT ON subquery to avoid duplicates when a trunk_vlan has multiple IPs of the same AF
+    ip_subq = (
+        select(
+            IPAssignment.trunk_vlan_id,
+            IPAssignment.address,
+            IPPool.af,
+        )
+        .join(IPPool, IPAssignment.pool_id == IPPool.id)
+        .distinct(IPAssignment.trunk_vlan_id, IPPool.af)
+        .order_by(IPAssignment.trunk_vlan_id, IPPool.af, IPAssignment.address)
+        .subquery()
+    )
+
     stmt = (
-        select(BGPSession, Member)
+        select(BGPSession, Member, ip_subq.c.address)
         .join(TrunkVLAN, BGPSession.trunk_vlan_id == TrunkVLAN.id)
         .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
         .join(Member, Trunk.member_id == Member.id)
+        .join(
+            ip_subq,
+            (BGPSession.trunk_vlan_id == ip_subq.c.trunk_vlan_id)
+            & (ip_subq.c.af == af),
+        )
         .where(
             BGPSession.route_server_id == route_server_id,
             BGPSession.af == af,
@@ -85,15 +104,16 @@ async def _build_peers(
             Trunk.state == TrunkState.active,
             Member.state == MemberState.active,
         )
-        .order_by(BGPSession.peer_asn, BGPSession.peer_ip)
+        .order_by(Member.asn, ip_subq.c.address)
     )
     result = await session.execute(stmt)
     rows = result.all()
 
     seen_names: set[str] = set()
     peers: list[PeerContext] = []
-    for bgp_session, member in rows:
-        protocol_name = _sanitize_protocol_name(member.short_name, bgp_session.peer_ip, af)
+    for bgp_session, member, peer_ip in rows:
+        peer_ip_str = str(peer_ip)
+        protocol_name = _sanitize_protocol_name(member.short_name, peer_ip_str, af)
         # Append numeric suffix on the rare collision after truncation
         base = protocol_name
         counter = 2
@@ -106,8 +126,8 @@ async def _build_peers(
             PeerContext(
                 protocol_name=protocol_name,
                 member_name=member.name,
-                peer_ip=bgp_session.peer_ip,
-                peer_asn=bgp_session.peer_asn,
+                peer_ip=peer_ip_str,
+                peer_asn=member.asn,
                 max_prefixes=bgp_session.max_prefixes,
             )
         )
