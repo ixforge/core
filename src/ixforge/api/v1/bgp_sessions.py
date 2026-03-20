@@ -1,6 +1,7 @@
 """BGP session endpoints: CRUD, admin state update, delete."""
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
@@ -8,7 +9,6 @@ from pydantic import BaseModel
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
 from ixforge.enums import BGPAdminState
 from ixforge.exceptions import ForbiddenError
-from ixforge.models.bgp_session import BGPSession
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import UserRole
 from ixforge.schemas.bgp_session import BGPSessionCreate, BGPSessionRead
@@ -28,9 +28,10 @@ async def create_bgp_session(
     db: DBSession,
     ixp_id: IXPId,
     _admin: AdminUser,
-) -> BGPSession:
+) -> dict[str, Any]:
     """Create a new BGP session."""
-    return await bgp_svc.create(db, ixp_id, body)
+    bgp = await bgp_svc.create(db, ixp_id, body)
+    return await bgp_svc.to_read(db, bgp)
 
 
 @bgp_sessions_router.get("", response_model=CursorPage[BGPSessionRead])
@@ -59,7 +60,7 @@ async def get_bgp_session(
     db: DBSession,
     ixp_id: IXPId,
     user: CurrentUser,
-) -> BGPSession:
+) -> dict[str, Any]:
     """Get BGP session details."""
     bgp_session = await bgp_svc.get(db, ixp_id, session_id)
 
@@ -73,7 +74,7 @@ async def get_bgp_session(
         if trunk is None or trunk.ixp_id != ixp_id or trunk.member_id != user.member_id:
             raise ForbiddenError("You do not have access to this BGP session")
 
-    return bgp_session
+    return await bgp_svc.to_read(db, bgp_session)
 
 
 @bgp_sessions_router.patch("/{session_id}", response_model=BGPSessionRead)
@@ -83,9 +84,10 @@ async def update_bgp_session(
     db: DBSession,
     ixp_id: IXPId,
     _admin: AdminUser,
-) -> BGPSession:
+) -> dict[str, Any]:
     """Update BGP session admin state (up/down)."""
-    return await bgp_svc.update_admin_state(db, ixp_id, session_id, body.admin_state.value)
+    bgp = await bgp_svc.update_admin_state(db, ixp_id, session_id, body.admin_state.value)
+    return await bgp_svc.to_read(db, bgp)
 
 
 @bgp_sessions_router.delete("/{session_id}", status_code=204)

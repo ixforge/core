@@ -17,6 +17,7 @@ from ixforge.enums import (
 )
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
+from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.location import Location
 from ixforge.models.member import Member
@@ -126,13 +127,32 @@ async def _setup_active_peer(
     db.add(conn)
     await db.flush()
 
+    network = "192.0.2.0/24" if af == 4 else "2001:db8::/64"
+    pool = IPPool(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        vlan_id=vlan.id,
+        network=network,
+        af=af,
+    )
+    db.add(pool)
+    await db.flush()
+
+    ip = IPAssignment(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        pool_id=pool.id,
+        trunk_vlan_id=trunk_vlan.id,
+        address=peer_ip,
+    )
+    db.add(ip)
+    await db.flush()
+
     bgp = BGPSession(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         route_server_id=rs.id,
         trunk_vlan_id=trunk_vlan.id,
-        peer_ip=peer_ip,
-        peer_asn=peer_asn,
         admin_state=BGPAdminState.up,
         oper_state=BGPOperState.up,
         af=af,
@@ -256,13 +276,31 @@ class TestConfigGeneration:
         db_session.add(trunk_vlan)
         await db_session.flush()
 
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="192.0.2.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        ip = IPAssignment(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            pool_id=pool.id,
+            trunk_vlan_id=trunk_vlan.id,
+            address="192.0.2.99",
+        )
+        db_session.add(ip)
+        await db_session.flush()
+
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
             trunk_vlan_id=trunk_vlan.id,
-            peer_ip="192.0.2.99",
-            peer_asn=64700,
             admin_state=BGPAdminState.up,
             oper_state=BGPOperState.up,
             af=4,
@@ -329,13 +367,31 @@ class TestConfigGeneration:
         db_session.add(trunk_vlan)
         await db_session.flush()
 
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="192.0.2.0/24",
+            af=4,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        ip = IPAssignment(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            pool_id=pool.id,
+            trunk_vlan_id=trunk_vlan.id,
+            address="192.0.2.88",
+        )
+        db_session.add(ip)
+        await db_session.flush()
+
         bgp = BGPSession(
             id=uuid.uuid4(),
             ixp_id=ixp.id,
             route_server_id=rs.id,
             trunk_vlan_id=trunk_vlan.id,
-            peer_ip="192.0.2.88",
-            peer_asn=64800,
             admin_state=BGPAdminState.down,
             oper_state=BGPOperState.down,
             af=4,
