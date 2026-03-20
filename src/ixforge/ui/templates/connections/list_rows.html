@@ -1,0 +1,30 @@
+{% for c in connections %}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+  <td class="py-3">
+    <code class="text-sm font-medium">{{ c.name }}</code>
+  </td>
+  <td class="py-3 text-sm">
+    {% if c.trunk_id %}
+    <a href="/admin/trunks/{{ c.trunk_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ c.trunk_name or c.trunk_id[:8] }}</a>
+    {% else %}-{% endif %}
+  </td>
+  <td class="py-3 text-sm">{{ c.member_name or "-" }}</td>
+  <td class="py-3 text-sm">
+    {% if c.switch_id %}
+    <a href="/admin/switches/{{ c.switch_id }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ c.switch_name or c.switch_id[:8] }}</a>
+    {% else %}-{% endif %}
+  </td>
+  <td class="py-3 text-sm">{{ c.type or "-" }}</td>
+  <td class="py-3 text-sm">
+    {% if c.speed %}{{ (c.speed / 1000) | int }}G{% else %}-{% endif %}
+  </td>
+  <td class="py-3">
+    {% if c.state == "active" %}<span class="badge badge-green">Activo</span>
+    {% elif c.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
+    {% elif c.state == "draft" %}<span class="badge badge-gray">Draft</span>
+    {% elif c.state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
+    {% elif c.state == "decommissioned" %}<span class="badge badge-gray">Decomisionado</span>
+    {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
+  </td>
+</tr>
+{% endfor %}

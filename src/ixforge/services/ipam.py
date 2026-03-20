@@ -344,20 +344,25 @@ async def get_pools_with_availability(
     for pool in pools:
         network = ipaddress.ip_network(pool.network, strict=False)
         reserved = _reserved_addresses(network)
-        total_hosts = network.num_addresses - len(reserved)
 
         used = await _get_used_addresses(session, pool.id)
         used_count = len(used)
 
+        # Cap total_hosts for large networks (IPv6 /64 etc.)
+        raw_total = network.num_addresses - len(reserved)
+        total_hosts = min(raw_total, MAX_SEQUENTIAL_HOSTS)
+
+        # Find next available by scanning up to MAX_SEQUENTIAL_HOSTS hosts
         next_available = None
-        if network.num_addresses <= MAX_SEQUENTIAL_HOSTS:
-            for host in network:
-                if host in reserved:
-                    continue
-                if str(host) in used:
-                    continue
-                next_available = str(host)
+        for i, host in enumerate(network):
+            if i >= MAX_SEQUENTIAL_HOSTS:
                 break
+            if host in reserved:
+                continue
+            if str(host) in used:
+                continue
+            next_available = str(host)
+            break
 
         pool_summaries.append({
             "id": str(pool.id),
