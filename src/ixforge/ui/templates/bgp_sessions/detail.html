@@ -84,18 +84,6 @@
       <p class="font-medium">{{ session.max_prefixes }}</p>
     </div>
     {% endif %}
-    {% if session.import_limit %}
-    <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Import Limit</p>
-      <p class="font-medium">{{ session.import_limit }}</p>
-    </div>
-    {% endif %}
-    {% if session.export_limit %}
-    <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Export Limit</p>
-      <p class="font-medium">{{ session.export_limit }}</p>
-    </div>
-    {% endif %}
     <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">Creado</p>
       <p class="font-medium">{{ session.created_at[:10] if session.created_at else "-" }}</p>

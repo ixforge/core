@@ -223,6 +223,36 @@
   {% else %}
   <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay sesiones BGP</p>
   {% endif %}
+
+  {# Add BGP session form #}
+  <div class="border-t dark:border-gray-700 pt-4 mt-4">
+    <h3 class="text-sm font-semibold mb-3">Agregar Sesion BGP</h3>
+    <form method="post" action="/admin/route-servers/{{ rs.id }}/bgp-sessions" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">Trunk VLAN</label>
+        <select name="trunk_vlan_id" class="input-field w-full" required>
+          <option value="">Seleccionar...</option>
+          {% for tv in trunk_vlans %}
+          <option value="{{ tv.id }}">{{ tv.trunk_name }} - {{ tv.vlan_name }} (VID {{ tv.vid }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">AF</label>
+        <select name="af" class="input-field w-full" required>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Max Prefixes</label>
+        <input type="number" name="max_prefixes" class="input-field w-full" min="1" placeholder="Opcional">
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="btn-primary btn-sm">Agregar</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 {# RS VLANs #}

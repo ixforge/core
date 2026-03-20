@@ -210,14 +210,10 @@ class BGPSessionFactory(_NoDBFactory):
     ixp_id = factory.LazyFunction(uuid.uuid4)
     route_server_id = factory.LazyFunction(uuid.uuid4)
     trunk_vlan_id = factory.LazyFunction(uuid.uuid4)
-    peer_ip = factory.Sequence(lambda n: f"192.0.2.{n + 2}")
-    peer_asn = factory.Sequence(lambda n: 64512 + n)
     admin_state = BGPAdminState.up
     oper_state = BGPOperState.unknown
     af = 4
     max_prefixes = 100
-    import_limit = None
-    export_limit = None
 
 
 class ConfigVersionFactory(_NoDBFactory):

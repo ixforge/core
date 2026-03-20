@@ -14,6 +14,7 @@ from ixforge.enums import (
     VLANType,
 )
 from ixforge.models.bgp_session import BGPSession
+from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
@@ -57,6 +58,36 @@ async def _create_trunk_with_vlan(
     return trunk_vlan
 
 
+async def _add_ip_assignment(
+    db: AsyncSession,
+    ixp: IXP,
+    trunk_vlan: TrunkVLAN,
+    address: str = "192.0.2.10",
+    af: int = 4,
+) -> IPAssignment:
+    """Create an IPPool + IPAssignment for a trunk_vlan so peer_ip can be resolved."""
+    pool = IPPool(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        vlan_id=trunk_vlan.vlan_id,
+        network="192.0.2.0/24" if af == 4 else "2001:db8::/64",
+        af=af,
+    )
+    db.add(pool)
+    await db.flush()
+
+    ip = IPAssignment(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        pool_id=pool.id,
+        trunk_vlan_id=trunk_vlan.id,
+        address=address,
+    )
+    db.add(ip)
+    await db.flush()
+    return ip
+
+
 async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, BGPSession]:
     rs = RouteServer(
         id=uuid.uuid4(),
@@ -81,13 +112,13 @@ async def _setup_bgp_session(db: AsyncSession, ixp: IXP) -> tuple[RouteServer, B
 
     trunk_vlan = await _create_trunk_with_vlan(db, ixp, member)
 
+    await _add_ip_assignment(db, ixp, trunk_vlan, address="192.0.2.10")
+
     bgp = BGPSession(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
         route_server_id=rs.id,
         trunk_vlan_id=trunk_vlan.id,
-        peer_ip="192.0.2.10",
-        peer_asn=64600,
         admin_state=BGPAdminState.up,
         oper_state=BGPOperState.up,
         af=4,
@@ -208,14 +239,14 @@ class TestBGPSessionCreate:
 
         trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
 
+        await _add_ip_assignment(db_session, ixp, trunk_vlan, address="192.0.2.10")
+
         resp = await client.post(
             "/api/v1/bgp-sessions",
             headers=auth_headers,
             json={
                 "route_server_id": str(rs.id),
                 "trunk_vlan_id": str(trunk_vlan.id),
-                "peer_ip": "192.0.2.10",
-                "peer_asn": 64700,
                 "af": 4,
                 "max_prefixes": 100,
             },
@@ -261,11 +292,11 @@ class TestBGPSessionCreate:
 
         trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
 
+        await _add_ip_assignment(db_session, ixp, trunk_vlan, address="192.0.2.20")
+
         payload = {
             "route_server_id": str(rs.id),
             "trunk_vlan_id": str(trunk_vlan.id),
-            "peer_ip": "192.0.2.20",
-            "peer_asn": 64701,
             "af": 4,
         }
 
@@ -349,8 +380,49 @@ class TestBGPSessionCreate:
             json={
                 "route_server_id": str(rs.id),
                 "trunk_vlan_id": str(trunk_vlan.id),
-                "peer_ip": "192.0.2.30",
-                "peer_asn": 64702,
+                "af": 4,
+            },
+        )
+        assert resp.status_code == 422
+
+    async def test_create_bgp_session_without_ip_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Creating a BGP session without an IP assignment for the AF should fail."""
+        rs = RouteServer(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="rs-no-ip",
+            ip_v4="192.0.2.249",
+            is_active=True,
+        )
+        db_session.add(rs)
+
+        member = Member(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="No IP Test Net",
+            short_name="NIT",
+            asn=64704,
+            state=MemberState.active,
+            peering_policy=PeeringPolicy.open,
+        )
+        db_session.add(member)
+        await db_session.flush()
+
+        trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
+        # NO IPPool/IPAssignment created
+
+        resp = await client.post(
+            "/api/v1/bgp-sessions",
+            headers=auth_headers,
+            json={
+                "route_server_id": str(rs.id),
+                "trunk_vlan_id": str(trunk_vlan.id),
                 "af": 4,
             },
         )
@@ -402,8 +474,6 @@ class TestBGPSessionCreate:
             json={
                 "route_server_id": str(rs_other.id),
                 "trunk_vlan_id": str(trunk_vlan.id),
-                "peer_ip": "192.0.2.40",
-                "peer_asn": 64703,
                 "af": 4,
             },
         )
@@ -424,109 +494,7 @@ class TestBGPSessionConstraints:
             json={
                 "route_server_id": str(uuid.uuid4()),
                 "trunk_vlan_id": str(uuid.uuid4()),
-                "peer_ip": "192.0.2.10",
-                "peer_asn": 64500,
                 "af": 5,
-            },
-        )
-        assert resp.status_code == 422
-
-    async def test_create_bgp_session_zero_asn_rejected(
-        self,
-        client: AsyncClient,
-        auth_headers: dict,
-        ixp: IXP,
-    ):
-        """peer_asn=0 should fail Pydantic validation (gt=0)."""
-        resp = await client.post(
-            "/api/v1/bgp-sessions",
-            headers=auth_headers,
-            json={
-                "route_server_id": str(uuid.uuid4()),
-                "trunk_vlan_id": str(uuid.uuid4()),
-                "peer_ip": "192.0.2.10",
-                "peer_asn": 0,
-                "af": 4,
-            },
-        )
-        assert resp.status_code == 422
-
-    async def test_create_bgp_session_negative_asn_rejected(
-        self,
-        client: AsyncClient,
-        auth_headers: dict,
-        ixp: IXP,
-    ):
-        """peer_asn=-1 should fail Pydantic validation (gt=0)."""
-        resp = await client.post(
-            "/api/v1/bgp-sessions",
-            headers=auth_headers,
-            json={
-                "route_server_id": str(uuid.uuid4()),
-                "trunk_vlan_id": str(uuid.uuid4()),
-                "peer_ip": "192.0.2.10",
-                "peer_asn": -1,
-                "af": 4,
-            },
-        )
-        assert resp.status_code == 422
-
-    async def test_create_bgp_session_invalid_ip_rejected(
-        self,
-        client: AsyncClient,
-        auth_headers: dict,
-        ixp: IXP,
-    ):
-        """peer_ip='not-an-ip' should fail validation."""
-        resp = await client.post(
-            "/api/v1/bgp-sessions",
-            headers=auth_headers,
-            json={
-                "route_server_id": str(uuid.uuid4()),
-                "trunk_vlan_id": str(uuid.uuid4()),
-                "peer_ip": "not-an-ip",
-                "peer_asn": 64500,
-                "af": 4,
-            },
-        )
-        assert resp.status_code == 422
-
-    async def test_create_bgp_session_ipv6_with_af4_rejected(
-        self,
-        client: AsyncClient,
-        auth_headers: dict,
-        ixp: IXP,
-    ):
-        """IPv6 peer_ip with af=4 should fail validation."""
-        resp = await client.post(
-            "/api/v1/bgp-sessions",
-            headers=auth_headers,
-            json={
-                "route_server_id": str(uuid.uuid4()),
-                "trunk_vlan_id": str(uuid.uuid4()),
-                "peer_ip": "2001:db8::1",
-                "peer_asn": 64500,
-                "af": 4,
-            },
-        )
-        assert resp.status_code == 422
-
-    async def test_create_bgp_session_ipv4_with_af6_rejected(
-        self,
-        client: AsyncClient,
-        auth_headers: dict,
-        ixp: IXP,
-    ):
-        """IPv4 peer_ip with af=6 should fail validation."""
-        resp = await client.post(
-            "/api/v1/bgp-sessions",
-            headers=auth_headers,
-            json={
-                "route_server_id": str(uuid.uuid4()),
-                "trunk_vlan_id": str(uuid.uuid4()),
-                "peer_ip": "192.0.2.1",
-                "peer_asn": 64500,
-                "af": 6,
             },
         )
         assert resp.status_code == 422
@@ -604,8 +572,6 @@ class TestBGPSessionDelete:
             ixp_id=other_ixp.id,
             route_server_id=rs.id,
             trunk_vlan_id=trunk_vlan.id,
-            peer_ip="192.0.2.99",
-            peer_asn=64800,
             admin_state=BGPAdminState.up,
             oper_state=BGPOperState.unknown,
             af=4,
