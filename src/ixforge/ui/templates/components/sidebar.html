@@ -81,6 +81,15 @@
             Trunks
           </a>
 
+          <a href="/admin/connections"
+             class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                    {% if request.url.path.startswith('/admin/connections') %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50{% endif %}">
+            <svg class="mr-3 h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+            Conexiones
+          </a>
+
           <a href="/admin/route-servers"
              class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
                     {% if request.url.path.startswith('/admin/route-servers') %}bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50{% endif %}">

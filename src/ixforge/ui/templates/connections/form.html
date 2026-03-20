@@ -1,0 +1,136 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<div class="card max-w-2xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+      {% for err in errors.error.details if errors.error.details is iterable and errors.error.details is not string %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% else %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/admin/connections/new" x-data="connectionForm()">
+    {# Miembro #}
+    <div class="mb-4">
+      <label for="member_id" class="block text-sm font-medium mb-1">Miembro</label>
+      <select id="member_id" name="member_id" required class="input-field w-full"
+              x-model="selectedMember" @change="filterTrunks()">
+        <option value="" disabled>— Seleccionar miembro —</option>
+        {% for m in members %}
+        <option value="{{ m.id }}">{{ m.name }} (AS{{ m.asn }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# Trunk #}
+    <div class="mb-4">
+      <label for="trunk_id" class="block text-sm font-medium mb-1">Trunk</label>
+      <select id="trunk_id" name="trunk_id" required class="input-field w-full"
+              x-model="selectedTrunk" :disabled="!selectedMember">
+        <option value="" disabled selected>— Seleccionar trunk —</option>
+        <template x-for="t in filteredTrunks" :key="t.id">
+          <option :value="t.id" x-text="t.name"></option>
+        </template>
+      </select>
+      <p class="text-xs text-gray-500 mt-1" x-show="!selectedMember">Selecciona un miembro primero</p>
+    </div>
+
+    {# Switch #}
+    <div class="mb-4">
+      <label for="switch_id" class="block text-sm font-medium mb-1">Switch</label>
+      <select id="switch_id" name="switch_id" required class="input-field w-full">
+        {% set current_switch = connection.switch_id if connection else '' %}
+        <option value="" disabled {% if not current_switch %}selected{% endif %}>— Seleccionar switch —</option>
+        {% for s in switches %}
+        <option value="{{ s.id }}" {% if current_switch == s.id %}selected{% endif %}>
+          {{ s.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# Puerto #}
+    <div class="mb-4">
+      <label for="puerto" class="block text-sm font-medium mb-1">Puerto</label>
+      <input type="text"
+             id="puerto"
+             name="puerto"
+             value="{{ connection.name if connection else '' }}"
+             required
+             class="input-field w-full"
+             placeholder="Ethernet1/1">
+    </div>
+
+    {# Tipo #}
+    <div class="mb-4">
+      <label for="type" class="block text-sm font-medium mb-1">Tipo</label>
+      <select id="type" name="type" required class="input-field w-full">
+        {% set current_type = connection.type if connection else 'physical' %}
+        <option value="physical" {% if current_type == "physical" %}selected{% endif %}>Physical</option>
+        <option value="virtual" {% if current_type == "virtual" %}selected{% endif %}>Virtual</option>
+      </select>
+    </div>
+
+    {# Velocidad #}
+    <div class="mb-4">
+      <label for="speed" class="block text-sm font-medium mb-1">Velocidad</label>
+      <select id="speed" name="speed" required class="input-field w-full">
+        {% set current_speed = connection.speed|string if connection else '10000' %}
+        <option value="1000" {% if current_speed == "1000" %}selected{% endif %}>1 Gbps</option>
+        <option value="10000" {% if current_speed == "10000" %}selected{% endif %}>10 Gbps</option>
+        <option value="25000" {% if current_speed == "25000" %}selected{% endif %}>25 Gbps</option>
+        <option value="40000" {% if current_speed == "40000" %}selected{% endif %}>40 Gbps</option>
+        <option value="100000" {% if current_speed == "100000" %}selected{% endif %}>100 Gbps</option>
+      </select>
+    </div>
+
+    {# Notas #}
+    <div class="mb-6">
+      <label for="notes" class="block text-sm font-medium mb-1">Notas</label>
+      <textarea id="notes"
+                name="notes"
+                rows="3"
+                class="input-field w-full"
+                placeholder="Opcional">{{ connection.notes if connection else '' }}</textarea>
+    </div>
+
+    {# Botones #}
+    <div class="flex gap-3">
+      <button type="submit" class="btn-primary">Crear</button>
+      <a href="/admin/connections" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function connectionForm() {
+  const trunks = {{ trunks_json | safe }};
+  return {
+    selectedMember: '{{ connection.member_id if connection and connection.member_id else preselect_member_id }}',
+    selectedTrunk: '{{ connection.trunk_id if connection and connection.trunk_id else preselect_trunk_id }}',
+    allTrunks: trunks,
+    filteredTrunks: [],
+    filterTrunks() {
+      this.filteredTrunks = this.allTrunks.filter(t => t.member_id === this.selectedMember);
+      if (!this.filteredTrunks.find(t => t.id === this.selectedTrunk)) {
+        this.selectedTrunk = '';
+      }
+    },
+    init() {
+      if (this.selectedMember) this.filterTrunks();
+    }
+  }
+}
+</script>
+{% endblock %}
