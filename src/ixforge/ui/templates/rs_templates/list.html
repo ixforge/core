@@ -2,69 +2,127 @@
 {% import "components/empty_state.html" as empty %}
 {% block title %}{{ page_title }} - IXForge{% endblock %}
 {% block content %}
-<div class="mb-6 flex justify-between items-center">
+
+{# Header #}
+<div class="mb-5 flex justify-between items-end">
   <div>
-    <h1 class="text-2xl font-bold">{{ page_title }}</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-      <a href="/admin/route-servers" class="hover:text-indigo-600 dark:hover:text-indigo-400">Route Servers</a>
-      <span class="mx-1">/</span>
-      <span>Templates</span>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mb-1">
+      <a href="/admin/route-servers" class="hover:text-indigo-500 transition-colors">Route Servers</a>
+      <span class="mx-1.5 text-gray-300 dark:text-gray-600">/</span>
+      <span class="text-gray-500 dark:text-gray-400">Templates</span>
     </p>
+    <h1 class="text-xl font-semibold tracking-tight">Plantillas BIRD</h1>
   </div>
-  <a href="/admin/route-servers/templates/new" class="btn-primary">Nuevo Template</a>
+  <a href="/admin/route-servers/templates/new"
+     class="inline-flex items-center gap-1.5 text-sm font-medium px-3.5 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-sm hover:shadow">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" d="M12 4v16m8-8H4"/>
+    </svg>
+    Nuevo
+  </a>
 </div>
 
 {% if templates %}
-<div class="card overflow-hidden">
-  <div class="overflow-x-auto">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-          <th class="pb-3 font-medium">Archivo</th>
-          <th class="pb-3 font-medium">Descripcion</th>
-          <th class="pb-3 font-medium">Ultima modificacion</th>
-          <th class="pb-3 font-medium">Acciones</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y dark:divide-gray-700">
-        {% for tpl in templates %}
-        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-          <td class="py-3 pr-4">
-            <a href="/admin/route-servers/templates/{{ tpl.id }}/edit"
-               class="text-indigo-600 dark:text-indigo-400 hover:underline font-mono text-sm">
-              {{ tpl.filename }}
-            </a>
-          </td>
-          <td class="py-3 pr-4 text-sm text-gray-600 dark:text-gray-400">
-            {{ tpl.description or '-' }}
-          </td>
-          <td class="py-3 pr-4 text-sm text-gray-500 dark:text-gray-400">
-            {{ tpl.updated_at[:16] | replace('T', ' ') if tpl.updated_at else '-' }}
-          </td>
-          <td class="py-3">
-            <div class="flex items-center gap-2">
-              <a href="/admin/route-servers/templates/{{ tpl.id }}/edit"
-                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400">
-                Editar
-              </a>
-              {% if not tpl.is_protected %}
-              <form method="post"
-                    action="/admin/route-servers/templates/{{ tpl.id }}/delete"
-                    onsubmit="return confirm('Eliminar template {{ tpl.filename }}?')">
-                <button type="submit"
-                        class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
-                  Eliminar
-                </button>
-              </form>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% set entry_points = templates | selectattr("is_protected") | list %}
+{% set others = templates | rejectattr("is_protected") | list %}
+
+{# Unified file list — single surface #}
+<div class="rounded-lg border border-gray-200 dark:border-gray-700/80 overflow-hidden bg-white dark:bg-gray-800/50"
+     style="box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.03);">
+
+  {# Column header #}
+  <div class="grid items-center px-4 py-2 text-[11px] font-medium uppercase tracking-widest text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-800/80"
+       style="grid-template-columns: 1fr 280px 140px 40px;">
+    <span>Archivo</span>
+    <span>Descripcion</span>
+    <span>Modificado</span>
+    <span></span>
   </div>
+
+  {# Entry points section header #}
+  {% if entry_points %}
+  <div class="px-4 py-1.5 bg-indigo-50/60 dark:bg-indigo-950/20 border-b border-gray-100 dark:border-gray-700/40">
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-indigo-400 dark:text-indigo-500">Entry Points</span>
+  </div>
+  {% endif %}
+
+  {# Entry point rows #}
+  {% for tpl in entry_points %}
+  <a href="/admin/route-servers/templates/{{ tpl.id }}/edit"
+     class="grid items-center px-4 py-2.5 border-b border-gray-100 dark:border-gray-700/40 group cursor-pointer transition-colors hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20"
+     style="grid-template-columns: 1fr 280px 140px 40px;">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30">
+        <svg class="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <span class="font-mono text-[13px] font-medium text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">{{ tpl.filename }}</span>
+      <span class="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20">core</span>
+    </div>
+    <span class="text-xs text-gray-500 dark:text-gray-400 truncate pr-4">{{ tpl.description or '' }}</span>
+    <span class="text-xs tabular-nums text-gray-400 dark:text-gray-500">{{ tpl.updated_at[:16] | replace('T', ' ') if tpl.updated_at else '' }}</span>
+    <div class="flex justify-end">
+      <svg class="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+      </svg>
+    </div>
+  </a>
+  {% endfor %}
+
+  {# Includes section header #}
+  {% if others %}
+  <div class="px-4 py-1.5 bg-gray-50/60 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-700/40">
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">Includes</span>
+  </div>
+  {% endif %}
+
+  {# Include rows #}
+  {% for tpl in others %}
+  <div class="grid items-center px-4 py-2.5 group transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/80 {{ '' if loop.last else 'border-b border-gray-100 dark:border-gray-700/40' }}"
+       style="grid-template-columns: 1fr 280px 140px 40px;">
+    <a href="/admin/route-servers/templates/{{ tpl.id }}/edit" class="flex items-center gap-3 min-w-0">
+      <div class="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-700/40">
+        <svg class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+        </svg>
+      </div>
+      <span class="font-mono text-[13px] text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+        {%- if '/' in tpl.filename -%}
+          <span class="text-gray-400 dark:text-gray-500">{{ tpl.filename.split('/')[0] }}/</span>{{ tpl.filename.split('/')[1] }}
+        {%- else -%}
+          {{ tpl.filename }}
+        {%- endif -%}
+      </span>
+    </a>
+    <a href="/admin/route-servers/templates/{{ tpl.id }}/edit" class="text-xs text-gray-500 dark:text-gray-400 truncate pr-4">{{ tpl.description or '' }}</a>
+    <span class="text-xs tabular-nums text-gray-400 dark:text-gray-500">{{ tpl.updated_at[:16] | replace('T', ' ') if tpl.updated_at else '' }}</span>
+    <div class="flex justify-end">
+      <form method="post"
+            action="/admin/route-servers/templates/{{ tpl.id }}/delete"
+            onsubmit="return confirm('Eliminar {{ tpl.filename }}?')">
+        <button type="submit"
+                class="p-1 rounded opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                title="Eliminar">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
 </div>
+
+{# Footer stats #}
+<div class="mt-3 flex items-center gap-4 text-[11px] text-gray-400 dark:text-gray-500">
+  <span>{{ templates | length }} templates</span>
+  <span class="text-gray-300 dark:text-gray-600">|</span>
+  <span>{{ entry_points | length }} entry points</span>
+  <span class="text-gray-300 dark:text-gray-600">|</span>
+  <span>{{ others | length }} includes</span>
+</div>
+
 {% else %}
   {{ empty.empty_state("No hay templates", "/admin/route-servers/templates/new", "Crear Template") }}
 {% endif %}
