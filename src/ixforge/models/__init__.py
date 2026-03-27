@@ -16,6 +16,7 @@ from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.route_server_vlan import RouteServerVLAN
 from ixforge.models.rs_ip_assignment import RSIPAssignment
+from ixforge.models.rs_template import RouteServerTemplate
 from ixforge.models.switch import Switch
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import User
@@ -40,6 +41,7 @@ __all__ = [
     "Member",
     "RSIPAssignment",
     "RouteServer",
+    "RouteServerTemplate",
     "RouteServerVLAN",
     "Switch",
     "Trunk",

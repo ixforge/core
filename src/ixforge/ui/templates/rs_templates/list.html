@@ -1,0 +1,71 @@
+{% extends "layouts/base.html" %}
+{% import "components/empty_state.html" as empty %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <div>
+    <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      <a href="/admin/route-servers" class="hover:text-indigo-600 dark:hover:text-indigo-400">Route Servers</a>
+      <span class="mx-1">/</span>
+      <span>Templates</span>
+    </p>
+  </div>
+  <a href="/admin/route-servers/templates/new" class="btn-primary">Nuevo Template</a>
+</div>
+
+{% if templates %}
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+          <th class="pb-3 font-medium">Archivo</th>
+          <th class="pb-3 font-medium">Descripcion</th>
+          <th class="pb-3 font-medium">Ultima modificacion</th>
+          <th class="pb-3 font-medium">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-gray-700">
+        {% for tpl in templates %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+          <td class="py-3 pr-4">
+            <a href="/admin/route-servers/templates/{{ tpl.id }}/edit"
+               class="text-indigo-600 dark:text-indigo-400 hover:underline font-mono text-sm">
+              {{ tpl.filename }}
+            </a>
+          </td>
+          <td class="py-3 pr-4 text-sm text-gray-600 dark:text-gray-400">
+            {{ tpl.description or '-' }}
+          </td>
+          <td class="py-3 pr-4 text-sm text-gray-500 dark:text-gray-400">
+            {{ tpl.updated_at[:16] | replace('T', ' ') if tpl.updated_at else '-' }}
+          </td>
+          <td class="py-3">
+            <div class="flex items-center gap-2">
+              <a href="/admin/route-servers/templates/{{ tpl.id }}/edit"
+                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400">
+                Editar
+              </a>
+              {% if not tpl.is_protected %}
+              <form method="post"
+                    action="/admin/route-servers/templates/{{ tpl.id }}/delete"
+                    onsubmit="return confirm('Eliminar template {{ tpl.filename }}?')">
+                <button type="submit"
+                        class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                  Eliminar
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  {{ empty.empty_state("No hay templates", "/admin/route-servers/templates/new", "Crear Template") }}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+{# Header: breadcrumb + filename #}
+<div class="mb-4">
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    <a href="/admin/route-servers" class="hover:text-indigo-600 dark:hover:text-indigo-400">Route Servers</a>
+    <span class="mx-1">/</span>
+    <a href="/admin/route-servers/templates" class="hover:text-indigo-600 dark:hover:text-indigo-400">Templates</a>
+    <span class="mx-1">/</span>
+    <span class="text-gray-700 dark:text-gray-200 font-medium">{{ template.filename }}</span>
+  </p>
+</div>
+
+{# Toolbar #}
+<div class="mb-3 flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+  {# Left: description #}
+  <div class="flex items-center gap-2 flex-1 min-w-0">
+    <label for="description" class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Descripcion</label>
+    <input type="text" id="description" name="description"
+           value="{{ template.description or '' }}"
+           class="flex-1 min-w-0 text-sm bg-transparent border-0 border-b border-transparent focus:border-indigo-500 focus:ring-0 px-1 py-0.5 text-gray-700 dark:text-gray-300 placeholder-gray-400"
+           placeholder="Descripcion del template..."
+           form="save-form">
+  </div>
+
+  {# Separator #}
+  <div class="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
+
+  {# Center: preview controls #}
+  <div class="flex items-center gap-2">
+    <select id="route_server_id" name="route_server_id"
+            class="text-sm bg-transparent border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-gray-700 dark:text-gray-300 focus:border-indigo-500 focus:ring-0">
+      <option value="">Route Server...</option>
+      {% for rs in route_servers %}
+      <option value="{{ rs.id }}">{{ rs.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="button" id="btn-preview"
+            class="inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+      </svg>
+      Vista previa
+    </button>
+  </div>
+
+  {# Separator #}
+  <div class="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
+
+  {# Right: actions #}
+  <div class="flex items-center gap-2">
+    <a href="/admin/route-servers/templates"
+       class="text-sm px-3 py-1 rounded text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+      Cancelar
+    </a>
+    <button type="submit" form="save-form"
+            class="inline-flex items-center gap-1.5 text-sm px-4 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-medium">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+      Guardar
+    </button>
+  </div>
+</div>
+
+{% if errors %}
+<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+  {% if errors is mapping and errors.error is defined %}
+    <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+  {% else %}
+    <p class="text-sm text-red-700 dark:text-red-400">{{ errors }}</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{# Full-width editor #}
+<form id="save-form" method="post" action="/admin/route-servers/templates/{{ template.id }}/save">
+  <input type="hidden" name="description" id="description-hidden">
+  <textarea id="editor-content" name="content" class="hidden">{{ template.content }}</textarea>
+</form>
+
+{# Preview slide-over panel — vanilla JS, no Alpine #}
+<div id="preview-overlay" class="fixed inset-0 z-50 hidden">
+  <div id="preview-backdrop" class="absolute inset-0 bg-black/40 transition-opacity duration-200 opacity-0"></div>
+  <div id="preview-panel" class="absolute right-0 top-0 bottom-0 w-full max-w-3xl bg-white dark:bg-gray-800 shadow-xl flex flex-col transition-transform duration-200 translate-x-full">
+    <div class="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
+      <h2 class="text-lg font-semibold">Vista previa</h2>
+      <button id="preview-close" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div id="preview-output" class="flex-1 overflow-auto p-6">
+      {% include "rs_templates/_preview_fragment.html" %}
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/codemirror-editor.js"></script>
+<script>
+  (function() {
+    const overlay = document.getElementById("preview-overlay")
+    const backdrop = document.getElementById("preview-backdrop")
+    const panel = document.getElementById("preview-panel")
+
+    function openPreview() {
+      overlay.classList.remove("hidden")
+      requestAnimationFrame(() => {
+        backdrop.classList.remove("opacity-0")
+        panel.classList.remove("translate-x-full")
+      })
+    }
+
+    function closePreview() {
+      backdrop.classList.add("opacity-0")
+      panel.classList.add("translate-x-full")
+      setTimeout(() => overlay.classList.add("hidden"), 200)
+    }
+
+    document.getElementById("preview-close").addEventListener("click", closePreview)
+    backdrop.addEventListener("click", closePreview)
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape" && !overlay.classList.contains("hidden")) closePreview()
+    })
+
+    // Sync description to hidden field
+    document.getElementById("save-form").addEventListener("submit", function() {
+      document.getElementById("description-hidden").value =
+        document.getElementById("description").value
+    })
+
+    // Preview button
+    document.getElementById("btn-preview").addEventListener("click", function() {
+      const rsId = document.getElementById("route_server_id").value
+      if (!rsId) {
+        alert("Selecciona un Route Server primero")
+        return
+      }
+
+      openPreview()
+
+      htmx.ajax("POST",
+        "/admin/route-servers/templates/{{ template.id }}/preview",
+        {
+          target: "#preview-output",
+          swap: "innerHTML",
+          values: {
+            route_server_id: rsId,
+            content: document.getElementById("editor-content").value,
+          },
+        }
+      )
+    })
+  })()
+</script>
+{% endblock %}
