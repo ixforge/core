@@ -48,3 +48,4 @@ node_modules/
 # Generated frontend assets
 src/ixforge/ui/static/css/app.css
 src/ixforge/ui/static/js/vendor/
+.worktrees/
