@@ -4,14 +4,25 @@
     "vendor:copy": "mkdir -p src/ixforge/ui/static/js/vendor && cp node_modules/alpinejs/dist/cdn.min.js src/ixforge/ui/static/js/vendor/alpine.min.js && cp node_modules/@alpinejs/collapse/dist/cdn.min.js src/ixforge/ui/static/js/vendor/alpine-collapse.min.js && cp node_modules/htmx.org/dist/htmx.min.js src/ixforge/ui/static/js/vendor/htmx.min.js",
     "css:build": "npx tailwindcss -i src/ixforge/ui/static/css/input.css -o src/ixforge/ui/static/css/app.css --minify",
     "css:watch": "npx tailwindcss -i src/ixforge/ui/static/css/input.css -o src/ixforge/ui/static/css/app.css --watch",
-    "build": "npm run vendor:copy && npm run css:build"
+    "js:editor": "npx esbuild src/ixforge/ui/static/js/codemirror-editor.js --bundle --minify --format=iife --outfile=src/ixforge/ui/static/js/codemirror-bundle.js",
+    "build": "npm run vendor:copy && npm run css:build && npm run js:editor"
   },
   "dependencies": {
     "@alpinejs/collapse": "^3.15.8",
+    "@codemirror/autocomplete": "^6.20.1",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.5",
+    "@codemirror/search": "^6.6.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.40.0",
+    "@lezer/highlight": "^1.2.3",
     "alpinejs": "^3.15.8",
+    "codemirror": "^6.0.2",
     "htmx.org": "^2.0.8"
   },
   "devDependencies": {
+    "esbuild": "^0.27.4",
     "tailwindcss": "^3.4"
   }
 }

@@ -21,6 +21,7 @@ from ixforge.api.v1.monitoring import monitoring_router
 from ixforge.api.v1.route_server_vlans import rs_vlans_router
 from ixforge.api.v1.route_servers import route_servers_router
 from ixforge.api.v1.rs_ip import rs_ip_router
+from ixforge.api.v1.rs_templates import rs_templates_router
 from ixforge.api.v1.setup import setup_router
 from ixforge.api.v1.switches import switches_router
 from ixforge.api.v1.trunks import trunks_router
@@ -50,6 +51,7 @@ v1_router.include_router(connections_router)
 v1_router.include_router(route_servers_router)
 v1_router.include_router(rs_vlans_router)
 v1_router.include_router(rs_ip_router)
+v1_router.include_router(rs_templates_router)
 v1_router.include_router(bgp_sessions_router)
 v1_router.include_router(events_router)
 v1_router.include_router(custom_fields_router)

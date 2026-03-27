@@ -1,12 +1,7 @@
-"""Jinja2 template environment for BIRD config generation."""
+"""Custom Jinja2 filters for BIRD config template rendering."""
 
 import ipaddress
 import re
-from pathlib import Path
-
-from jinja2 import Environment, FileSystemLoader
-
-_BIRD_TEMPLATE_DIR = Path(__file__).parent / "bird"
 
 
 def ipaddr(value: str, fmt: str = "") -> str:
@@ -47,26 +42,3 @@ def prefixlist(prefixes: list[str], name: str = "pfxlist") -> str:
         lines.append(f"    {prefix}{separator}")
     lines.append("];")
     return "\n".join(lines)
-
-
-def get_template_env() -> Environment:
-    """Create and return the Jinja2 environment for BIRD templates."""
-    env = Environment(
-        loader=FileSystemLoader(str(_BIRD_TEMPLATE_DIR)),
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
-    )
-    env.filters["ipaddr"] = ipaddr
-    env.filters["bird_str"] = bird_str
-    env.filters["prefixlist"] = prefixlist
-    return env
-
-
-def get_template_snapshots() -> dict[str, str]:
-    """Read all template files and return a dict of {filename: content} for traceability."""
-    snapshots: dict[str, str] = {}
-    for template_path in _BIRD_TEMPLATE_DIR.rglob("*.j2"):
-        relative = template_path.relative_to(_BIRD_TEMPLATE_DIR)
-        snapshots[str(relative)] = template_path.read_text()
-    return snapshots

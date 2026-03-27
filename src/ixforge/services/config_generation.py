@@ -20,7 +20,8 @@ from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
-from ixforge.services.templates.loader import get_template_env, get_template_snapshots
+from ixforge.services.rs_templates import get_all_templates
+from ixforge.services.template_env import build_template_env
 
 logger = structlog.get_logger()
 
@@ -68,7 +69,7 @@ def _sanitize_protocol_name(name: str, peer_ip: str, af: int) -> str:
     return sanitized[:64]
 
 
-async def _build_peers(
+async def build_peers(
     session: AsyncSession,
     route_server_id: uuid.UUID,
     af: int,
@@ -134,7 +135,7 @@ async def _build_peers(
     return peers
 
 
-async def _build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int) -> RouteServerContext:
+async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int) -> RouteServerContext:
     """Build the route server template context from the model."""
     import ipaddress
 
@@ -211,14 +212,14 @@ async def generate_config(
     if ixp is None:
         raise NotFoundError("IXP", str(ixp_id))
 
-    rs_context = await _build_rs_context(session, rs, ixp.asn)
+    rs_context = await build_rs_context(session, rs, ixp.asn)
     generated_at = datetime.now(UTC)
     generated_at_str = generated_at.isoformat()
 
-    env = get_template_env()
+    env = await build_template_env(session, ixp_id)
 
-    v4_peers = await _build_peers(session, route_server_id, af=4)
-    v6_peers = await _build_peers(session, route_server_id, af=6)
+    v4_peers = await build_peers(session, route_server_id, af=4)
+    v6_peers = await build_peers(session, route_server_id, af=6)
 
     v4_config = ""
     if rs.ip_v4:
@@ -243,7 +244,7 @@ async def generate_config(
     combined = _combine_configs(v4_config, v6_config)
     config_hash = hashlib.sha256(combined.encode()).hexdigest()
 
-    template_snapshot = get_template_snapshots()
+    template_snapshot = await get_all_templates(session, ixp_id)
 
     config_version = ConfigVersion(
         route_server_id=route_server_id,
