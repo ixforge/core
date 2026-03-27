@@ -50,8 +50,8 @@ async def template_new(request: Request) -> Response:
     api: APIClient = request.app.state.api
 
     if request.method == "GET":
-        return render(request, "rs_templates/form.html", {
-            "template": None,
+        return render(request, "rs_templates/new.html", {
+            "form_data": None,
             "errors": {},
             "page_title": "Nueva Plantilla",
         })
@@ -59,7 +59,7 @@ async def template_new(request: Request) -> Response:
     form = await request.form()
 
     payload: dict[str, Any] = {
-        "name": str(form.get("name", "")),
+        "filename": str(form.get("filename", "")),
         "content": str(form.get("content", "")),
     }
     description = str(form.get("description", "")).strip()
@@ -70,14 +70,14 @@ async def template_new(request: Request) -> Response:
         tpl = await api.post("/api/v1/rs-templates", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "rs_templates/form.html", {
-                "template": payload,
+            return render(request, "rs_templates/new.html", {
+                "form_data": payload,
                 "errors": e.detail,
                 "page_title": "Nueva Plantilla",
             })
         raise
 
-    add_flash(request, f"Plantilla '{tpl['name']}' creada", "success")
+    add_flash(request, f"Plantilla '{tpl['filename']}' creada", "success")
     return RedirectResponse(
         f"/admin/route-servers/templates/{tpl['id']}/edit",
         status_code=302,
