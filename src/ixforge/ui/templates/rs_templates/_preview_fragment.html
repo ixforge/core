@@ -1,0 +1,21 @@
+{# HTMX fragment for template preview #}
+{% if error %}
+<div class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+  <p class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
+</div>
+{% elif preview %}
+  {% if preview.errors %}
+  <div class="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg mb-2">
+    {% for err in preview.errors %}
+    <p class="text-sm text-yellow-700 dark:text-yellow-400">{{ err }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if preview.output %}
+  <pre class="p-4 bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg text-sm overflow-auto max-h-[600px]"><code>{{ preview.output }}</code></pre>
+  {% endif %}
+{% else %}
+<div class="flex items-center justify-center h-full text-sm text-gray-400 dark:text-gray-500">
+  Selecciona un Route Server y presiona Renderizar
+</div>
+{% endif %}

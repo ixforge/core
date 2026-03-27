@@ -51,6 +51,13 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 |--------|------|------|-------------|
 | GET | `/health` | - | Health check with component status |
 
+### Setup
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/setup/status` | - | Check if IXP is configured |
+| POST | `/setup` | - | Initial IXP + admin user creation |
+
 ### Auth
 
 | Method | Path | Auth | Description |
@@ -58,14 +65,23 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 | POST | `/auth/login` | - | Login, returns JWT |
 | GET | `/auth/me` | JWT/Key | Current user info |
 
+### IXP Settings (admin only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ixp` | Get IXP settings |
+| PATCH | `/ixp` | Update IXP settings |
+
 ### Users (admin only)
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/users` | List users |
 | POST | `/users` | Create user |
+| GET | `/users/me` | Current user |
 | GET | `/users/{id}` | Get user |
 | PATCH | `/users/{id}` | Update user |
+| DELETE | `/users/{id}` | Delete user |
 | POST | `/users/{id}/api-keys` | Create API key (returns raw key once) |
 | GET | `/users/{id}/api-keys` | List API keys |
 
@@ -75,9 +91,14 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 |--------|------|------|-------------|
 | GET | `/members` | JWT/Key | List (admin: all, member: own) |
 | POST | `/members` | Admin | Create member |
+| GET | `/members/asn-lookup?asn=` | Admin | Lookup ASN name via PeeringDB/RIPE |
 | GET | `/members/{id}` | JWT/Key | Get member |
+| GET | `/members/{id}/asn-name` | JWT/Key | Get member ASN name |
 | PATCH | `/members/{id}` | Admin | Update member |
+| DELETE | `/members/{id}` | Admin | Delete member |
 | POST | `/members/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
+| POST | `/members/{id}/logo` | Admin | Upload member logo |
+| DELETE | `/members/{id}/logo` | Admin | Delete member logo |
 
 States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 
@@ -90,6 +111,16 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 | PATCH | `/contacts/{id}` | Member/Admin | Update contact |
 | DELETE | `/contacts/{id}` | Member/Admin | Delete contact |
 
+### Locations (admin only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/locations` | List locations |
+| POST | `/locations` | Create location |
+| GET | `/locations/{id}` | Get location |
+| PATCH | `/locations/{id}` | Update location |
+| DELETE | `/locations/{id}` | Delete location |
+
 ### Switches (admin only)
 
 | Method | Path | Description |
@@ -100,18 +131,6 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 | PATCH | `/switches/{id}` | Update switch |
 | DELETE | `/switches/{id}` | Delete switch |
 
-### Ports (admin only)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/ports?switch_id=` | List ports for switch |
-| POST | `/ports` | Create port |
-| GET | `/ports/{id}` | Get port |
-| PATCH | `/ports/{id}` | Update port |
-| DELETE | `/ports/{id}` | Delete port |
-| POST | `/ports/{id}/assign` | Assign to member (`{"member_id": "..."}`) |
-| POST | `/ports/{id}/release` | Release from member |
-
 ### VLANs (admin only)
 
 | Method | Path | Description |
@@ -121,6 +140,9 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 | GET | `/vlans/{id}` | Get VLAN |
 | PATCH | `/vlans/{id}` | Update VLAN |
 | DELETE | `/vlans/{id}` | Delete VLAN |
+| GET | `/vlans/{id}/members` | List VLAN member assignments |
+| POST | `/vlans/{id}/members` | Assign member to VLAN |
+| DELETE | `/vlans/{id}/members/{member_id}` | Unassign member from VLAN |
 
 ### IP Pools (admin only)
 
@@ -128,25 +150,38 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 |--------|------|-------------|
 | GET | `/ip-pools?vlan_id=` | List pools for VLAN |
 | POST | `/ip-pools` | Create pool |
+| GET | `/ip-pools/available?vlan_id=` | Pool availability (next IP, stats) |
 | GET | `/ip-pools/{id}` | Get pool |
 | DELETE | `/ip-pools/{id}` | Delete pool |
-| GET | `/ip-pools/{id}/assignments` | List IP assignments |
-| POST | `/ip-pools/{id}/assign` | Allocate IP (`{"connection_id": "...", "address": "..."}`, address optional) |
-| DELETE | `/ip-assignments/{id}` | Release IP |
+| DELETE | `/ip-assignments/{id}` | Release IP assignment |
+
+### Trunks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/trunks?member_id=` | JWT/Key | List trunks (admin: all, member: own) |
+| POST | `/trunks` | Admin | Create trunk (`{"member_id": "...", "name": "ae0"}`) |
+| GET | `/trunks/{id}` | JWT/Key | Get trunk |
+| PATCH | `/trunks/{id}` | Admin | Update trunk |
+| DELETE | `/trunks/{id}` | Admin | Delete trunk (must be decommissioned) |
+| POST | `/trunks/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
+| GET | `/trunks/{id}/vlans` | JWT/Key | List trunk VLAN assignments |
+| POST | `/trunks/{id}/vlans` | Admin | Assign VLAN to trunk (`{"vlan_id": "..."}`) |
+| DELETE | `/trunks/{id}/vlans/{tv_id}` | Admin | Unassign VLAN |
+| GET | `/trunks/{id}/connections` | JWT/Key | List trunk connections |
+| POST | `/trunks/{id}/connections` | Admin | Add connection to trunk |
+
+States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
 ### Connections
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/connections?member_id=` | JWT/Key | List connections (admin: all, member: own) |
-| POST | `/connections` | Admin | Create connection |
-| GET | `/connections/{id}` | JWT/Key | Get connection (admin: all, member: own) |
+| GET | `/connections?switch_id=` | JWT/Key | List connections (admin: all, member: own) |
+| GET | `/connections/{id}` | JWT/Key | Get connection |
 | PATCH | `/connections/{id}` | Admin | Update connection |
+| DELETE | `/connections/{id}` | Admin | Delete connection |
 | POST | `/connections/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
-| POST | `/connections/{id}/vlans` | Admin | Assign VLAN |
-| DELETE | `/connections/{id}/vlans/{vlan_id}` | Admin | Unassign VLAN |
-| POST | `/connections/{id}/ips` | Admin | Assign IP (`{"pool_id": "...", "address": "..."}`) |
-| DELETE | `/connections/{id}/ips/{assignment_id}` | Admin | Release IP |
 
 States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
@@ -159,6 +194,12 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 | GET | `/route-servers/{id}` | Get route server |
 | PATCH | `/route-servers/{id}` | Update route server |
 | DELETE | `/route-servers/{id}` | Delete route server |
+| GET | `/route-servers/{id}/vlans` | List RS VLAN assignments |
+| POST | `/route-servers/{id}/vlans` | Assign VLAN to RS |
+| DELETE | `/route-servers/{id}/vlans/{vlan_id}` | Unassign VLAN |
+| GET | `/route-servers/{id}/ips` | List RS IP assignments |
+| POST | `/route-servers/{id}/ips` | Assign IP to RS |
+| DELETE | `/route-servers/{id}/ips/{assignment_id}` | Release IP |
 
 ### Config Generation (admin only)
 
@@ -174,8 +215,12 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/bgp-sessions?route_server_id=` | JWT/Key | List sessions (admin: all, member: own) |
-| GET | `/bgp-sessions/{id}` | JWT/Key | Get session (admin: all, member: own) |
+| POST | `/bgp-sessions` | Admin | Create session (`{"route_server_id", "trunk_vlan_id", "af"}`) |
+| GET | `/bgp-sessions/{id}` | JWT/Key | Get session |
 | PATCH | `/bgp-sessions/{id}` | Admin | Update admin state (`{"admin_state": "up"}`) |
+| DELETE | `/bgp-sessions/{id}` | Admin | Delete session |
+
+Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN respectively, not stored on the session.
 
 ### Agent API (API Key with `agent:route_server` scope)
 
@@ -184,6 +229,7 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 | GET | `/route-servers/{id}/agent/config` | Poll latest config (hash + content) |
 | POST | `/route-servers/{id}/agent/status` | Report BGP session states |
 | POST | `/route-servers/{id}/agent/heartbeat` | Agent heartbeat |
+| POST | `/route-servers/{id}/agent/config/applied` | Confirm config applied |
 
 ### Events
 
@@ -210,7 +256,7 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/monitoring/targets` | Switches (SNMP), ports, member IPs |
+| GET | `/monitoring/targets` | Switches (SNMP), connections, member IPs |
 
 ### Metrics
 

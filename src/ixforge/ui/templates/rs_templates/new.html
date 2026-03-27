@@ -1,0 +1,65 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+    <a href="/admin/route-servers" class="hover:text-indigo-600 dark:hover:text-indigo-400">Route Servers</a>
+    <span class="mx-1">/</span>
+    <a href="/admin/route-servers/templates" class="hover:text-indigo-600 dark:hover:text-indigo-400">Templates</a>
+    <span class="mx-1">/</span>
+    <span>Nuevo</span>
+  </p>
+</div>
+
+<div class="card max-w-3xl">
+  {# Validation errors #}
+  {% if errors %}
+  <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    {% if errors is mapping and errors.error is defined %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors.error.message }}</p>
+      {% for err in errors.error.details if errors.error.details is iterable and errors.error.details is not string %}
+      <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ err.msg if err is mapping else err }}</p>
+      {% endfor %}
+    {% else %}
+      <p class="text-sm text-red-700 dark:text-red-400">{{ errors }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/admin/route-servers/templates/new" class="space-y-6">
+    {# Nombre de archivo #}
+    <div>
+      <label for="filename" class="block text-sm font-medium mb-2">Nombre de archivo</label>
+      <input type="text" id="filename" name="filename"
+             value="{{ form_data.filename if form_data else '' }}"
+             required class="input-field w-full"
+             placeholder="Ej: bird2-rs.conf.j2">
+    </div>
+
+    {# Descripcion #}
+    <div>
+      <label for="description" class="block text-sm font-medium mb-2">Descripcion</label>
+      <input type="text" id="description" name="description"
+             value="{{ form_data.description if form_data else '' }}"
+             class="input-field w-full"
+             placeholder="Descripcion del template (opcional)">
+    </div>
+
+    {# Contenido #}
+    <div>
+      <label for="editor-content" class="block text-sm font-medium mb-2">Contenido</label>
+      <textarea id="editor-content" name="content" rows="20"
+                class="input-field w-full font-mono text-sm"
+                placeholder="Contenido del template Jinja2">{{ form_data.content if form_data else '' }}</textarea>
+    </div>
+
+    {# Botones #}
+    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <a href="/admin/route-servers/templates" class="btn-secondary">Cancelar</a>
+      <button type="submit" class="btn-primary">Crear Template</button>
+    </div>
+  </form>
+</div>
+<script src="/static/js/codemirror-editor.js"></script>
+{% endblock %}
