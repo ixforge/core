@@ -241,11 +241,11 @@ class TestRSTemplateService:
         assert updated.content == "updated content"
 
     @pytest.mark.anyio
-    async def test_update_tracks_user_id(self, db_session, ixp, user):
+    async def test_update_tracks_user_id(self, db_session, ixp, admin_user):
         tpl = await _seed_template(db_session, ixp)
         data = RSTemplateUpdate(description="edited")
-        updated = await tpl_svc.update(db_session, ixp.id, tpl.id, data, user_id=user.id)
-        assert updated.updated_by_id == user.id
+        updated = await tpl_svc.update(db_session, ixp.id, tpl.id, data, user_id=admin_user.id)
+        assert updated.updated_by_id == admin_user.id
 
     @pytest.mark.anyio
     async def test_delete_template(self, db_session, ixp):

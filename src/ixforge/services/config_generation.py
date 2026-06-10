@@ -229,16 +229,20 @@ async def generate_config(
             peers=v4_peers,
             generated_at=generated_at_str,
             config_hash="",
+            include_globals=True,
         )
 
     v6_config = ""
     if rs.ip_v6:
         v6_template = env.get_template("bird_v6.conf.j2")
+        # Un solo daemon BIRD carga ambas familias: los globals (log, router id,
+        # device, funciones) deben aparecer una sola vez en el config combinado
         v6_config = v6_template.render(
             route_server=rs_context,
             peers=v6_peers,
             generated_at=generated_at_str,
             config_hash="",
+            include_globals=not bool(rs.ip_v4),
         )
 
     combined = _combine_configs(v4_config, v6_config)

@@ -186,6 +186,45 @@ class TestSetupEndpoint:
         assert result.scalar_one_or_none() is None
 
 
+class TestSetupDefaultTemplates:
+    """El setup debe instalar los templates BIRD default para el nuevo IXP."""
+
+    async def test_setup_installs_default_templates(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        await client.post(
+            "/api/v1/setup",
+            json={
+                "ixp": {
+                    "name": "Template IXP",
+                    "short_name": "TPLX",
+                    "asn": 65010,
+                    "country": "CL",
+                    "city": "Santiago",
+                },
+                "admin": {
+                    "full_name": "Admin",
+                    "email": "admin@tplx.com",
+                    "password": "securepass123",
+                },
+            },
+        )
+        result = await db_session.execute(select(IXP).where(IXP.short_name == "TPLX"))
+        ixp = result.scalar_one()
+
+        from ixforge.models.rs_template import RouteServerTemplate
+        from ixforge.services.default_templates import DEFAULT_TEMPLATES
+
+        tpl_result = await db_session.execute(
+            select(RouteServerTemplate).where(RouteServerTemplate.ixp_id == ixp.id)
+        )
+        templates = {t.filename: t for t in tpl_result.scalars()}
+
+        assert set(templates) == {t["filename"] for t in DEFAULT_TEMPLATES}
+        assert templates["bird_v4.conf.j2"].is_protected is True
+        assert templates["bird_v6.conf.j2"].is_protected is True
+
+
 class TestSetupStatus:
     """Tests for GET /api/v1/setup/status."""
 
