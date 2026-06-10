@@ -33,7 +33,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import subprocess; exit(0 if subprocess.run(['pgrep','-f','procrastinate'],capture_output=True).returncode==0 else 1)"]
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0 if b'worker' in open('/proc/1/cmdline','rb').read() else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -50,6 +50,7 @@ services:
       IXFORGE_CORE_URL: http://core:8000
       IXFORGE_SECRET_KEY: ${IXFORGE_SECRET_KEY}
       IXFORGE_DEBUG: "false"
+      IXFORGE_UI_SECURE_COOKIES: ${IXFORGE_UI_SECURE_COOKIES:-true}
     ports:
       - "8001:8001"
     depends_on:

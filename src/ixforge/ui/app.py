@@ -232,7 +232,7 @@ def create_ui_app() -> Starlette:
         secret_key=config.secret_key,
         session_cookie="ixforge_session",
         same_site="lax",
-        https_only=not config.debug,
+        https_only=config.ui_secure_cookies and not config.debug,
     )
     app.add_middleware(SetupRedirectMiddleware)
 
