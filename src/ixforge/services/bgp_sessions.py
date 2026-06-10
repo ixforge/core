@@ -196,6 +196,10 @@ async def create(
         ) from None
 
     await session.refresh(bgp_session)
+
+    from ixforge.tasks.config import defer_rs_config_regeneration
+
+    await defer_rs_config_regeneration(data.route_server_id, "bgp_session.created")
     return bgp_session
 
 
@@ -249,8 +253,13 @@ async def delete(
 ) -> None:
     """Delete a BGP session."""
     bgp_session = await get(session, ixp_id, session_id)
+    route_server_id = bgp_session.route_server_id
     await session.delete(bgp_session)
     await session.flush()
+
+    from ixforge.tasks.config import defer_rs_config_regeneration
+
+    await defer_rs_config_regeneration(route_server_id, "bgp_session.deleted")
 
 
 async def update_admin_state(
@@ -269,4 +278,8 @@ async def update_admin_state(
     bgp_session.admin_state = BGPAdminState(admin_state)
     await session.flush()
     await session.refresh(bgp_session)
+
+    from ixforge.tasks.config import defer_rs_config_regeneration
+
+    await defer_rs_config_regeneration(bgp_session.route_server_id, "bgp_session.admin_state_changed")
     return bgp_session
