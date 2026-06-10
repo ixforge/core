@@ -24,10 +24,9 @@ uv sync
 # PostgreSQL de desarrollo (puerto 5432)
 docker compose -f docker/docker-compose.dev.yml up -d
 
-# Migraciones, usuario admin y datos de ejemplo
+# Migraciones y usuario admin
 uv run ixforge upgrade
 uv run ixforge createsuperuser
-uv run ixforge seed
 
 # Iniciar servidor (hot reload)
 IXFORGE_DEBUG=true uv run ixforge run
@@ -54,7 +53,6 @@ ixforge ui               Iniciar portal admin (puerto 8001)
 ixforge worker           Iniciar workers de tareas en background
 ixforge upgrade          Ejecutar migraciones de base de datos
 ixforge createsuperuser  Crear usuario administrador
-ixforge seed             Seed de datos de ejemplo (idempotente)
 ixforge backup           Backup comprimido de la base de datos
 ixforge restore <file>   Restaurar desde archivo de backup
 ```
