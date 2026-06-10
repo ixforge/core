@@ -56,6 +56,12 @@ class UserRead(BaseModel):
 VALID_API_KEY_SCOPES = frozenset({"agent:route_server", "monitoring:read"})
 
 
+class RSAPIKeyCreate(BaseModel):
+    """Creacion de API key de agente: el scope queda fijo en agent:route_server"""
+
+    name: str = Field(min_length=1, max_length=255)
+
+
 class APIKeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     scopes: list[str] = Field(default_factory=list)
