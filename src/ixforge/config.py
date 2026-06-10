@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Rate limiting
     rate_limit_per_minute: int = 60
 
+    # UI: cookies de sesion solo via HTTPS. Deshabilitar explicitamente
+    # cuando el portal se sirve por HTTP en una red interna de confianza
+    ui_secure_cookies: bool = True
+
     # Media
     media_root: str = "./media"
     media_url: str = "/media"
