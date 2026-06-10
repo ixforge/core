@@ -43,7 +43,7 @@ async def setup_submit(request: Request) -> Response:
         })
 
     try:
-        asn = int(form.get("asn", 0))
+        asn = int(str(form.get("asn") or 0))
     except (ValueError, TypeError):
         asn = 0
 

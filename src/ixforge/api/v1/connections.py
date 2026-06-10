@@ -55,7 +55,7 @@ async def get_connection(
     """Get connection details."""
     conn = await conn_svc.get(db, ixp_id, connection_id)
     if user.role == UserRole.member and conn.trunk.member_id != user.member_id:
-        raise NotFoundError("connection", connection_id)
+        raise NotFoundError("connection", str(connection_id))
     return conn
 
 

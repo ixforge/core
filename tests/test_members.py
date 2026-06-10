@@ -556,7 +556,7 @@ class TestMemberStateMachine:
         db_session.add(member)
         await db_session.flush()
 
-        trunk, trunk_vlan, conn, vlan, pool, ip_assignment = await _create_active_trunk_setup(
+        trunk, _trunk_vlan, _conn, _vlan, _pool, _ip_assignment = await _create_active_trunk_setup(
             db_session, ixp, member,
         )
 
