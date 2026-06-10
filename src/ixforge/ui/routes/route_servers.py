@@ -16,24 +16,26 @@ if TYPE_CHECKING:
     from starlette.requests import Request
 
 
-async def _load_vlans(api: APIClient, token: str) -> list[dict]:
+async def _load_vlans(api: APIClient, token: str) -> list[dict[str, Any]]:
     """Load all VLANs for the form."""
     try:
         data = await api.get("/api/v1/vlans", token, params={"limit": 200})
-        return data.get("items", [])
+        items: list[dict[str, Any]] = data.get("items", [])
+        return items
     except APIError as e:
         if e.status_code is not None and e.status_code < 500:
             return []
         raise
 
 
-async def _load_pools_for_vlan(api: APIClient, token: str, vlan_id: str) -> list[dict]:
+async def _load_pools_for_vlan(api: APIClient, token: str, vlan_id: str) -> list[dict[str, Any]]:
     """Load pools with availability info for a specific VLAN."""
     try:
-        return await api.get(
+        pools: list[dict[str, Any]] = await api.get(
             "/api/v1/ip-pools/available", token,
             params={"vlan_id": vlan_id},
         )
+        return pools
     except APIError as e:
         if e.status_code is not None and e.status_code < 500:
             return []

@@ -71,7 +71,7 @@ async def _make_connection(
 
 class TestGetConnection:
     async def test_get_connection(self, db_session: AsyncSession, ixp: IXP) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(db_session, ixp, trunk, switch)
 
         result = await conn_svc.get(db_session, ixp.id, conn.id)
@@ -84,7 +84,7 @@ class TestGetConnection:
             await conn_svc.get(db_session, ixp.id, uuid.uuid4())
 
     async def test_get_connection_wrong_ixp(self, db_session: AsyncSession, ixp: IXP) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(db_session, ixp, trunk, switch)
 
         with pytest.raises(NotFoundError):
@@ -95,7 +95,7 @@ class TestUpdateConnection:
     async def test_update_connection(self, db_session: AsyncSession, ixp: IXP) -> None:
         from ixforge.schemas.connection import ConnectionUpdate
 
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(db_session, ixp, trunk, switch, speed=1000)
 
         result = await conn_svc.update(
@@ -111,7 +111,7 @@ class TestUpdateConnection:
         """Changing type is rejected if other connections in trunk have a different type"""
         from ixforge.schemas.connection import ConnectionUpdate
 
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
 
         # First connection: physical
         await _make_connection(
@@ -136,7 +136,7 @@ class TestUpdateConnection:
         """Changing type is allowed when all other connections already match"""
         from ixforge.schemas.connection import ConnectionUpdate
 
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
 
         await _make_connection(
             db_session, ixp, trunk, switch, type=ConnectionType.physical, name="Ethernet1"
@@ -160,7 +160,7 @@ class TestUpdateConnection:
         """Switching to a switch that belongs to another IXP is rejected."""
         from ixforge.schemas.connection import ConnectionUpdate
 
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(db_session, ixp, trunk, switch)
 
         with pytest.raises(NotFoundError):
@@ -173,7 +173,7 @@ class TestConnectionStateMachine:
     async def test_transition_draft_to_provisioning(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(db_session, ixp, trunk, switch, state=ConnectionState.draft)
 
         result = await conn_svc.transition(
@@ -186,7 +186,7 @@ class TestConnectionStateMachine:
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
         """provisioning -> active should work without VLAN/IP (now on trunk)."""
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.provisioning
         )
@@ -200,7 +200,7 @@ class TestConnectionStateMachine:
     async def test_transition_provisioning_to_decommissioned(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.provisioning
         )
@@ -214,7 +214,7 @@ class TestConnectionStateMachine:
     async def test_transition_active_to_disabled(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.active
         )
@@ -228,7 +228,7 @@ class TestConnectionStateMachine:
     async def test_transition_disabled_to_active(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.disabled
         )
@@ -242,7 +242,7 @@ class TestConnectionStateMachine:
     async def test_transition_disabled_to_decommissioned(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.disabled
         )
@@ -255,7 +255,7 @@ class TestConnectionStateMachine:
 
     async def test_transition_invalid(self, db_session: AsyncSession, ixp: IXP) -> None:
         """draft -> active is an invalid transition."""
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(db_session, ixp, trunk, switch, state=ConnectionState.draft)
 
         with pytest.raises(ValidationError):
@@ -266,7 +266,7 @@ class TestConnectionStateMachine:
     async def test_transition_decommissioned_to_anything_invalid(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.decommissioned
         )
@@ -279,7 +279,7 @@ class TestConnectionStateMachine:
 
 class TestDeleteConnection:
     async def test_delete_connection(self, db_session: AsyncSession, ixp: IXP) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.decommissioned
         )
@@ -292,7 +292,7 @@ class TestDeleteConnection:
     async def test_delete_connection_not_decommissioned(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.active
         )
@@ -305,7 +305,7 @@ class TestListConnections:
     async def test_list_connections_by_switch(self, db_session: AsyncSession, ixp: IXP) -> None:
         from ixforge.schemas.common import CursorParams
 
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
 
         # Create a second switch to verify filtering
         location2 = Location(
@@ -337,7 +337,7 @@ class TestListConnections:
     async def test_list_connections_no_filter(self, db_session: AsyncSession, ixp: IXP) -> None:
         from ixforge.schemas.common import CursorParams
 
-        member, trunk, switch = await _setup(db_session, ixp)
+        _member, trunk, switch = await _setup(db_session, ixp)
         await _make_connection(db_session, ixp, trunk, switch, name="Ethernet1")
         await _make_connection(db_session, ixp, trunk, switch, name="Ethernet2")
 

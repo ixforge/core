@@ -9,7 +9,8 @@ from sqlalchemy import select
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
 from ixforge.exceptions import ForbiddenError, NotFoundError
 from ixforge.models.connection import Connection
-from ixforge.models.trunk import Trunk
+from ixforge.models.ip import IPAssignment
+from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
 from ixforge.schemas.connection import ConnectionCreate, ConnectionRead
@@ -31,8 +32,6 @@ async def _verify_trunk_vlan_ownership(
     db: DBSession, ixp_id: uuid.UUID, trunk_id: uuid.UUID, trunk_vlan_id: uuid.UUID
 ) -> None:
     """Verify that a TrunkVLAN belongs to the given trunk"""
-    from ixforge.models.trunk import TrunkVLAN
-
     tv = await db.scalar(
         select(TrunkVLAN.id).where(
             TrunkVLAN.id == trunk_vlan_id,
@@ -146,7 +145,7 @@ async def list_trunk_vlans(
     db: DBSession,
     ixp_id: IXPId,
     user: CurrentUser,
-) -> list:
+) -> list[TrunkVLAN]:
     """List VLANs assigned to a trunk."""
     if user.role == UserRole.member:
         if user.member_id is None:
@@ -197,7 +196,7 @@ async def list_trunk_vlan_ips(
     db: DBSession,
     ixp_id: IXPId,
     user: CurrentUser,
-) -> list:
+) -> list[IPAssignment]:
     """List IP assignments for a trunk VLAN."""
     await _verify_trunk_vlan_ownership(db, ixp_id, trunk_id, trunk_vlan_id)
     if user.role == UserRole.member:
