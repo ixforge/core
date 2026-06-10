@@ -281,7 +281,7 @@ class TestSequentialAllocation:
         ixp: IXP,
     ):
         """Allocating multiple IPs should skip reserved addresses."""
-        vlan, member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -447,7 +447,7 @@ class TestPoolExhaustion:
         ixp: IXP,
     ):
         """A /30 pool has only 2 usable IPs (.0 is network, .3 is broadcast)"""
-        vlan, member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -504,7 +504,7 @@ class TestSequentialSkipsReserved:
         ixp: IXP,
     ):
         """In a /29 pool, sequential allocation should skip .0 (network) and .7 (broadcast)"""
-        vlan, member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
 
         pool = IPPool(
             id=uuid.uuid4(),
@@ -878,7 +878,7 @@ class TestPoolsWithAvailability:
         ixp: IXP,
     ):
         """A fully used pool should show next_available as null."""
-        vlan, member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
+        vlan, _member, trunk_vlan1, trunk = await _setup_vlan_and_member(db_session, ixp)
 
         # /30 = 4 addresses, 2 usable (.1, .2)
         pool = IPPool(

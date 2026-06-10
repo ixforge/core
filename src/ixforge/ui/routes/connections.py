@@ -112,7 +112,7 @@ async def connection_new(request: Request) -> Response:
         "switch_id": str(form.get("switch_id", "")),
         "name": str(form.get("puerto", "")),
         "type": str(form.get("type", "physical")),
-        "speed": int(form.get("speed", 0) or 0),
+        "speed": int(str(form.get("speed") or 0)),
     }
     notes = str(form.get("notes", "")).strip()
     if notes:

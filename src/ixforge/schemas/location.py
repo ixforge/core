@@ -16,7 +16,7 @@ class LocationCreate(BaseModel):
     @field_validator("country")
     @classmethod
     def country_must_be_uppercase(cls, v: str) -> str:
-        return validate_country_code(v)  # type: ignore[return-value]
+        return validate_country_code(v)
 
 
 class LocationUpdate(BaseModel):

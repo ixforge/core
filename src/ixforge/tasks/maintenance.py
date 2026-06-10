@@ -6,7 +6,7 @@ Periodic housekeeping tasks for cleaning up old events and config versions.
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 
 from ixforge.database import get_session_factory
 from ixforge.models.config import ConfigVersion

@@ -2,7 +2,7 @@
 
 import base64
 import uuid
-from typing import Any
+from typing import Any, overload
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,14 @@ class CursorPage[T](BaseModel):
 class CursorParams(BaseModel):
     cursor: str | None = None
     limit: int = Field(default=50, ge=1, le=200)
+
+
+@overload
+def validate_country_code(v: str) -> str: ...
+
+
+@overload
+def validate_country_code(v: None) -> None: ...
 
 
 def validate_country_code(v: str | None) -> str | None:
