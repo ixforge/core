@@ -2,6 +2,7 @@
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -584,3 +585,84 @@ class TestBGPSessionDelete:
             headers=auth_headers,
         )
         assert resp.status_code == 404
+
+
+class TestBGPSessionConfigRegeneration:
+    """Las mutaciones de sesiones BGP deben encolar la regeneracion de config del RS."""
+
+    @pytest.fixture
+    def defer_spy(self, monkeypatch):
+        calls: list[tuple[str, str]] = []
+
+        async def fake_defer(route_server_id, triggered_by):
+            calls.append((str(route_server_id), triggered_by))
+
+        monkeypatch.setattr(
+            "ixforge.tasks.config.defer_rs_config_regeneration", fake_defer,
+        )
+        return calls
+
+    async def test_create_defers_regeneration(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+        defer_spy: list,
+    ):
+        rs = RouteServer(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="rs-defer", ip_v4="192.0.2.249", is_active=True,
+        )
+        db_session.add(rs)
+        member = Member(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="Defer Net", short_name="DEFN",
+            asn=64710, state=MemberState.active, peering_policy=PeeringPolicy.open,
+        )
+        db_session.add(member)
+        await db_session.flush()
+        trunk_vlan = await _create_trunk_with_vlan(db_session, ixp, member)
+        await _add_ip_assignment(db_session, ixp, trunk_vlan, address="192.0.2.20")
+
+        resp = await client.post(
+            "/api/v1/bgp-sessions",
+            headers=auth_headers,
+            json={
+                "route_server_id": str(rs.id),
+                "trunk_vlan_id": str(trunk_vlan.id),
+                "af": 4,
+            },
+        )
+        assert resp.status_code == 201
+        assert (str(rs.id), "bgp_session.created") in defer_spy
+
+    async def test_delete_defers_regeneration(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+        defer_spy: list,
+    ):
+        rs, bgp = await _setup_bgp_session(db_session, ixp)
+
+        resp = await client.delete(f"/api/v1/bgp-sessions/{bgp.id}", headers=auth_headers)
+        assert resp.status_code == 204
+        assert (str(rs.id), "bgp_session.deleted") in defer_spy
+
+    async def test_admin_state_change_defers_regeneration(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+        defer_spy: list,
+    ):
+        rs, bgp = await _setup_bgp_session(db_session, ixp)
+
+        resp = await client.patch(
+            f"/api/v1/bgp-sessions/{bgp.id}",
+            headers=auth_headers,
+            json={"admin_state": "down"},
+        )
+        assert resp.status_code == 200
+        assert (str(rs.id), "bgp_session.admin_state_changed") in defer_spy

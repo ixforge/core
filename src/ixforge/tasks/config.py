@@ -68,6 +68,28 @@ async def generate_route_server_config(
             raise
 
 
+async def defer_rs_config_regeneration(
+    route_server_id: uuid.UUID,
+    triggered_by: str,
+) -> None:
+    """Encola la regeneracion de config para un route server.
+
+    No propaga errores: si la cola no esta disponible queda un warning
+    y el admin puede regenerar manualmente via API
+    """
+    try:
+        await generate_route_server_config.defer_async(
+            route_server_id=str(route_server_id),
+            triggered_by=triggered_by,
+        )
+    except Exception:
+        logger.warning(
+            "config_regeneration.defer_failed",
+            route_server_id=str(route_server_id),
+            exc_info=True,
+        )
+
+
 @app.task(name="regenerate_configs_for_member", queue="config")
 async def regenerate_configs_for_member(
     member_id: str,
