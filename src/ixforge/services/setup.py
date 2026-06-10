@@ -10,6 +10,7 @@ from ixforge.models.ixp import IXP
 from ixforge.models.user import User, UserRole
 from ixforge.schemas.setup import SetupRequest
 from ixforge.services.auth import hash_password
+from ixforge.services.default_templates import install_default_templates
 
 
 async def run_setup(session: AsyncSession, data: SetupRequest) -> None:
@@ -35,6 +36,8 @@ async def run_setup(session: AsyncSession, data: SetupRequest) -> None:
     )
     session.add(ixp)
     await session.flush()
+
+    await install_default_templates(session, ixp.id)
 
     user = User(
         id=uuid.uuid4(),

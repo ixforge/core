@@ -2,6 +2,7 @@
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,14 @@ from ixforge.models.route_server import RouteServer
 from ixforge.models.switch import Switch
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
+from ixforge.services.default_templates import install_default_templates
+
+
+@pytest.fixture(autouse=True)
+async def _templates(db_session: AsyncSession, ixp: IXP) -> None:
+    # En produccion el setup instala los templates default para el IXP
+    await install_default_templates(db_session, ixp.id)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -166,6 +175,64 @@ async def _setup_active_peer(
 # ---------------------------------------------------------------------------
 # Config generation
 # ---------------------------------------------------------------------------
+
+
+class TestCombinedConfigValidity:
+    """El config combinado v4+v6 debe ser cargable por un solo daemon BIRD 2.x.
+
+    BIRD rechaza definiciones duplicadas de protocol device y de funciones,
+    asi que la seccion global debe aparecer exactamente una vez
+    """
+
+    async def test_dual_stack_config_has_no_duplicate_globals(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/config/generate",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+        content = resp.json()["content"]
+
+        assert content.count("protocol device") == 1
+        assert content.count("protocol direct") == 1
+        assert content.count("router id ") == 1
+        assert content.count("function net_len_valid") == 1
+        assert content.count("function honor_graceful_shutdown") == 1
+        assert content.count("log syslog all;") == 1
+        # Lo especifico de cada familia si va una vez por AF
+        assert content.count("protocol kernel") == 2
+        assert content.count("function is_bogon_v4") == 1
+        assert content.count("function is_bogon_v6") == 1
+
+    async def test_v6_only_config_includes_globals(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        # Los ultimos 4 bytes derivan el router id, deben formar una IPv4 valida
+        rs = await _setup_route_server(
+            db_session, ixp, ip_v4=None, ip_v6="2001:db8::4501:203", name="rs-v6only",
+        )
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/config/generate",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201
+        content = resp.json()["content"]
+
+        assert content.count("protocol device") == 1
+        assert content.count("router id ") == 1
+        assert content.count("function net_len_valid") == 1
 
 
 class TestConfigGeneration:
