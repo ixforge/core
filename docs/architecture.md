@@ -8,7 +8,8 @@
 - **Validation**: Pydantic v2
 - **Auth**: JWT (python-jose HS256) + API Keys (SHA-256 hashed)
 - **Background tasks**: Procrastinate (PostgreSQL-based queue)
-- **Config generation**: Jinja2 templates for BIRD 2.x
+- **Config generation**: Jinja2 templates for BIRD 2.x (stored per-IXP in the database)
+- **Admin/member UI**: Starlette + Jinja2 + Tailwind, server-side rendered, consumes the REST API
 - **Metrics**: prometheus-client
 - **Logging**: structlog (JSON in production, console in debug)
 
@@ -45,9 +46,10 @@ HTTP Request
 
 ```
 src/ixforge/
-  main.py              Application factory, middleware, exception handlers
+  main.py              Application factory, middleware, exception handlers, lifespan
+                       (opens the procrastinate app so endpoints can defer tasks)
   config.py            Pydantic Settings (IXFORGE_* env vars)
-  cli.py               CLI entrypoint (run, ui, worker, upgrade, createsuperuser, seed, backup, restore)
+  cli.py               CLI entrypoint (run, ui, worker, upgrade, createsuperuser, backup, restore)
   enums.py             Shared enumerations (states, types, policies)
   exceptions.py        Exception hierarchy -> HTTP status codes
   logging.py           structlog configuration
@@ -57,65 +59,55 @@ src/ixforge/
     base.py            UUIDPrimaryKey, TimestampMixin, TenantMixin, ExtraDataMixin
     ixp.py             IXP (top-level tenant)
     member.py          Member (state machine)
-    connection.py      Connection + ConnectionVLAN (state machine)
+    trunk.py           Trunk + TrunkVLAN (state machine, owns connections and VLANs)
+    connection.py      Connection (physical/virtual port on a switch, state machine)
     switch.py          Switch (encrypted SNMP)
-    port.py            Port (assignable to member)
+    location.py        Location (site/datacenter)
     vlan.py            VLAN
+    vlan_member.py     VLAN <-> Member assignment
     ip.py              IPPool + IPAssignment
     route_server.py    RouteServer
+    route_server_vlan.py  RS <-> VLAN assignment
+    rs_ip_assignment.py   RS IP assignments (IPAM)
+    rs_template.py     RouteServerTemplate (BIRD templates per IXP, DB-stored)
     bgp_session.py     BGPSession
     config.py          ConfigVersion (BIRD config snapshots)
     event.py           Event (audit log)
     contact.py         Contact
     user.py            User (admin/member roles)
-    api_key.py         APIKey (scoped, hashed)
+    api_key.py         APIKey (scoped, hashed; user-bound XOR route-server-bound)
+    asn_cache.py       Cached ASN name lookups
     custom_field.py    CustomFieldDefinition
     types.py           Custom SQLAlchemy column types
   schemas/             Pydantic request/response models (1:1 with models)
-  services/
-    auth.py            Password hashing, JWT, API key generation
-    base.py            Cursor-based keyset pagination
-    members.py         Member CRUD + state machine
-    connections.py     Connection CRUD + state machine + VLAN/IP ops
-    switches.py        Switch CRUD + Fernet SNMP encryption
-    ports.py           Port CRUD + assign/release
-    vlans.py           VLAN CRUD
-    ipam.py            IP pool management, sequential/manual allocation
-    route_servers.py   Route server CRUD
-    bgp_sessions.py    BGP session read/update
-    config_generation.py  BIRD config rendering + diff
-    ixf_export.py      IX-F Member Export JSON v1.0
-    events.py          Audit event create/list
-    custom_fields.py   Custom field definitions + validation
-    monitoring.py      Build monitoring targets for collector agent
-    templates/bird/    Jinja2 templates (bird_v4.conf.j2, bird_v6.conf.j2, ...)
+  services/            Business logic per resource (members, trunks, connections,
+                       switches, vlans, ipam, route_servers, bgp_sessions, ...)
+    config_generation.py  BIRD config rendering + combining + diff
+    default_templates.py  Canonical default BIRD template set, installed at setup
+    rs_templates.py    Template CRUD, reference checks, syntax validation, preview
+    template_env.py    Sandboxed Jinja2 environment with DB-loaded templates
+    template_filters.py   Custom filters (ipaddr, bird_str, prefixlist)
+    setup.py           Initial IXP + admin creation (installs default templates)
+    asn_lookup.py      ASN name resolution via PeeringDB/RIPE
+    monitoring.py      Build monitoring targets for the collector
   api/
     deps.py            FastAPI dependencies (DB session, auth, tenant resolution)
-    v1/router.py       Router aggregator (18 routers)
-    v1/*.py            Endpoint modules
+    v1/router.py       Router aggregator
+    v1/*.py            Endpoint modules (incl. agent.py for RS agents,
+                       rs_api_keys.py for agent key management)
+  ui/
+    app.py             Starlette app factory (admin portal + member portal)
+    api_client.py      HTTP client against the REST API
+    routes/            Server-rendered views (/admin/*, /portal/*, /login, /setup)
+    templates/         Jinja2 templates (Tailwind)
   tasks/
     setup.py           Procrastinate app configuration
-    config.py          Config generation tasks (queue: config)
+    config.py          Config regeneration tasks + defer helpers (queue: config)
     maintenance.py     Cleanup tasks (queue: maintenance)
   database.py          Async engine + session factory
-tests/
-  conftest.py          Fixtures (db, client, auth, IXP seed)
-  factories.py         Factory Boy factories
-  test_agent.py        Agent API tests
-  test_auth.py         Auth + RBAC tests
-  test_bgp_sessions.py BGP session tests
-  test_config_generation.py  BIRD config generation tests
-  test_connections.py  Connection CRUD + state machine tests
-  test_contacts.py     Contact CRUD tests
-  test_custom_fields.py Custom field tests
-  test_events.py       Audit event tests
-  test_ipam.py         IP pool + allocation tests
-  test_ixf_export.py   IX-F export tests
-  test_members.py      Member CRUD + state machine tests
-  test_ports.py        Port CRUD + assign/release tests
-  test_route_servers.py Route server tests
-  test_switches.py     Switch CRUD tests
-  test_vlans.py        VLAN CRUD tests
+tests/                 One test module per resource/feature (pytest, asyncio_mode auto),
+                       conftest.py provides db/client/auth fixtures over the testing
+                       postgres (port 5433, see docker/docker-compose.testing.yml)
 ```
 
 ## Key Patterns
@@ -127,9 +119,13 @@ All domain models include `ixp_id` via `TenantMixin`. The current MVP operates i
 ### State Machines
 
 **Member**: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
+**Trunk**: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 **Connection**: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
-Transitions are validated in the service layer. The `provisioning -> active` transition requires a complete setup (port + VLAN + IP assigned). All state changes emit audit events.
+Transitions are validated in the service layer and the order matters: a member
+cannot become `active` without at least one active trunk, and a trunk needs its
+connection, VLAN and IP assignments before activating. All state changes emit
+audit events.
 
 ### IPAM
 
@@ -141,26 +137,44 @@ All addresses are globally unique across pools.
 
 ### BIRD Config Generation
 
-Jinja2 templates render separate IPv4 and IPv6 BIRD 2.x configs per route server. Each generated config includes:
+Templates are Jinja2 documents stored per-IXP in the database
+(`route_server_templates`), editable from the admin portal with syntax
+validation and live preview. The default set lives in
+`services/default_templates.py` and is installed when the IXP is created via
+setup. Protected templates (`bird_v4.conf.j2`, `bird_v6.conf.j2`) cannot be
+deleted.
+
+The IPv4 and IPv6 sections are rendered separately and combined into a single
+file for one dual-stack BIRD 2.x daemon: global directives (log, router id,
+`protocol device`/`direct`, common functions) appear exactly once, controlled
+by the `include_globals` template variable. Each generated config includes:
 - SHA-256 content hash (for change detection by agents)
 - Template snapshot (for reproducibility)
 - Unified diffs between versions
 
-Only active BGP sessions on active connections for active members are included.
+Only admin-up BGP sessions on active trunks for active members are included.
 
 ### Agent Communication
 
-Route server agents authenticate with scoped API keys (`agent:route_server`). The polling flow:
+Route server agents authenticate with API keys bound to their route server
+(scope `agent:route_server`, created via `POST /route-servers/{id}/api-keys`).
+The polling flow:
 
 1. **Config poll** (`GET .../agent/config`): agent compares hash, downloads if changed
-2. **Status report** (`POST .../agent/status`): agent pushes BGP session operational states
-3. **Heartbeat** (`POST .../agent/heartbeat`): agent reports health, server checks config sync and version
+2. **Apply confirmation** (`POST .../agent/config/applied`): agent confirms the version is live
+3. **Status report** (`POST .../agent/status`): agent pushes BGP session operational states
+4. **Heartbeat** (`POST .../agent/heartbeat`): agent reports health, server checks config sync and version
 
 ### Background Tasks
 
 Procrastinate uses PostgreSQL as the task queue (no Redis needed). Two queues:
-- **config**: triggered on state changes, regenerates BIRD configs for affected route servers
+- **config**: triggered on member/trunk state changes and BGP session mutations,
+  regenerates BIRD configs for affected route servers
 - **maintenance**: periodic cleanup of old events and config versions
+
+The procrastinate app must be opened (`open_async`) in every process that
+touches the queue: the worker, the schema setup during `ixforge upgrade`, and
+the API lifespan (so endpoints can `defer_async`).
 
 ### Custom Fields
 

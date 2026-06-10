@@ -200,6 +200,9 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 | GET | `/route-servers/{id}/ips` | List RS IP assignments |
 | POST | `/route-servers/{id}/ips` | Assign IP to RS |
 | DELETE | `/route-servers/{id}/ips/{assignment_id}` | Release IP |
+| GET | `/route-servers/{id}/api-keys` | List agent API keys for RS |
+| POST | `/route-servers/{id}/api-keys` | Create agent API key bound to RS (returns raw key once, scope `agent:route_server`) |
+| DELETE | `/route-servers/{id}/api-keys/{key_id}` | Revoke agent API key |
 
 ### Config Generation (admin only)
 
@@ -214,7 +217,7 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/bgp-sessions?route_server_id=` | JWT/Key | List sessions (admin: all, member: own) |
+| GET | `/bgp-sessions?route_server_id=` | JWT/Key | List sessions for a route server (param required; admin: all, member: own) |
 | POST | `/bgp-sessions` | Admin | Create session (`{"route_server_id", "trunk_vlan_id", "af"}`) |
 | GET | `/bgp-sessions/{id}` | JWT/Key | Get session |
 | PATCH | `/bgp-sessions/{id}` | Admin | Update admin state (`{"admin_state": "up"}`) |
