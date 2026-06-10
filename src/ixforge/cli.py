@@ -22,6 +22,7 @@ def _run_server() -> None:
         "ixforge.main:app",
         host="0.0.0.0",
         port=8000,
+        reload=settings.debug,
     )
 
 
@@ -40,7 +41,12 @@ def _run_worker(queues: list[str] | None = None) -> None:
     if queues:
         kwargs["queues"] = queues
 
-    asyncio.run(app.run_worker_async(**kwargs))  # type: ignore[arg-type]
+    async def _worker_main() -> None:
+        # procrastinate 3.x exige abrir la app antes de correr el worker
+        async with app.open_async():
+            await app.run_worker_async(**kwargs)  # type: ignore[arg-type]
+
+    asyncio.run(_worker_main())
 
 
 def _run_upgrade() -> None:
@@ -62,7 +68,12 @@ def _apply_procrastinate_schema() -> None:
     try:
         from ixforge.tasks import app as procrastinate_app
 
-        asyncio.run(procrastinate_app.schema_manager.apply_schema_async())
+        async def _apply() -> None:
+            # procrastinate 3.x exige abrir la app antes de aplicar el schema
+            async with procrastinate_app.open_async():
+                await procrastinate_app.schema_manager.apply_schema_async()
+
+        asyncio.run(_apply())
         print("Procrastinate schema applied successfully.")
     except Exception as exc:
         print(f"Warning: could not apply procrastinate schema: {exc}")

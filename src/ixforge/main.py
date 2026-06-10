@@ -117,7 +117,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     setup_logging(debug=settings.debug)
     log = structlog.get_logger()
     log.info("ixforge.startup", version=__version__, debug=settings.debug)
-    yield
+
+    # La app de procrastinate debe estar abierta para encolar tasks
+    # (defer_async) desde los endpoints
+    from ixforge.tasks import app as procrastinate_app
+
+    async with procrastinate_app.open_async():
+        yield
+
     log.info("ixforge.shutdown")
     from ixforge.database import dispose_engine
 
