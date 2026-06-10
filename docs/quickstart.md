@@ -22,9 +22,6 @@ uv run ixforge upgrade
 # Create admin user
 uv run ixforge createsuperuser
 
-# Seed demo data (optional)
-uv run ixforge seed
-
 # Start API server (with hot reload)
 IXFORGE_DEBUG=true uv run ixforge run
 ```
@@ -42,33 +39,43 @@ All settings use the `IXFORGE_` prefix. Core variables:
 | `IXFORGE_DEBUG` | `false` | Enables reload and verbose logging |
 | `IXFORGE_CORS_ORIGINS` | `[]` (debug: `["*"]`) | Allowed CORS origins |
 | `IXFORGE_RATE_LIMIT_PER_MINUTE` | `60` | Rate limit for public endpoints |
+| `IXFORGE_UI_SECURE_COOKIES` | `true` | Session cookies require HTTPS; set `false` when serving the portal over plain HTTP on a trusted internal network |
 
 ## Docker (Production)
 
 ```bash
 cd docker
 
-# Edit environment
-cp .env .env.local
-vi .env.local  # Set IXFORGE_SECRET_KEY and POSTGRES_PASSWORD
+# Create the environment file (compose reads it as env_file and for interpolation)
+cat > .env <<'EOF'
+POSTGRES_USER=ixforge
+POSTGRES_PASSWORD=change-me
+POSTGRES_DB=ixforge
+IXFORGE_DATABASE_URL=postgresql+asyncpg://ixforge:change-me@postgres:5432/ixforge
+IXFORGE_SECRET_KEY=change-me-to-a-random-string-at-least-32-chars
+IXFORGE_DEBUG=false
+# Portal served over plain HTTP on a trusted internal network? uncomment:
+# IXFORGE_UI_SECURE_COOKIES=false
+EOF
+vi .env  # set real secrets; keep POSTGRES_PASSWORD and IXFORGE_DATABASE_URL in sync
 
 # Start the stack
-docker compose --env-file .env.local up -d
+docker compose up -d
 
-# Run migrations
+# Run migrations (also applies the procrastinate schema)
 docker compose exec core uv run ixforge upgrade
-
-# Create admin user
-docker compose exec -e IXFORGE_ADMIN_EMAIL=admin@example.com \
-  -e IXFORGE_ADMIN_PASSWORD=changeme \
-  core uv run ixforge createsuperuser
 ```
+
+Then open `http://<host>:8001/setup` (or `POST /api/v1/setup`) to create the
+IXP and the admin user. The setup also installs the default BIRD templates —
+`createsuperuser` alone does not create an IXP.
 
 Services:
 
 | Service | Description | Port |
 |---------|-------------|------|
 | `core` | FastAPI server | 8000 |
+| `portal` | Admin + member web UI | 8001 |
 | `worker` | Procrastinate background tasks | - |
 | `postgres` | PostgreSQL 17 | internal |
 
@@ -93,7 +100,6 @@ ixforge ui               Start admin portal (port 8001)
 ixforge worker           Start background task workers
 ixforge upgrade          Run database migrations (alembic upgrade head)
 ixforge createsuperuser  Create an admin user
-ixforge seed             Seed demo data (idempotent)
 ixforge backup           Create compressed database backup (.sql.gz)
 ixforge restore <file>   Restore from backup archive
 ```
