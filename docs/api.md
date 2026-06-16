@@ -8,7 +8,15 @@ Interactive docs: `/api/v1/docs` (Swagger) | `/api/v1/redoc` (ReDoc)
 | Method | Header | Description |
 |--------|--------|-------------|
 | JWT | `Authorization: Bearer <token>` | 30-minute expiry, obtained via `/auth/login` |
-| API Key | `X-API-Key: <raw_key>` | Scoped keys, created via `/users/{id}/api-keys` |
+| API Key | `X-API-Key: <raw_key>` | Scoped keys (raw value returned once at creation) |
+
+API keys are bound to **either** a user (`POST /users/{id}/api-keys`) **or** a
+route server (`POST /route-servers/{id}/api-keys`), never both. Valid scopes:
+
+| Scope | Used by | Grants |
+|-------|---------|--------|
+| `agent:route_server` | Route server agents | The `/route-servers/{id}/agent/*` endpoints for the bound RS |
+| `monitoring:read` | The collector | `GET /monitoring/targets` |
 
 ## Pagination
 
@@ -212,6 +220,22 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 | GET | `/route-servers/{id}/config/history` | Config version history |
 | GET | `/route-servers/{id}/config/current` | Latest config version |
 | GET | `/route-servers/{id}/config/diff?from=&to=` | Unified diff between versions |
+
+### Route Server Templates (admin only)
+
+BIRD templates are stored per-IXP in the database and rendered by config
+generation. The default set is installed at IXP setup; `bird_v4.conf.j2` and
+`bird_v6.conf.j2` are protected and cannot be deleted.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/rs-templates` | List templates |
+| POST | `/rs-templates` | Create template |
+| POST | `/rs-templates/validate` | Validate Jinja2 syntax without saving |
+| GET | `/rs-templates/{id}` | Get template |
+| PATCH | `/rs-templates/{id}` | Update template content/description |
+| DELETE | `/rs-templates/{id}` | Delete template (fails if protected or referenced) |
+| POST | `/rs-templates/{id}/preview` | Render a preview against a route server (`{"route_server_id": "..."}`) |
 
 ### BGP Sessions
 

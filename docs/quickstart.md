@@ -37,9 +37,16 @@ All settings use the `IXFORGE_` prefix. Core variables:
 | `IXFORGE_DATABASE_URL` | `postgresql+asyncpg://ixforge:ixforge@localhost:5432/ixforge` | Database connection |
 | `IXFORGE_SECRET_KEY` | `change-me-...` | JWT signing & SNMP encryption key |
 | `IXFORGE_DEBUG` | `false` | Enables reload and verbose logging |
-| `IXFORGE_CORS_ORIGINS` | `[]` (debug: `["*"]`) | Allowed CORS origins |
+| `IXFORGE_CORS_ORIGINS` | `[]` (debug: localhost:3000/8001) | Allowed CORS origins |
 | `IXFORGE_RATE_LIMIT_PER_MINUTE` | `60` | Rate limit for public endpoints |
 | `IXFORGE_UI_SECURE_COOKIES` | `true` | Session cookies require HTTPS; set `false` when serving the portal over plain HTTP on a trusted internal network |
+| `IXFORGE_UI_PORT` | `8001` | Port for the `ixforge ui` portal |
+| `IXFORGE_CORE_URL` | `http://localhost:8000` | Core API URL the portal calls |
+| `IXFORGE_MEDIA_ROOT` | `./media` | Directory for uploaded files (member logos) |
+| `IXFORGE_MEDIA_URL` | `/media` | URL prefix for uploaded files |
+
+Feature modules are toggled with `IXFORGE_MODULE_*` (booleans). Defaults: only
+`ixf_export` is on; `ui`, `switching`, `rpki`, `peeringdb_sync` are off.
 
 ## Docker (Production)
 
@@ -103,6 +110,33 @@ ixforge createsuperuser  Create an admin user
 ixforge backup           Create compressed database backup (.sql.gz)
 ixforge restore <file>   Restore from backup archive
 ```
+
+## Web Portal
+
+`ixforge ui` (the `portal` service in the production compose) serves two
+server-rendered UIs on port 8001:
+
+- **Admin portal** at `/admin` — full management of members, trunks,
+  connections, switches, VLANs, IPAM, route servers, BIRD templates (with live
+  preview), BGP sessions, users, API keys and the audit log
+- **Member portal** at `/portal` — read-only view for `member`-role users of
+  their own trunks, BGP sessions, profile and contacts
+
+First-run setup is at `/setup`. The portal consumes the REST API over
+`IXFORGE_CORE_URL`.
+
+## Backups
+
+`ixforge backup` shells out to `pg_dump` and writes a gzipped SQL dump; it needs
+the Postgres client tools available (they ship in the `core` image). `restore`
+reads such an archive back. For scheduled backups run it from cron on the host
+against the postgres container, e.g.:
+
+```bash
+docker compose exec -T postgres pg_dump -U ixforge -d ixforge --no-owner | gzip > backup.sql.gz
+```
+
+Keep copies off the database host.
 
 ## Authentication
 
