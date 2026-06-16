@@ -118,14 +118,16 @@ All domain models include `ixp_id` via `TenantMixin`. The current MVP operates i
 
 ### State Machines
 
-**Member**: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
+**Member**: `prospect` -> `provisioning` -> `active` <-> `suspended`; any of
+`provisioning`, `active`, `suspended` can go to `terminated` (terminal).
 **Trunk**: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 **Connection**: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
-Transitions are validated in the service layer and the order matters: a member
-cannot become `active` without at least one active trunk, and a trunk needs its
-connection, VLAN and IP assignments before activating. All state changes emit
-audit events.
+Transitions are validated in the service layer (each state maps to an explicit
+set of allowed targets) and the order matters: a member cannot become `active`
+without at least one active trunk, and a trunk needs its connection plus, for
+each **production** VLAN it carries, at least one IP assignment before
+activating. All state changes emit audit events.
 
 ### IPAM
 

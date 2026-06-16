@@ -14,10 +14,9 @@ Guia para correr y escribir tests en IXForge Core.
 # Levantar PostgreSQL + Core con hot reload
 docker compose -f docker/docker-compose.dev.yml up -d
 
-# Correr migraciones, crear admin y seed
+# Correr migraciones y crear admin
 docker compose -f docker/docker-compose.dev.yml exec core uv run ixforge upgrade
 docker compose -f docker/docker-compose.dev.yml exec core uv run ixforge createsuperuser
-docker compose -f docker/docker-compose.dev.yml exec core uv run ixforge seed
 
 # Limpiar todo y empezar de cero
 docker compose -f docker/docker-compose.dev.yml down -v
@@ -143,7 +142,7 @@ async def test_list_members(client: AsyncClient, db_session, ixp, auth_headers):
     await db_session.flush()
 
     response = await client.get(
-        f"/api/v1/ixps/{ixp.id}/members",
+        "/api/v1/members",
         headers=auth_headers,
     )
 
