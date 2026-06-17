@@ -183,6 +183,9 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
 
 ### Connections
 
+Connections are created under their trunk via `POST /trunks/{id}/connections` (see Trunks);
+the endpoints below operate on existing connections.
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/connections?switch_id=` | JWT/Key | List connections (admin: all, member: own) |
