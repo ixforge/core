@@ -38,6 +38,7 @@ IXP y el usuario admin con el setup inicial (`POST /api/v1/setup`, o el portal e
 ## Documentacion
 
 - [Quickstart](docs/quickstart.md) — Setup inicial, configuracion, CLI, tests, Docker
+- [Guias de API](docs/guides/README.md) — Recetas: login, crear miembros, aprovisionar, consultar metricas
 - [API](docs/api.md) — Endpoints, autenticacion, paginacion
 - [Arquitectura](docs/architecture.md) — Capas, patrones, convenciones
 
