@@ -14,19 +14,38 @@ cd core
 uv sync
 
 # Start PostgreSQL (dev instance on port 5432)
-docker compose -f docker/docker-compose.dev.yml up -d
+docker compose -f docker/docker-compose.dev.yml up -d postgres
 
 # Run migrations
 uv run ixforge upgrade
-
-# Create admin user
-uv run ixforge createsuperuser
 
 # Start API server (with hot reload)
 IXFORGE_DEBUG=true uv run ixforge run
 ```
 
 The API is available at `http://localhost:8000/api/v1/docs` (Swagger UI).
+
+On an empty database, create the IXP and the admin user via the setup endpoint
+(or the portal at `/setup`); `createsuperuser` alone does not create an IXP:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/setup \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "ixp": {"name":"Example IX","short_name":"EXIX","asn":65000,"country":"CL","city":"Santiago"},
+    "admin": {"full_name":"Admin","email":"admin@example.com","password":"changeme123"}
+  }'
+```
+
+Notes:
+
+- Background config regeneration (e.g. when a member is activated) runs on a
+  worker; start one with `uv run ixforge worker` or the route servers never get
+  new configs.
+- The dev compose can also run the full stack (`core` on 8000, `portal` on 8001,
+  `postgres`) with `docker compose -f docker/docker-compose.dev.yml up -d`. In
+  that mode run migrations with `docker compose exec core uv run ixforge upgrade`
+  and skip the local `ixforge run`.
 
 ## Configuration
 
@@ -106,7 +125,7 @@ ixforge run              Start API server
 ixforge ui               Start admin portal (port 8001)
 ixforge worker           Start background task workers
 ixforge upgrade          Run database migrations (alembic upgrade head)
-ixforge createsuperuser  Create an admin user
+ixforge createsuperuser  Create an additional admin (the IXP and first admin are created via /setup)
 ixforge backup           Create compressed database backup (.sql.gz)
 ixforge restore <file>   Restore from backup archive
 ```
