@@ -60,7 +60,7 @@ src/ixforge/
     ixp.py             IXP (top-level tenant)
     member.py          Member (state machine)
     trunk.py           Trunk + TrunkVLAN (state machine, owns connections and VLANs)
-    connection.py      Connection (physical/virtual port on a switch, state machine)
+    connection.py      Connection (physical/virtual switch port belonging to a Trunk, state machine)
     switch.py          Switch (encrypted SNMP)
     location.py        Location (site/datacenter)
     vlan.py            VLAN
@@ -79,7 +79,8 @@ src/ixforge/
     asn_cache.py       Cached ASN name lookups
     custom_field.py    CustomFieldDefinition
     types.py           Custom SQLAlchemy column types
-  schemas/             Pydantic request/response models (1:1 with models)
+  schemas/             Pydantic request/response schemas (mostly per resource, plus
+                       cross-cutting ones: setup, monitoring, agent, common)
   services/            Business logic per resource (members, trunks, connections,
                        switches, vlans, ipam, route_servers, bgp_sessions, ...)
     config_generation.py  BIRD config rendering + combining + diff

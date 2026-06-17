@@ -1,6 +1,8 @@
 # Setup / Installer Page Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Estado: IMPLEMENTADO (documento historico).** La pagina de setup, el endpoint
+> `POST /setup` + `GET /setup/status`, el middleware UI y la eliminacion del
+> comando `seed` estan en el codigo. Se conserva como registro del cambio.
 
 **Goal:** Add a setup page that creates the initial IXP and admin user when the database is empty.
 

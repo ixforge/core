@@ -1,5 +1,8 @@
 # Setup / Installer Page
 
+> **Estado: IMPLEMENTADO (documento historico).** Esta spec describe el diseño ya
+> presente en el codigo (`api/v1/setup.py`, `services/setup.py`, `ui/routes/setup.py`).
+
 Página de configuración inicial que se muestra cuando la base de datos está vacía (0 IXPs). Permite crear el IXP y la cuenta de administrador en un solo formulario.
 
 ## Flujo
