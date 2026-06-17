@@ -1,6 +1,9 @@
 # BGP Session Simplification + UI Creation
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Estado: IMPLEMENTADO (documento historico).** Las columnas redundantes
+> (`peer_ip`, `peer_asn`, `import_limit`, `export_limit`) fueron removidas de
+> `bgp_sessions` (migracion `c4b3520127d7`) y los formularios UI existen. Se
+> conserva como registro del cambio.
 
 **Goal:** Remove redundant columns (peer_ip, peer_asn, import_limit, export_limit) from bgp_sessions table, resolve them via joins, and add UI forms for creating BGP sessions.
 

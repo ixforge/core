@@ -1,6 +1,10 @@
 # Remove Port Model - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Estado: IMPLEMENTADO (documento historico).** El modelo `Port` fue eliminado y
+> sus campos movidos a `Connection` (migracion `c5a1e8f34d02`). Ojo: un refactor
+> posterior movio la `Connection` bajo un `Trunk` (`trunk_id`), por lo que las
+> partes de este plan que mencionan `member_id`/`mac_address` en `Connection` ya
+> no reflejan el modelo actual. Ver `docs/architecture.md` para el estado vigente.
 
 **Goal:** Eliminar la tabla `ports` y mover la info de puerto (nombre, switch, velocidad) directamente al modelo `Connection`, como hace PatagoniaIX.
 
