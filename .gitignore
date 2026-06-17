@@ -49,3 +49,6 @@ node_modules/
 src/ixforge/ui/static/css/app.css
 src/ixforge/ui/static/js/vendor/
 .worktrees/
+
+# Runtime uploaded media
+media/
