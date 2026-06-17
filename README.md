@@ -22,44 +22,22 @@ cd core
 uv sync
 
 # PostgreSQL de desarrollo (puerto 5432)
-docker compose -f docker/docker-compose.dev.yml up -d
+docker compose -f docker/docker-compose.dev.yml up -d postgres
 
-# Migraciones y usuario admin
+# Migraciones
 uv run ixforge upgrade
-uv run ixforge createsuperuser
 
 # Iniciar servidor (hot reload)
 IXFORGE_DEBUG=true uv run ixforge run
 ```
 
-API disponible en `http://localhost:8000/api/v1/docs`.
-
-## Tests
-
-```bash
-# PostgreSQL de testing (puerto 5433, tmpfs)
-docker compose -f docker/docker-compose.testing.yml up -d
-
-uv run pytest -v
-uv run ruff check src/ tests/
-uv run mypy src/
-```
-
-## CLI
-
-```
-ixforge run              Iniciar servidor API
-ixforge ui               Iniciar portal admin (puerto 8001)
-ixforge worker           Iniciar workers de tareas en background
-ixforge upgrade          Ejecutar migraciones de base de datos
-ixforge createsuperuser  Crear usuario administrador
-ixforge backup           Backup comprimido de la base de datos
-ixforge restore <file>   Restaurar desde archivo de backup
-```
+API y Swagger UI en `http://localhost:8000/api/v1/docs`. En una BD nueva, crea el
+IXP y el usuario admin con el setup inicial (`POST /api/v1/setup`, o el portal en
+`http://localhost:8001/setup`) — ver [Quickstart](docs/quickstart.md).
 
 ## Documentacion
 
-- [Quickstart](docs/quickstart.md) — Instalacion, configuracion, Docker
+- [Quickstart](docs/quickstart.md) — Setup inicial, configuracion, CLI, tests, Docker
 - [API](docs/api.md) — Endpoints, autenticacion, paginacion
 - [Arquitectura](docs/architecture.md) — Capas, patrones, convenciones
 
