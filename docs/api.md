@@ -161,6 +161,8 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 | GET | `/ip-pools/available?vlan_id=` | Pool availability (next IP, stats) |
 | GET | `/ip-pools/{id}` | Get pool |
 | DELETE | `/ip-pools/{id}` | Delete pool |
+| GET | `/ip-pools/{id}/assignments` | List IP assignments in a pool |
+| POST | `/ip-pools/{id}/assign` | Allocate an IP (`{"trunk_vlan_id": "..."}`; optional `"address"` for manual, else sequential) |
 | DELETE | `/ip-assignments/{id}` | Release IP assignment |
 
 ### Trunks
