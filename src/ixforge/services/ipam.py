@@ -123,12 +123,20 @@ def _reserved_addresses(
 ) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     """Return the set of addresses that cannot be assigned (network, broadcast)."""
     reserved: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
-    # IPv4: reserve network and broadcast for prefixes shorter than /31
-    # /31 (RFC 3021): ambas IPs son usables
-    # /32: single host
-    if isinstance(network, ipaddress.IPv4Network) and network.prefixlen < 31:
-        reserved.add(network.network_address)
-        reserved.add(network.broadcast_address)
+    if isinstance(network, ipaddress.IPv4Network):
+        # IPv4: reserve network and broadcast for prefixes shorter than /31
+        # /31 (RFC 3021): ambas IPs son usables
+        # /32: single host
+        if network.prefixlen < 31:
+            reserved.add(network.network_address)
+            reserved.add(network.broadcast_address)
+    else:
+        # IPv6: la network address es la subnet-router anycast (RFC 4291 2.6.1) y
+        # pertenece a los routers de la subred, no se asigna a un host
+        # /127 (RFC 6164): enlace punto a punto, ambas IPs son usables
+        # /128: single host
+        if network.prefixlen < 127:
+            reserved.add(network.network_address)
     return reserved
 
 
