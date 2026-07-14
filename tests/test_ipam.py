@@ -575,9 +575,97 @@ class TestIPv6Allocation:
         )
         assert resp.status_code == 201
         body = resp.json()
-        # IPv6: no network/broadcast reserved, first host is the network address
-        assert body["address"] == "2001:db8::"
+        # La network address queda reservada tambien en IPv6, asi que la primera
+        # asignable es la .1
+        assert body["address"] == "2001:db8::1"
         assert body["pool_id"] == str(pool.id)
+
+    async def test_ipv6_available_next_skips_subnet_router_anycast(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """En un /64 la network address es la subnet-router anycast (RFC 4291 2.6.1).
+
+        Pertenece a los routers de la subred, asi que no se puede ofrecer como
+        proxima IP libre: el operador la copiaria del portal a un miembro.
+        """
+        vlan, _member, _trunk_vlan, _trunk = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="2001:db8:1::/64",
+            af=6,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp = await client.get(
+            f"/api/v1/ip-pools/available?vlan_id={vlan.id}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        pools = {p["network"]: p for p in resp.json()}
+        assert pools["2001:db8:1::/64"]["next_available"] == "2001:db8:1::1"
+
+    async def test_ipv6_manual_assign_network_address_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        vlan, _member, trunk_vlan, _trunk = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="2001:db8:2::/64",
+            af=6,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"trunk_vlan_id": str(trunk_vlan.id), "address": "2001:db8:2::"},
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
+
+    async def test_ipv6_slash_127_allows_both_addresses(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """RFC 6164: en un /127 punto a punto ambas direcciones son usables."""
+        vlan, _member, trunk_vlan, _trunk = await _setup_vlan_and_member(db_session, ixp)
+
+        pool = IPPool(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            vlan_id=vlan.id,
+            network="2001:db8:3::/127",
+            af=6,
+        )
+        db_session.add(pool)
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/ip-pools/{pool.id}/assign",
+            headers=auth_headers,
+            json={"trunk_vlan_id": str(trunk_vlan.id)},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["address"] == "2001:db8:3::"
 
 
 # ---------------------------------------------------------------------------
