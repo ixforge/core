@@ -155,6 +155,61 @@ class TestTrunkDetail:
         resp = authed_client.get(f"/admin/trunks/{uuid.uuid4()}", follow_redirects=False)
         assert resp.status_code == 302
 
+    def _render_with_connection(self, app, authed_client, conn_state):
+        conn = {
+            "id": str(uuid.uuid4()),
+            "name": "Et27/1",
+            "type": "physical",
+            "speed": 10000,
+            "switch_id": FAKE_SWITCH["id"],
+            "state": conn_state,
+        }
+
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans":
+                return [FAKE_TRUNK_VLAN]
+            if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}/connections":
+                return [conn]
+            if path.startswith(f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/") and path.endswith("/ips"):
+                return []
+            if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}":
+                return FAKE_TRUNK
+            if path.startswith("/api/v1/members/"):
+                return FAKE_MEMBER
+            if path == "/api/v1/vlans":
+                return {"items": [FAKE_VLAN], "next_cursor": None, "has_more": False}
+            if path == "/api/v1/ip-pools":
+                return {"items": [FAKE_IP_POOL], "next_cursor": None, "has_more": False}
+            if path == "/api/v1/route-servers":
+                return {"items": [], "next_cursor": None, "has_more": False}
+            if path == "/api/v1/switches":
+                return {"items": [FAKE_SWITCH], "next_cursor": None, "has_more": False}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(f"/admin/trunks/{FAKE_TRUNK['id']}")
+        assert resp.status_code == 200
+        return conn, resp.text
+
+    def test_disabled_connection_shows_decommission_and_reactivate(self, authed_client, app):
+        conn, html = self._render_with_connection(app, authed_client, "disabled")
+        transition_url = (
+            f"/admin/trunks/{FAKE_TRUNK['id']}/connections/{conn['id']}/transition"
+        )
+        assert transition_url in html
+        assert "Decomisionar" in html
+        assert "Reactivar" in html
+
+    def test_decommissioned_connection_shows_delete(self, authed_client, app):
+        conn, html = self._render_with_connection(app, authed_client, "decommissioned")
+        delete_url = f"/admin/trunks/{FAKE_TRUNK['id']}/connections/{conn['id']}/delete"
+        assert delete_url in html
+        assert "Eliminar" in html
+
+    def test_active_connection_still_shows_disable(self, authed_client, app):
+        _conn, html = self._render_with_connection(app, authed_client, "active")
+        assert "Deshabilitar" in html
+
 
 class TestTrunkForm:
     def test_new_form_renders(self, authed_client, app):
@@ -336,6 +391,28 @@ class TestTrunkActions:
                 "type": "physical",
                 "speed": "10000",
             },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_delete_connection(self, authed_client, app):
+        cid = str(uuid.uuid4())
+        app.state.api.delete = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/trunks/{FAKE_TRUNK['id']}/connections/{cid}/delete",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/trunks/{FAKE_TRUNK['id']}" in resp.headers["location"]
+        app.state.api.delete.assert_awaited_once_with(
+            f"/api/v1/connections/{cid}", "test-jwt"
+        )
+
+    def test_delete_connection_error_flashes(self, authed_client, app):
+        cid = str(uuid.uuid4())
+        app.state.api.delete = AsyncMock(side_effect=APIError(422, "not decommissioned"))
+        resp = authed_client.post(
+            f"/admin/trunks/{FAKE_TRUNK['id']}/connections/{cid}/delete",
             follow_redirects=False,
         )
         assert resp.status_code == 302

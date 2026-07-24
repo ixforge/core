@@ -175,6 +175,7 @@
             {% elif c.state == "provisioning" %}<span class="badge badge-yellow">Provisioning</span>
             {% elif c.state == "draft" %}<span class="badge badge-blue">Borrador</span>
             {% elif c.state == "disabled" %}<span class="badge badge-red">Deshabilitado</span>
+            {% elif c.state == "decommissioned" %}<span class="badge badge-gray">Decomisionado</span>
             {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
           </td>
           <td class="py-3">
@@ -193,6 +194,21 @@
               <form method="post" action="/admin/trunks/{{ trunk.id }}/connections/{{ c.id }}/transition" class="inline">
                 <input type="hidden" name="state" value="disabled">
                 <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:underline">Deshabilitar</button>
+              </form>
+              {% elif c.state == "disabled" %}
+              <form method="post" action="/admin/trunks/{{ trunk.id }}/connections/{{ c.id }}/transition" class="inline">
+                <input type="hidden" name="state" value="active">
+                <button type="submit" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Reactivar</button>
+              </form>
+              <form method="post" action="/admin/trunks/{{ trunk.id }}/connections/{{ c.id }}/transition" class="inline"
+                    onsubmit="return confirm('¿Decomisionar la conexion &quot;{{ c.name }}&quot;? Es un paso previo a eliminarla y no se puede deshacer.')">
+                <input type="hidden" name="state" value="decommissioned">
+                <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:underline">Decomisionar</button>
+              </form>
+              {% elif c.state == "decommissioned" %}
+              <form method="post" action="/admin/trunks/{{ trunk.id }}/connections/{{ c.id }}/delete" class="inline"
+                    onsubmit="return confirm('¿Eliminar la conexion &quot;{{ c.name }}&quot;? Esta accion es permanente.')">
+                <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:underline">Eliminar</button>
               </form>
               {% endif %}
             </div>
