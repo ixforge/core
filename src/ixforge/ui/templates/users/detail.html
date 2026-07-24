@@ -107,6 +107,7 @@
           <th class="pb-3 font-medium">Scopes</th>
           <th class="pb-3 font-medium">Ultimo Uso</th>
           <th class="pb-3 font-medium">Creada</th>
+          <th class="pb-3 font-medium text-right">Acciones</th>
         </tr>
       </thead>
       <tbody class="divide-y dark:divide-gray-700">
@@ -124,6 +125,12 @@
           </td>
           <td class="py-3 text-sm text-gray-600 dark:text-gray-400">
             {{ k.created_at[:10] if k.created_at else "-" }}
+          </td>
+          <td class="py-3 text-right">
+            <form method="post" action="/admin/users/{{ user.id }}/api-keys/{{ k.id }}/delete"
+                  onsubmit="return confirm('¿Revocar la API key &quot;{{ k.name or k.prefix }}&quot;? Cualquier servicio que la use dejara de funcionar.')">
+              <button type="submit" class="btn-danger text-sm">Revocar</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
