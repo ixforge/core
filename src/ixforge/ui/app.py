@@ -128,6 +128,11 @@ def create_ui_app() -> Starlette:
         Route("/admin/users/{user_id}", users.user_detail),
         Route("/admin/users/{user_id}/edit", users.user_edit, methods=["POST"]),
         Route("/admin/users/{user_id}/api-keys", users.user_create_api_key, methods=["POST"]),
+        Route(
+            "/admin/users/{user_id}/api-keys/{key_id}/delete",
+            users.user_revoke_api_key,
+            methods=["POST"],
+        ),
         Route("/admin/users/{user_id}/delete", users.user_delete, methods=["POST"]),
         # Locations
         Route("/admin/locations", locations.location_list),

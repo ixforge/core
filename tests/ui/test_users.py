@@ -159,3 +159,40 @@ class TestUserAPIKeys:
             follow_redirects=False,
         )
         assert resp.status_code == 302
+
+    def test_detail_shows_revoke_button(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/users/{FAKE_USER['id']}":
+                return FAKE_USER
+            if path == f"/api/v1/users/{FAKE_USER['id']}/api-keys":
+                return {"items": [FAKE_API_KEY]}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(f"/admin/users/{FAKE_USER['id']}")
+        assert resp.status_code == 200
+        assert (
+            f"/admin/users/{FAKE_USER['id']}/api-keys/{FAKE_API_KEY['id']}/delete" in resp.text
+        )
+
+    def test_revoke_api_key_calls_api_and_redirects(self, authed_client, app):
+        app.state.api.delete = AsyncMock(return_value=None)
+        resp = authed_client.post(
+            f"/admin/users/{FAKE_USER['id']}/api-keys/{FAKE_API_KEY['id']}/delete",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f"/admin/users/{FAKE_USER['id']}" in resp.headers["location"]
+        app.state.api.delete.assert_awaited_once()
+        assert (
+            f"/api/v1/users/{FAKE_USER['id']}/api-keys/{FAKE_API_KEY['id']}"
+            in app.state.api.delete.await_args.args[0]
+        )
+
+    def test_revoke_api_key_error_flashes(self, authed_client, app):
+        app.state.api.delete = AsyncMock(side_effect=APIError(404, "Not found"))
+        resp = authed_client.post(
+            f"/admin/users/{FAKE_USER['id']}/api-keys/{FAKE_API_KEY['id']}/delete",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302

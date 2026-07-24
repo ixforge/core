@@ -149,6 +149,22 @@ async def user_create_api_key(request: Request) -> Response:
 
 
 @require_auth
+async def user_revoke_api_key(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    user_id = request.path_params["user_id"]
+    key_id = request.path_params["key_id"]
+
+    try:
+        await api.delete(f"/api/v1/users/{user_id}/api-keys/{key_id}", token)
+        add_flash(request, "API Key revocada", "success")
+    except APIError as e:
+        add_flash(request, f"Error revocando API key: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+@require_auth
 async def user_delete(request: Request) -> Response:
     token = require_token(request)
     api: APIClient = request.app.state.api

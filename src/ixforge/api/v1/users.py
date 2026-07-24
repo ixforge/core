@@ -168,6 +168,24 @@ async def list_api_keys(
     )
 
 
+@users_router.delete("/{user_id}/api-keys/{key_id}", status_code=204)
+async def revoke_api_key(
+    user_id: uuid.UUID, key_id: uuid.UUID, db: DBSession, _admin: AdminUser
+) -> Response:
+    """Revoke a user API key."""
+    user = await db.get(User, user_id)
+    if user is None:
+        raise NotFoundError("User", str(user_id))
+
+    api_key = await db.get(APIKey, key_id)
+    if api_key is None or api_key.user_id != user_id:
+        raise NotFoundError("APIKey", str(key_id))
+
+    await db.delete(api_key)
+    await db.flush()
+    return Response(status_code=204)
+
+
 @users_router.delete("/{user_id}", status_code=204)
 async def delete_user(
     user_id: uuid.UUID, db: DBSession, admin: AdminUser
