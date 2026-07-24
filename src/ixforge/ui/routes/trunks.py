@@ -409,3 +409,19 @@ async def trunk_connection_transition(request: Request) -> Response:
         add_flash(request, f"Error en transicion de conexion: {safe_detail(e)}", "error")
 
     return RedirectResponse(f"/admin/trunks/{trunk_id}", status_code=302)
+
+
+@require_auth
+async def trunk_connection_delete(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    trunk_id = request.path_params["trunk_id"]
+    cid = request.path_params["cid"]
+
+    try:
+        await api.delete(f"/api/v1/connections/{cid}", token)
+        add_flash(request, "Conexion eliminada", "success")
+    except APIError as e:
+        add_flash(request, f"Error eliminando conexion: {safe_detail(e)}", "error")
+
+    return RedirectResponse(f"/admin/trunks/{trunk_id}", status_code=302)
