@@ -102,9 +102,17 @@ curl -s $CORE/api/v1/users/$USER_ID/api-keys -H "Authorization: Bearer $TOKEN"
 # Keys de agente de un RS
 curl -s $CORE/api/v1/route-servers/$RS_ID/api-keys -H "Authorization: Bearer $TOKEN"
 
+# Revocar una key de usuario
+curl -s -X DELETE $CORE/api/v1/users/$USER_ID/api-keys/$KEY_ID \
+  -H "Authorization: Bearer $TOKEN"
+
 # Revocar una key de agente
 curl -s -X DELETE $CORE/api/v1/route-servers/$RS_ID/api-keys/$KEY_ID \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+Revocar es inmediato y definitivo: la key deja de autenticar en la siguiente
+llamada, y cualquier servicio que la use empieza a recibir 401. En el portal
+admin, cada key tiene un boton "Revocar" en el detalle del usuario.
 
 El listado nunca devuelve el `raw_key`, solo el `prefix` para identificarla.

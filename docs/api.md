@@ -92,6 +92,7 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 | DELETE | `/users/{id}` | Delete user |
 | POST | `/users/{id}/api-keys` | Create API key (returns raw key once) |
 | GET | `/users/{id}/api-keys` | List API keys |
+| DELETE | `/users/{id}/api-keys/{key_id}` | Revoke API key |
 
 ### Members
 
