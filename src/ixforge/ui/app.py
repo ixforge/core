@@ -199,6 +199,7 @@ def create_ui_app() -> Starlette:
         Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/ips/{aid}/delete", trunks.trunk_release_ip, methods=["POST"]),
         Route("/admin/trunks/{trunk_id}/connections", trunks.trunk_add_connection, methods=["POST"]),
         Route("/admin/trunks/{trunk_id}/connections/{cid}/transition", trunks.trunk_connection_transition, methods=["POST"]),
+        Route("/admin/trunks/{trunk_id}/connections/{cid}/delete", trunks.trunk_connection_delete, methods=["POST"]),
         # Connections
         Route("/admin/connections", connections.connection_list),
         Route("/admin/connections/new", connections.connection_new, methods=["GET", "POST"]),
