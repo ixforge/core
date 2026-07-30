@@ -35,9 +35,18 @@ API y Swagger UI en `http://localhost:8000/api/v1/docs`. En una BD nueva, crea e
 IXP y el usuario admin con el setup inicial (`POST /api/v1/setup`, o el portal en
 `http://localhost:8001/setup`) — ver [Quickstart](docs/quickstart.md).
 
+## Deploy
+
+`./deploy.sh <dev|prod>` despliega el commit actual de HEAD al entorno elegido.
+Aborta si hay cambios sin commitear, hace backup, sube el codigo con `git archive`,
+reconstruye, aplica migraciones y verifica que el hash del codigo en el servidor
+coincida con el commit. Para prod pide confirmacion (saltable con `--yes`). El
+flujo completo dev -> prod esta en [docs/staging.md](docs/staging.md).
+
 ## Documentacion
 
 - [Quickstart](docs/quickstart.md) — Setup inicial, configuracion, CLI, tests, Docker
+- [Staging dev -> prod](docs/staging.md) — Flujo de trabajo, ritual de deploy, reglas
 - [Guias de API](docs/guides/README.md) — Recetas: login, crear miembros, aprovisionar, consultar metricas
 - [API](docs/api.md) — Endpoints, autenticacion, paginacion
 - [Arquitectura](docs/architecture.md) — Capas, patrones, convenciones
