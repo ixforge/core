@@ -115,6 +115,37 @@ class TestRouteServerDetail:
         resp = authed_client.get(f"/admin/route-servers/{uuid.uuid4()}", follow_redirects=False)
         assert resp.status_code == 302
 
+    def test_pending_config_shows_warning(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/route-servers/{FAKE_RS['id']}":
+                return FAKE_RS
+            if path == "/api/v1/bgp-sessions":
+                return {"items": []}
+            if path.endswith("/config/current"):
+                return {**FAKE_CONFIG, "applied_at": None}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}")
+        assert resp.status_code == 200
+        assert "Config pendiente de aplicar" in resp.text
+        assert "journalctl -u ixforge-agent" in resp.text
+
+    def test_applied_config_no_warning(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/route-servers/{FAKE_RS['id']}":
+                return FAKE_RS
+            if path == "/api/v1/bgp-sessions":
+                return {"items": []}
+            if path.endswith("/config/current"):
+                return {**FAKE_CONFIG, "applied_at": "2026-01-15T10:05:00"}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}")
+        assert resp.status_code == 200
+        assert "Config pendiente de aplicar" not in resp.text
+
 
 class TestRouteServerForm:
     def test_new_form_renders(self, authed_client, app):

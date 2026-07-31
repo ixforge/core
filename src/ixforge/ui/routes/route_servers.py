@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from starlette.responses import RedirectResponse, Response
@@ -96,6 +97,16 @@ async def route_server_detail(request: Request) -> Response:
     with contextlib.suppress(APIError):
         config_current = await api.get(f"/api/v1/route-servers/{rs_id}/config/current", token)
 
+    # Una config sin applied_at quedo pendiente; si ademas el agent sigue con
+    # heartbeat reciente, es que la rechazo (tipicamente bird -p), no que este caido
+    config_pending = config_current is not None and not config_current.get("applied_at")
+    agent_alive = False
+    heartbeat = rs.get("last_heartbeat_at")
+    if heartbeat:
+        with contextlib.suppress(ValueError, AttributeError):
+            hb_dt = datetime.fromisoformat(heartbeat.replace("Z", "+00:00"))
+            agent_alive = datetime.now(UTC) - hb_dt < timedelta(minutes=3)
+
     # Fetch RS VLANs and all available VLANs
     rs_vlans: list[Any] = []
     all_vlans: list[Any] = []
@@ -155,6 +166,8 @@ async def route_server_detail(request: Request) -> Response:
         "rs": rs,
         "bgp_sessions": bgp_sessions,
         "config_current": config_current,
+        "config_pending": config_pending,
+        "agent_alive": agent_alive,
         "rs_vlans": rs_vlans_enriched,
         "available_vlans": available_vlans,
         "rs_ips": rs_ips,
