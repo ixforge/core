@@ -89,7 +89,7 @@ src/ixforge/
     template_env.py    Sandboxed Jinja2 environment with DB-loaded templates
     template_filters.py   Custom filters (ipaddr, bird_str, prefixlist)
     setup.py           Initial IXP + admin creation (installs default templates)
-    asn_lookup.py      ASN name resolution via PeeringDB/RIPE
+    asn_lookup.py      ASN name resolution (local -> cache -> PeeringDB)
     monitoring.py      Build monitoring targets for the collector
   api/
     deps.py            FastAPI dependencies (DB session, auth, tenant resolution)

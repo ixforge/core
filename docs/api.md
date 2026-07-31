@@ -11,7 +11,9 @@ Interactive docs: `/api/v1/docs` (Swagger) | `/api/v1/redoc` (ReDoc)
 | API Key | `X-API-Key: <raw_key>` | Scoped keys (raw value returned once at creation) |
 
 API keys are bound to **either** a user (`POST /users/{id}/api-keys`) **or** a
-route server (`POST /route-servers/{id}/api-keys`), never both. Valid scopes:
+route server (`POST /route-servers/{id}/api-keys`), never both. A key only works
+on the endpoints of its scope; it does **not** authenticate the rest of the API
+(members, users, trunks, ...), which requires a JWT. Valid scopes:
 
 | Scope | Used by | Grants |
 |-------|---------|--------|
@@ -20,7 +22,11 @@ route server (`POST /route-servers/{id}/api-keys`), never both. Valid scopes:
 
 ## Pagination
 
-List endpoints use cursor-based pagination:
+Top-level collection endpoints (`/members`, `/users`, `/trunks`, `/connections`,
+`/bgp-sessions`, ...) use cursor-based pagination. Nested sub-resource lists (a
+trunk's VLANs, a VLAN's IPs, a route server's keys, ...) return a plain array.
+
+Cursor-based pagination:
 
 ```
 GET /members?limit=50&cursor=<opaque_string>
@@ -36,6 +42,9 @@ Response:
 ```
 
 ## Error Format
+
+Every error uses this envelope. `details` is usually an object, but for
+validation errors (422) it is the list of Pydantic field errors.
 
 ```json
 {
@@ -71,25 +80,25 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/auth/login` | - | Login, returns JWT |
-| GET | `/auth/me` | JWT/Key | Current user info |
+| GET | `/auth/me` | JWT | Current user info |
 
-### IXP Settings (admin only)
+### IXP Settings
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/ixp` | Get IXP settings |
-| PATCH | `/ixp` | Update IXP settings |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/ixp` | JWT | Get IXP settings |
+| PATCH | `/ixp` | Admin | Update IXP settings |
 
-### Users (admin only)
+### Users
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/users` | List users |
-| POST | `/users` | Create user |
-| GET | `/users/me` | Current user |
-| GET | `/users/{id}` | Get user |
-| PATCH | `/users/{id}` | Update user |
-| DELETE | `/users/{id}` | Delete user |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/users` | Admin | List users |
+| POST | `/users` | Admin | Create user |
+| GET | `/users/me` | JWT | Current user |
+| GET | `/users/{id}` | Admin | Get user |
+| PATCH | `/users/{id}` | Admin | Update user |
+| DELETE | `/users/{id}` | Admin | Delete user (must be inactive, not self, not last admin) |
 | POST | `/users/{id}/api-keys` | Create API key (returns raw key once) |
 | GET | `/users/{id}/api-keys` | List API keys |
 | DELETE | `/users/{id}/api-keys/{key_id}` | Revoke API key |
@@ -98,18 +107,19 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/members` | JWT/Key | List (admin: all, member: own) |
+| GET | `/members` | JWT | List (admin: all, member: own) |
 | POST | `/members` | Admin | Create member |
-| GET | `/members/asn-lookup?asn=` | Admin | Lookup ASN name via PeeringDB/RIPE |
-| GET | `/members/{id}` | JWT/Key | Get member |
-| GET | `/members/{id}/asn-name` | JWT/Key | Get member ASN name |
+| GET | `/members/asn-lookup?asn=` | JWT | Lookup ASN name (local -> 7-day cache -> PeeringDB) |
+| GET | `/members/{id}` | JWT | Get member |
+| GET | `/members/{id}/asn-name` | JWT | Get member ASN name |
 | PATCH | `/members/{id}` | Admin | Update member |
-| DELETE | `/members/{id}` | Admin | Delete member |
+| DELETE | `/members/{id}` | Admin | Delete member (must be `terminated`) |
 | POST | `/members/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
 | POST | `/members/{id}/logo` | Admin | Upload member logo |
 | DELETE | `/members/{id}/logo` | Admin | Delete member logo |
 
-States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
+States: `prospect` -> `provisioning` -> `active` <-> `suspended`; `provisioning`,
+`active` and `suspended` can go to `terminated`
 
 ### Contacts
 
@@ -170,19 +180,23 @@ States: `prospect` -> `provisioning` -> `active` <-> `suspended` -> `terminated`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/trunks?member_id=` | JWT/Key | List trunks (admin: all, member: own) |
+| GET | `/trunks?member_id=` | JWT | List trunks (admin: all, member: own) |
 | POST | `/trunks` | Admin | Create trunk (`{"member_id": "...", "name": "ae0"}`) |
-| GET | `/trunks/{id}` | JWT/Key | Get trunk |
+| GET | `/trunks/{id}` | JWT | Get trunk |
 | PATCH | `/trunks/{id}` | Admin | Update trunk |
 | DELETE | `/trunks/{id}` | Admin | Delete trunk (must be decommissioned) |
 | POST | `/trunks/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
-| GET | `/trunks/{id}/vlans` | JWT/Key | List trunk VLAN assignments |
+| GET | `/trunks/{id}/vlans` | JWT | List trunk VLAN assignments |
 | POST | `/trunks/{id}/vlans` | Admin | Assign VLAN to trunk (`{"vlan_id": "..."}`) |
 | DELETE | `/trunks/{id}/vlans/{tv_id}` | Admin | Unassign VLAN |
-| GET | `/trunks/{id}/connections` | JWT/Key | List trunk connections |
+| GET | `/trunks/{id}/vlans/{tv_id}/ips` | JWT | List IPs of a trunk VLAN |
+| POST | `/trunks/{id}/vlans/{tv_id}/ips` | Admin | Assign IP (`{"pool_id": "...", "address": "..."}`; `address` optional) |
+| DELETE | `/trunks/{id}/vlans/{tv_id}/ips/{assignment_id}` | Admin | Release IP |
+| GET | `/trunks/{id}/connections` | JWT | List trunk connections |
 | POST | `/trunks/{id}/connections` | Admin | Add connection to trunk |
 
-States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
+States: `draft` -> `provisioning` -> `active` <-> `disabled`; `provisioning` and
+`disabled` can go to `decommissioned`
 
 ### Connections
 
@@ -191,13 +205,14 @@ the endpoints below operate on existing connections.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/connections?switch_id=` | JWT/Key | List connections (admin: all, member: own) |
-| GET | `/connections/{id}` | JWT/Key | Get connection |
+| GET | `/connections?switch_id=` | JWT | List connections (admin: all, member: own) |
+| GET | `/connections/{id}` | JWT | Get connection |
 | PATCH | `/connections/{id}` | Admin | Update connection |
-| DELETE | `/connections/{id}` | Admin | Delete connection |
+| DELETE | `/connections/{id}` | Admin | Delete connection (must be `decommissioned`) |
 | POST | `/connections/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
 
-States: `draft` -> `provisioning` -> `active` <-> `disabled` -> `decommissioned`
+States: `draft` -> `provisioning` -> `active` <-> `disabled`; `provisioning` and
+`disabled` can go to `decommissioned`
 
 ### Route Servers (admin only)
 
@@ -247,9 +262,9 @@ generation. The default set is installed at IXP setup; `bird_v4.conf.j2` and
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/bgp-sessions?route_server_id=` | JWT/Key | List sessions for a route server (param required; admin: all, member: own) |
+| GET | `/bgp-sessions?route_server_id=` | JWT | List sessions for a route server (param required; admin: all, member: own) |
 | POST | `/bgp-sessions` | Admin | Create session (`{"route_server_id", "trunk_vlan_id", "af"}`) |
-| GET | `/bgp-sessions/{id}` | JWT/Key | Get session |
+| GET | `/bgp-sessions/{id}` | JWT | Get session |
 | PATCH | `/bgp-sessions/{id}` | Admin | Update admin state (`{"admin_state": "up"}`) |
 | DELETE | `/bgp-sessions/{id}` | Admin | Delete session |
 
@@ -268,13 +283,13 @@ Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN r
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/events` | JWT/Key | Audit log (admin: all, member: own). Filters: `resource_type`, `resource_id` |
+| GET | `/events` | JWT | Audit log (admin: all, member: own). Filters: `resource_type`, `resource_id` |
 
 ### Custom Fields
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/custom-fields` | JWT/Key | List definitions. Filter: `entity_type` |
+| GET | `/custom-fields` | JWT | List definitions. Filter: `entity_type` |
 | POST | `/custom-fields` | Admin | Create definition |
 | PATCH | `/custom-fields/{id}` | Admin | Update definition |
 | DELETE | `/custom-fields/{id}` | Admin | Delete definition |
@@ -295,4 +310,4 @@ Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN r
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/metrics` | - | Prometheus metrics (not in OpenAPI) |
+| GET | `/metrics` | - | Prometheus metrics. Served at the app root (`/metrics`), outside the `/api/v1` base, and not in OpenAPI |

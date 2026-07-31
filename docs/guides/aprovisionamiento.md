@@ -162,8 +162,10 @@ done
 
 ## Qué pasa después
 
-Activar al miembro / trunk dispara la regeneración de la config BIRD de los route
-servers afectados (vía el worker; ver [../quickstart.md](../quickstart.md)). Los
+Activar al miembro (y las altas/bajas de conexiones y de sesiones BGP) dispara la
+regeneración de la config BIRD de los route servers afectados (vía el worker; ver
+[../quickstart.md](../quickstart.md)). La transición del trunk en sí no encola
+nada; lo que gatilla la regeneración es activar el miembro y tocar las sesiones. Los
 agents la recogen, validan y aplican, y reportan el estado operativo de las
 sesiones de vuelta al Core. Hasta que el miembro conecte su router, las sesiones
 quedarán `oper_state: down` — es lo esperado.

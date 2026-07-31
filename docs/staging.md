@@ -21,8 +21,8 @@ commitear. Los `deploy.sh` de cada repo abortan si el working tree esta sucio.
 
 Lo automatiza `./deploy.sh prod`, pero conviene entender que hace:
 
-1. **Backup** de la base antes de tocar nada
-2. **Chequeos** — working tree limpio, acceso al host, confirmacion interactiva
+1. **Chequeos** — working tree limpio, acceso al host, confirmacion interactiva
+2. **Backup** de la base antes de tocar nada
 3. **Subir el commit** con `git archive HEAD` (solo lo commiteado)
 4. **Reconstruir** los contenedores y aplicar migraciones
 5. **Verificar** — health OK, worker sin errores, y el hash del codigo en el
@@ -34,11 +34,11 @@ y `./deploy.sh prod` de nuevo; si hubo cambios de datos, restaurar el backup.
 ## Reglas
 
 - **Commit antes de deploy.** Prod siempre corresponde a un commit
-- **Taggeá los releases de prod** (`v0.2`, `v0.3`...) para saber que version esta arriba
+- **Etiqueta los releases de prod** (`v0.2`, `v0.3`...) para saber que version esta arriba
 - **CI es el gate.** Un commit en rojo no se deploya
 - **Orden entre repos.** `core` define contratos (`api/v1/agent.py`,
-  `api/v1/monitoring.py`) que `agent` y `collector` consumen. Si tocás esos
-  endpoints, deployá `core` primero y revisá el e2e
+  `api/v1/monitoring.py`) que `agent` y `collector` consumen. Si tocas esos
+  endpoints, despliega `core` primero y revisa el e2e
 
 ## Entornos
 
