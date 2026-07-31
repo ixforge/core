@@ -34,12 +34,18 @@ async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)] = None,
     x_api_key: Annotated[str | None, Header()] = None,
 ) -> User:
-    """Resolve the current user from a Bearer JWT or X-API-Key header."""
+    """Resolve the current user from a Bearer JWT.
+
+    Las API keys NO autentican este flujo. Son credenciales de servicio con scope
+    acotado (monitoring:read, agent:route_server) y solo valen en sus endpoints
+    dedicados, que hacen su propia verificacion de scope. Aceptarlas aca daria
+    acceso general al API con una key de scope limitado (escalada de privilegios)
+    """
     if credentials is not None:
         return await _resolve_jwt_user(db, credentials.credentials)
 
     if x_api_key is not None:
-        return await _resolve_api_key_user(db, x_api_key)
+        raise UnauthorizedError("API keys are not valid for this endpoint, use a Bearer token")
 
     raise UnauthorizedError("Missing authentication credentials")
 
@@ -54,27 +60,6 @@ async def _resolve_jwt_user(db: AsyncSession, token: str) -> User:
     user = await db.get(User, user_id)
     if user is None or not user.is_active:
         raise UnauthorizedError("User not found or inactive")
-    return user
-
-
-async def _resolve_api_key_user(db: AsyncSession, raw_key: str) -> User:
-    key_hash = hash_api_key(raw_key)
-    stmt = select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
-    result = await db.execute(stmt)
-    api_key = result.scalar_one_or_none()
-
-    if api_key is None:
-        raise UnauthorizedError("Invalid API key")
-
-    if api_key.user_id is None:
-        raise UnauthorizedError("API key is not associated with a user")
-
-    api_key.last_used_at = datetime.now(UTC)
-
-    user = await db.get(User, api_key.user_id)
-    if user is None or not user.is_active:
-        raise UnauthorizedError("User not found or inactive")
-
     return user
 
 

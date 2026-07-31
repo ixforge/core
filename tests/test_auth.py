@@ -106,34 +106,73 @@ class TestJWTAuth:
 
 
 class TestAPIKeyAuth:
-    async def test_auth_with_valid_api_key(
+    async def _make_key(
+        self, db_session: AsyncSession, user: User, scopes: list[str], raw_key: str
+    ) -> APIKey:
+        api_key = APIKey(
+            id=uuid.uuid4(),
+            key_hash=hash_api_key(raw_key),
+            prefix=raw_key[:12],
+            name="Test Key",
+            scopes=scopes,
+            user_id=user.id,
+            is_active=True,
+        )
+        db_session.add(api_key)
+        await db_session.flush()
+        return api_key
+
+    async def test_user_api_key_rejected_on_jwt_endpoint(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
         admin_user: User,
         ixp: IXP,
     ):
-        raw_key = "ixf_testapikey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
-        key_hash = hash_api_key(raw_key)
-        api_key = APIKey(
-            id=uuid.uuid4(),
-            key_hash=key_hash,
-            prefix=raw_key[:12],
-            name="Test Key",
-            scopes=["read"],
-            user_id=admin_user.id,
-            is_active=True,
-        )
-        db_session.add(api_key)
-        await db_session.flush()
+        """Una API key de usuario NO autentica los endpoints generales (solo JWT).
 
-        resp = await client.get(
-            "/api/v1/auth/me",
+        Aceptarla daria acceso general con una key de scope acotado (escalada)
+        """
+        raw_key = "ixf_testapikey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+        await self._make_key(db_session, admin_user, ["monitoring:read"], raw_key)
+
+        resp = await client.get("/api/v1/auth/me", headers={"X-API-Key": raw_key})
+        assert resp.status_code == 401
+
+    async def test_user_api_key_cannot_do_admin_actions(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        ixp: IXP,
+    ):
+        """Regresion de escalada: una key monitoring:read no puede leer usuarios ni escribir."""
+        raw_key = "ixf_escalationkey7890abcdef1234567890abcdef1234567890abcdef123456789012"
+        await self._make_key(db_session, admin_user, ["monitoring:read"], raw_key)
+
+        listed = await client.get("/api/v1/users", headers={"X-API-Key": raw_key})
+        assert listed.status_code == 401
+
+        created = await client.post(
+            "/api/v1/members",
             headers={"X-API-Key": raw_key},
+            json={"name": "Escalada", "short_name": "ESC", "asn": 65099},
         )
+        assert created.status_code == 401
+
+    async def test_monitoring_key_still_authorizes_monitoring(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        ixp: IXP,
+    ):
+        """El fix no debe romper al collector: monitoring:read sigue sirviendo en /monitoring."""
+        raw_key = "ixf_monitoringkey34567890abcdef1234567890abcdef1234567890abcdef12345678"
+        await self._make_key(db_session, admin_user, ["monitoring:read"], raw_key)
+
+        resp = await client.get("/api/v1/monitoring/targets", headers={"X-API-Key": raw_key})
         assert resp.status_code == 200
-        body = resp.json()
-        assert body["id"] == str(admin_user.id)
 
     async def test_auth_with_invalid_api_key(self, client: AsyncClient):
         resp = await client.get(
