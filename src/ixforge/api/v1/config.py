@@ -108,8 +108,8 @@ async def diff_config_versions(
     db: DBSession,
     _admin: AdminUser,
     ixp_id: IXPId,
-    from_version: uuid.UUID = Query(alias="from"),
     to_version: uuid.UUID = Query(alias="to"),
+    from_version: uuid.UUID | None = Query(default=None, alias="from"),
 ) -> ConfigDiff:
     await _ensure_route_server_exists(db, ixp_id, route_server_id)
 

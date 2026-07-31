@@ -235,6 +235,9 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled`; `provisioning` and
 
 ### Config Generation (admin only)
 
+`GET /route-servers/{id}/config/diff?to=<version>` diffs a config version against
+the previous one; pass `&from=<version>` to compare two explicit versions.
+
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/route-servers/{id}/config/generate` | Generate BIRD config |
