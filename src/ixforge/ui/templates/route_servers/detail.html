@@ -170,6 +170,22 @@
       <p class="font-medium text-sm"><code>{{ config_current.hash[:12] if config_current.get("hash") else "-" }}</code></p>
     </div>
   </div>
+  {% if config_pending %}
+  <div class="mt-4 rounded-lg border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 p-4">
+    <p class="font-medium text-sm text-yellow-800 dark:text-yellow-300">Config pendiente de aplicar</p>
+    <p class="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+      {% if agent_alive %}
+      El agent esta conectado pero todavia no aplico esta config. Casi siempre es porque
+      la rechazo en la validacion de BIRD (<code>bird -p</code>) &mdash; por ejemplo un
+      template con sintaxis invalida. El peering sigue con la ultima config valida.
+      {% else %}
+      El route server aun no confirmo esta config y no hay heartbeat reciente del agent.
+      Puede que el agent este caido, o que haya rechazado la config en la validacion de BIRD.
+      {% endif %}
+      Para ver el motivo exacto, en el route server: <code>journalctl -u ixforge-agent -n 50</code>.
+    </p>
+  </div>
+  {% endif %}
   {% else %}
   <p class="text-gray-500 dark:text-gray-400 text-center py-4">No hay configuracion generada</p>
   {% endif %}

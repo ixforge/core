@@ -53,7 +53,7 @@ class DiffResult:
     """Result of comparing two config versions"""
 
     diff: str
-    from_hash: str
+    from_hash: str | None
     to_hash: str
 
 
@@ -276,27 +276,48 @@ def _combine_configs(v4_config: str, v6_config: str) -> str:
 
 async def get_diff(
     session: AsyncSession,
-    version_a_id: uuid.UUID,
+    version_a_id: uuid.UUID | None,
     version_b_id: uuid.UUID,
     route_server_id: uuid.UUID,
 ) -> DiffResult:
-    """Return a unified diff between two config versions."""
-    version_a = await session.get(ConfigVersion, version_a_id)
-    if version_a is None or version_a.route_server_id != route_server_id:
-        raise NotFoundError("ConfigVersion", str(version_a_id))
+    """Return a unified diff between two config versions.
 
+    Si ``version_a_id`` es None, se diffea contra la version inmediatamente
+    anterior a ``version_b`` del mismo route server (o contra vacio si no hay
+    anterior). Asi el boton 'Ver Diff' del portal, que solo pasa ``to``, funciona
+    """
     version_b = await session.get(ConfigVersion, version_b_id)
     if version_b is None or version_b.route_server_id != route_server_id:
         raise NotFoundError("ConfigVersion", str(version_b_id))
 
+    if version_a_id is not None:
+        version_a = await session.get(ConfigVersion, version_a_id)
+        if version_a is None or version_a.route_server_id != route_server_id:
+            raise NotFoundError("ConfigVersion", str(version_a_id))
+    else:
+        stmt = (
+            select(ConfigVersion)
+            .where(
+                ConfigVersion.route_server_id == route_server_id,
+                ConfigVersion.generated_at < version_b.generated_at,
+            )
+            .order_by(ConfigVersion.generated_at.desc())
+            .limit(1)
+        )
+        version_a = (await session.execute(stmt)).scalar_one_or_none()
+
+    from_content = version_a.content if version_a is not None else ""
+    from_label = (
+        f"config @ {version_a.generated_at.isoformat()}" if version_a is not None else "empty"
+    )
     diff_lines = difflib.unified_diff(
-        version_a.content.splitlines(keepends=True),
+        from_content.splitlines(keepends=True),
         version_b.content.splitlines(keepends=True),
-        fromfile=f"config @ {version_a.generated_at.isoformat()}",
+        fromfile=from_label,
         tofile=f"config @ {version_b.generated_at.isoformat()}",
     )
     return DiffResult(
         diff="".join(diff_lines),
-        from_hash=version_a.config_hash,
+        from_hash=version_a.config_hash if version_a is not None else None,
         to_hash=version_b.config_hash,
     )

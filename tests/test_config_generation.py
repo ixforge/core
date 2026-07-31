@@ -621,6 +621,57 @@ class TestConfigDiff:
         # The diff should contain the new peer IP
         assert "192.0.2.20" in body["diff"]
 
+    async def test_diff_without_from_uses_previous_version(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Sin ?from, diffea contra la version inmediatamente anterior del RS.
+
+        Es lo que necesita el boton 'Ver Diff' del portal, que solo pasa ?to
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        await client.post(f"/api/v1/route-servers/{rs.id}/config/generate", headers=auth_headers)
+        await _setup_active_peer(db_session, ixp, rs, peer_ip="192.0.2.21", peer_asn=64901)
+        resp2 = await client.post(
+            f"/api/v1/route-servers/{rs.id}/config/generate", headers=auth_headers
+        )
+        version2_id = resp2.json()["id"]
+
+        resp = await client.get(
+            f"/api/v1/route-servers/{rs.id}/config/diff",
+            headers=auth_headers,
+            params={"to": version2_id},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "192.0.2.21" in body["diff"]
+        assert body["current_hash"] is not None
+
+    async def test_diff_without_from_on_first_version(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        """Sin ?from y sin version anterior, diffea contra vacio (no revienta)."""
+        rs = await _setup_route_server(db_session, ixp)
+        resp1 = await client.post(
+            f"/api/v1/route-servers/{rs.id}/config/generate", headers=auth_headers
+        )
+        version1_id = resp1.json()["id"]
+
+        resp = await client.get(
+            f"/api/v1/route-servers/{rs.id}/config/diff",
+            headers=auth_headers,
+            params={"to": version1_id},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["current_hash"] is None
+
     async def test_diff_rejects_versions_from_other_route_server(
         self,
         client: AsyncClient,
