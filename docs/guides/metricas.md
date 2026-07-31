@@ -39,10 +39,15 @@ Labels: `switch_id`, `switch_name`, `ifname`, `port_id`, `member_id`, `asn`.
 | `ixforge_interface_traffic_out_bps` | Tráfico saliente (bits/s) |
 | `ixforge_interface_packets_in_pps` | Paquetes entrantes (pps) |
 | `ixforge_interface_packets_out_pps` | Paquetes salientes (pps) |
-| `ixforge_interface_errors_in` | Errores de entrada |
-| `ixforge_interface_errors_out` | Errores de salida |
-| `ixforge_interface_discards_out` | Descartes de salida |
+| `ixforge_interface_errors_in` | Errores de entrada (por segundo) |
+| `ixforge_interface_errors_out` | Errores de salida (por segundo) |
+| `ixforge_interface_discards_out` | Descartes de salida (por segundo) |
 | `ixforge_interface_oper_status` | Estado operativo del puerto |
+
+Tráfico, paquetes, errores y descartes son tasas calculadas entre polls (por
+segundo), no contadores absolutos; `oper_status` es un estado (0/1). Igual que en
+ICMP, el label `asn` de SNMP hoy siempre vale `0` (no viene en el target del
+puerto); filtra por `member_id` o `port_id`, no por `asn`.
 
 ### Latencia y pérdida (ICMP)
 

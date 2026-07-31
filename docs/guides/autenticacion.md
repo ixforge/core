@@ -40,12 +40,18 @@ validar que el token está vigente.
 ## API keys
 
 Las API keys son para servicios, no para personas. Se mandan en el header
-`X-API-Key` y tienen scopes. Scopes válidos:
+`X-API-Key` y cada una sirve **solo** para los endpoints de su scope, nada más.
+Scopes válidos:
 
-| Scope | Lo usa | Permite |
+| Scope | Lo usa | Sirve para |
 |-------|--------|---------|
 | `monitoring:read` | El collector | `GET /monitoring/targets` |
 | `agent:route_server` | Los agents de route server | Los endpoints `/route-servers/{id}/agent/*` del RS al que está vinculada |
+
+Una API key **no** autentica el resto del API (miembros, usuarios, trunks, etc.):
+esos endpoints piden un JWT de admin. O sea una key de scope `monitoring:read`
+sirve para leer los targets de monitoreo y para nada más, aunque cuelgue de un
+usuario admin. Para operar el API se usa el JWT, no la key.
 
 Una key está vinculada **a un usuario o a un route server, nunca a ambos**. El
 valor crudo (`raw_key`) se devuelve **una sola vez** al crearla; guárdalo, no se
