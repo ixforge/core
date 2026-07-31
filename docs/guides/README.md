@@ -19,6 +19,6 @@ CORE=http://localhost:8000   # URL del Core
 
 ## Notas comunes
 
-- Toda respuesta de error usa el formato unificado `{"error": {"code", "message", "details"}}`.
+- Los errores de la API usan el formato unificado `{"error": {"code", "message", "details"}}` (en los 422 de validación, `details` trae la lista de errores de Pydantic).
 - Las operaciones de escritura (POST/PATCH/DELETE) sobre recursos de gestión requieren un usuario admin (JWT) salvo que se indique lo contrario.
 - Los IDs son UUID. En los ejemplos se guardan en variables de shell (`MEMBER_ID=...`) para encadenar llamadas.

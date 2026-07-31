@@ -116,13 +116,23 @@ para el flujo completo.
 
 ## Borrar
 
+Solo se puede borrar un miembro en estado `terminated` (si no, la API responde
+409). Para llegar ahí desde `prospect` hay que recorrer las transiciones:
+`prospect -> provisioning -> terminated`. Lo mismo aplica al comentario de arriba
+sobre el ASN: para "borrar y recrear" hay que terminar el miembro primero.
+
 ```bash
+curl -s -X POST $CORE/api/v1/members/$MEMBER_ID/transition \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"state": "terminated"}'
+
 curl -s -X DELETE $CORE/api/v1/members/$MEMBER_ID -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Lookup de ASN
 
-Resolver el nombre de un ASN vía PeeringDB/RIPE antes de crear el miembro:
+Resolver el nombre de un ASN antes de crear el miembro (busca en los miembros
+locales, luego en la cache con TTL de 7 días, y por último en PeeringDB):
 
 ```bash
 curl -s "$CORE/api/v1/members/asn-lookup?asn=22860" -H "Authorization: Bearer $TOKEN"
