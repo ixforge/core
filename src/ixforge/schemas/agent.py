@@ -65,3 +65,10 @@ class AgentConfigApplied(BaseModel):
     """Agent confirmation that a config was applied."""
 
     config_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class AgentConfigFailed(BaseModel):
+    """Agent report that a config could not be applied (e.g. bird -p failed)."""
+
+    config_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    error: str = Field(min_length=1, max_length=4000)
