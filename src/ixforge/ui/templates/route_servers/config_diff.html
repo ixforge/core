@@ -9,11 +9,49 @@
   </div>
 </div>
 
+{% set diff_text = (diff.diff or "") | trim if diff else "" %}
+{% set lines = diff_text.split('\n') if diff_text else [] %}
+{% set counts = namespace(add=0, rem=0) %}
+{% for line in lines %}
+  {% if line.startswith('+') and not line.startswith('+++') %}{% set counts.add = counts.add + 1 %}
+  {% elif line.startswith('-') and not line.startswith('---') %}{% set counts.rem = counts.rem + 1 %}{% endif %}
+{% endfor %}
+
 <div class="card">
-  {% if diff %}
-  <pre class="text-sm font-mono overflow-x-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-lg whitespace-pre-wrap">{{ diff.content if diff.content is defined else diff | tojson(indent=2) }}</pre>
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-sm">
+    <span class="font-mono text-gray-600 dark:text-gray-400">
+      {{ diff.current_hash[:12] if diff and diff.current_hash else "(config vacia)" }}
+      <span class="text-gray-400 dark:text-gray-500">&rarr;</span>
+      {{ diff.new_hash[:12] if diff and diff.new_hash else "" }}
+    </span>
+    {% if lines %}
+    <span class="font-mono text-xs">
+      <span class="text-green-600 dark:text-green-400">+{{ counts.add }}</span>
+      <span class="text-red-600 dark:text-red-400 ml-1">-{{ counts.rem }}</span>
+    </span>
+    {% endif %}
+  </div>
+
+  {% if lines %}
+  <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 text-xs leading-relaxed">
+    <div class="min-w-max font-mono">
+      {% for line in lines %}
+        {% if line.startswith('@@') %}
+        <div class="whitespace-pre px-3 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{{ line }}</div>
+        {% elif line.startswith('+++') or line.startswith('---') %}
+        <div class="whitespace-pre px-3 py-0.5 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{{ line }}</div>
+        {% elif line.startswith('+') %}
+        <div class="whitespace-pre px-3 py-0.5 bg-green-50 dark:bg-green-900/25 text-green-800 dark:text-green-300">{{ line }}</div>
+        {% elif line.startswith('-') %}
+        <div class="whitespace-pre px-3 py-0.5 bg-red-50 dark:bg-red-900/25 text-red-800 dark:text-red-300">{{ line }}</div>
+        {% else %}
+        <div class="whitespace-pre px-3 py-0.5 text-gray-700 dark:text-gray-300">{{ line if line else " " }}</div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
   {% else %}
-  <p class="text-gray-500 dark:text-gray-400 text-center py-8">No hay diff disponible</p>
+  <p class="text-gray-500 dark:text-gray-400 text-center py-8">Las dos versiones son identicas, no hay cambios</p>
   {% endif %}
 </div>
 {% endblock %}

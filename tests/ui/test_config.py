@@ -86,7 +86,11 @@ class TestConfigDiff:
             if path == f"/api/v1/route-servers/{FAKE_RS['id']}":
                 return FAKE_RS
             if path.endswith("/config/diff"):
-                return {"diff": "+added line\n-removed line", "from": from_id, "to": to_id}
+                return {
+                    "diff": "@@ -1,2 +1,2 @@\n context\n-removed line\n+added line",
+                    "current_hash": "a" * 64,
+                    "new_hash": "b" * 64,
+                }
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
@@ -94,4 +98,22 @@ class TestConfigDiff:
             f"/admin/route-servers/{FAKE_RS['id']}/config/diff?from={from_id}&to={to_id}"
         )
         assert resp.status_code == 200
-        assert "Diff" in resp.text
+        # el diff se renderiza como texto, no como JSON crudo
+        assert "added line" in resp.text
+        assert "removed line" in resp.text
+        assert "+1" in resp.text and "-1" in resp.text  # resumen de cambios
+
+    def test_diff_empty_shows_no_changes(self, authed_client, app):
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/route-servers/{FAKE_RS['id']}":
+                return FAKE_RS
+            if path.endswith("/config/diff"):
+                return {"diff": "", "current_hash": "a" * 64, "new_hash": "b" * 64}
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(
+            f"/admin/route-servers/{FAKE_RS['id']}/config/diff?to={uuid.uuid4()}"
+        )
+        assert resp.status_code == 200
+        assert "no hay cambios" in resp.text.lower()
