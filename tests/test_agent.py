@@ -534,3 +534,76 @@ class TestAgentConfigApplied:
             json={"config_hash": "b" * 64},
         )
         assert resp.status_code == 404
+
+    async def test_report_config_failed(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        cv = await _setup_config_version(db_session, rs)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/config/failed",
+            headers={"X-API-Key": raw_key},
+            json={"config_hash": cv.config_hash, "error": "bird -p failed: line 74 syntax error"},
+        )
+        assert resp.status_code == 204
+
+        await db_session.refresh(cv)
+        assert cv.apply_error == "bird -p failed: line 74 syntax error"
+        assert cv.apply_error_at is not None
+        assert cv.applied_at is None
+
+    async def test_applied_clears_previous_error(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        """Cuando el agente confirma que aplico, se limpia el error previo."""
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        cv = await _setup_config_version(db_session, rs)
+
+        await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/config/failed",
+            headers={"X-API-Key": raw_key},
+            json={"config_hash": cv.config_hash, "error": "boom"},
+        )
+        await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/config/applied",
+            headers={"X-API-Key": raw_key},
+            json={"config_hash": cv.config_hash},
+        )
+
+        await db_session.refresh(cv)
+        assert cv.applied_at is not None
+        assert cv.apply_error is None
+
+    async def test_report_config_failed_wrong_rs_rejected(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        rs1 = await _setup_route_server(db_session, ixp)
+        raw_key1 = await _setup_agent_key(db_session, rs1)
+        rs2 = RouteServer(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="rs2-fail", ip_v4="192.0.2.61", is_active=True
+        )
+        db_session.add(rs2)
+        await db_session.flush()
+        cv2 = await _setup_config_version(db_session, rs2)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs2.id}/agent/config/failed",
+            headers={"X-API-Key": raw_key1},
+            json={"config_hash": cv2.config_hash, "error": "boom"},
+        )
+        assert resp.status_code == 403

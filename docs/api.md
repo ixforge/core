@@ -281,6 +281,7 @@ Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN r
 | POST | `/route-servers/{id}/agent/status` | Report BGP session states |
 | POST | `/route-servers/{id}/agent/heartbeat` | Agent heartbeat |
 | POST | `/route-servers/{id}/agent/config/applied` | Confirm config applied |
+| POST | `/route-servers/{id}/agent/config/failed` | Report a config that failed to apply (`{"config_hash", "error"}`) |
 
 ### Events
 

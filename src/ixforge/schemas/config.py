@@ -15,6 +15,8 @@ class ConfigVersionRead(BaseModel):
     template_snapshot: dict[str, Any] | None
     generated_at: datetime
     applied_at: datetime | None
+    apply_error: str | None = None
+    apply_error_at: datetime | None = None
     generated_by_id: uuid.UUID | None
 
     model_config = {"from_attributes": True}
