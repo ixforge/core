@@ -31,6 +31,12 @@ class ConfigVersion(UUIDPrimaryKey, Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    # Motivo por el que el agente no pudo aplicar esta config (ej. fallo de bird -p)
+    apply_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    apply_error_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     generated_by_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("users.id", ondelete="SET NULL"),
