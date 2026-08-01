@@ -172,15 +172,17 @@
   </div>
   {% if config_pending %}
   <div class="mt-4 rounded-lg border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 p-4">
-    <p class="font-medium text-sm text-yellow-800 dark:text-yellow-300">Config pendiente de aplicar</p>
+    <p class="font-medium text-sm text-yellow-800 dark:text-yellow-300">Configuracion pendiente de aplicar</p>
     <p class="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
       {% if agent_alive %}
-      El agent esta conectado pero todavia no aplico esta config. Casi siempre es porque
-      la rechazo en la validacion de BIRD (<code>bird -p</code>), por ejemplo un template
-      con sintaxis invalida. El peering sigue con la ultima config valida.
+      Esta configuracion se genero pero el route server todavia no la aplico. El agent esta
+      activo, asi que lo mas probable es que BIRD la haya rechazado al validarla
+      (<code>bird -p</code>), normalmente por un error de sintaxis en algun template. El
+      peering no se corta: los route servers siguen con la ultima configuracion valida.
       {% else %}
-      El route server aun no confirmo esta config y no hay heartbeat reciente del agent.
-      Puede que el agent este caido, o que haya rechazado la config en la validacion de BIRD.
+      Esta configuracion se genero pero el route server no la aplico, y hace rato que el agent
+      no reporta. Puede que el agent este caido, o que BIRD haya rechazado la configuracion al
+      validarla.
       {% endif %}
     </p>
     {% if config_current.get("apply_error") %}
@@ -188,7 +190,7 @@
     <pre class="mt-1 text-xs font-mono overflow-x-auto p-3 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-200 whitespace-pre-wrap">{{ config_current.apply_error }}</pre>
     {% else %}
     <p class="text-sm text-yellow-700 dark:text-yellow-400 mt-2">
-      Para ver el motivo exacto, en el route server: <code>journalctl -u ixforge-agent -n 50</code>.
+      Para ver el detalle, en el route server: <code>journalctl -u ixforge-agent -n 50</code>.
     </p>
     {% endif %}
   </div>

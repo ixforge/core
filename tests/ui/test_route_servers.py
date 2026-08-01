@@ -128,7 +128,7 @@ class TestRouteServerDetail:
         app.state.api.get = AsyncMock(side_effect=fake_get)
         resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}")
         assert resp.status_code == 200
-        assert "Config pendiente de aplicar" in resp.text
+        assert "Configuracion pendiente de aplicar" in resp.text
         assert "journalctl -u ixforge-agent" in resp.text
 
     def test_pending_config_shows_agent_error(self, authed_client, app):
@@ -164,7 +164,7 @@ class TestRouteServerDetail:
         app.state.api.get = AsyncMock(side_effect=fake_get)
         resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}")
         assert resp.status_code == 200
-        assert "Config pendiente de aplicar" not in resp.text
+        assert "Configuracion pendiente de aplicar" not in resp.text
 
 
 class TestRouteServerForm:
