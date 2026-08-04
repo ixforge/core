@@ -152,6 +152,9 @@
       <form method="post" action="/admin/route-servers/{{ rs.id }}/config/generate">
         <button type="submit" class="btn-primary btn-sm">Generar Config</button>
       </form>
+      {% if config_current %}
+      <a href="/admin/route-servers/{{ rs.id }}/config/{{ config_current.id }}/view" class="btn-secondary btn-sm">Ver config generada</a>
+      {% endif %}
       <a href="/admin/route-servers/{{ rs.id }}/config/history" class="btn-secondary btn-sm">Historial</a>
     </div>
   </div>
@@ -167,7 +170,7 @@
     </div>
     <div>
       <p class="text-sm text-gray-500 dark:text-gray-400">Hash</p>
-      <p class="font-medium text-sm"><code>{{ config_current.hash[:12] if config_current.get("hash") else "-" }}</code></p>
+      <p class="font-medium text-sm"><code>{{ config_current.config_hash[:12] if config_current.get("config_hash") else "-" }}</code></p>
     </div>
   </div>
   {% if config_pending %}
