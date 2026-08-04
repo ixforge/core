@@ -49,6 +49,7 @@ flujo completo dev -> prod esta en [docs/staging.md](docs/staging.md).
 - [Staging dev -> prod](docs/staging.md) — Flujo de trabajo, ritual de deploy, reglas
 - [Guias de API](docs/guides/README.md) — Recetas: login, crear miembros, aprovisionar, consultar metricas
 - [API](docs/api.md) — Endpoints, autenticacion, paginacion
+- [Templates BIRD](docs/templates.md) — Como se genera la config, `include_globals`, editar templates
 - [Arquitectura](docs/architecture.md) — Capas, patrones, convenciones
 
 ## Licencia

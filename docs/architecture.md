@@ -150,7 +150,8 @@ deleted.
 The IPv4 and IPv6 sections are rendered separately and combined into a single
 file for one dual-stack BIRD 2.x daemon: global directives (log, router id,
 `protocol device`/`direct`, common functions) appear exactly once, controlled
-by the `include_globals` template variable. Each generated config includes:
+by the `include_globals` template variable (see [templates.md](templates.md) for
+the full mechanism and how to edit templates). Each generated config includes:
 - SHA-256 content hash (for change detection by agents)
 - Template snapshot (for reproducibility)
 - Unified diffs between versions
