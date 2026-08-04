@@ -22,7 +22,7 @@
       <tbody class="divide-y dark:divide-gray-700">
         {% for c in configs %}
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-          <td class="py-3"><code class="text-sm">{{ c.hash[:12] if c.hash else c.id[:8] }}</code></td>
+          <td class="py-3"><code class="text-sm">{{ c.config_hash[:12] if c.get("config_hash") else c.id[:8] }}</code></td>
           <td class="py-3 text-sm">{{ c.generated_at[:16] if c.generated_at else "-" }}</td>
           <td class="py-3 text-sm">
             {% if c.get("applied_at") %}
@@ -33,10 +33,16 @@
           </td>
           <td class="py-3 text-sm">{{ c.generated_by or "-" }}</td>
           <td class="py-3">
-            <a href="/admin/route-servers/{{ rs.id }}/config/diff?to={{ c.id }}"
-               class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-              Ver Diff
-            </a>
+            <div class="flex gap-3">
+              <a href="/admin/route-servers/{{ rs.id }}/config/{{ c.id }}/view"
+                 class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+                Ver config
+              </a>
+              <a href="/admin/route-servers/{{ rs.id }}/config/diff?to={{ c.id }}"
+                 class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+                Ver Diff
+              </a>
+            </div>
           </td>
         </tr>
         {% endfor %}

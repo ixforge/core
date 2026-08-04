@@ -552,6 +552,48 @@ class TestConfigHistory:
         )
         assert resp.status_code == 404
 
+    async def test_get_config_version_by_id_returns_content(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        gen = await client.post(
+            f"/api/v1/route-servers/{rs.id}/config/generate", headers=auth_headers
+        )
+        version_id = gen.json()["id"]
+
+        resp = await client.get(
+            f"/api/v1/route-servers/{rs.id}/config/{version_id}", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == version_id
+        assert body["content"]
+
+    async def test_get_config_version_wrong_rs_is_404(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        rs1 = await _setup_route_server(db_session, ixp, name="rs1-cfg")
+        rs2 = await _setup_route_server(
+            db_session, ixp, name="rs2-cfg", ip_v4="192.0.2.211", ip_v6="2001:db8::211"
+        )
+        gen = await client.post(
+            f"/api/v1/route-servers/{rs1.id}/config/generate", headers=auth_headers
+        )
+        version_id = gen.json()["id"]
+
+        resp = await client.get(
+            f"/api/v1/route-servers/{rs2.id}/config/{version_id}", headers=auth_headers
+        )
+        assert resp.status_code == 404
+
     async def test_config_history_returns_versions(
         self,
         client: AsyncClient,

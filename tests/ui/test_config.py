@@ -16,10 +16,10 @@ FAKE_RS = {
 
 FAKE_CONFIG_VERSION = {
     "id": str(uuid.uuid4()),
-    "hash": "abc123def",
+    "config_hash": "abc123def456",
     "generated_at": "2026-01-15T10:00:00",
     "applied_at": "2026-01-15T10:05:00",
-    "generated_by": "admin@example.com",
+    "generated_by_id": None,
 }
 
 
@@ -102,6 +102,56 @@ class TestConfigDiff:
         assert "added line" in resp.text
         assert "removed line" in resp.text
         assert "+1" in resp.text and "-1" in resp.text  # resumen de cambios
+
+    def test_config_view_renders_with_line_numbers(self, authed_client, app):
+        version_id = str(uuid.uuid4())
+
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/route-servers/{FAKE_RS['id']}":
+                return FAKE_RS
+            if path.endswith(f"/config/{version_id}"):
+                return {
+                    "id": version_id,
+                    "config_hash": "a" * 64,
+                    "content": "protocol device {\n    scan time 10;\n}",
+                    "generated_at": "2026-08-03T10:00:00",
+                    "applied_at": None,
+                    "apply_error": None,
+                }
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(
+            f"/admin/route-servers/{FAKE_RS['id']}/config/{version_id}/view"
+        )
+        assert resp.status_code == 200
+        assert "protocol device" in resp.text
+        assert "scan time 10" in resp.text
+
+    def test_config_view_highlights_error_line(self, authed_client, app):
+        version_id = str(uuid.uuid4())
+
+        async def fake_get(path, token, params=None):
+            if path == f"/api/v1/route-servers/{FAKE_RS['id']}":
+                return FAKE_RS
+            if path.endswith(f"/config/{version_id}"):
+                return {
+                    "id": version_id,
+                    "config_hash": "a" * 64,
+                    "content": "line one\nline two\nline three",
+                    "generated_at": "2026-08-03T10:00:00",
+                    "applied_at": None,
+                    "apply_error": "bird -p failed: /etc/bird/bird.conf.tmp:2:1 syntax error",
+                }
+            return {}
+
+        app.state.api.get = AsyncMock(side_effect=fake_get)
+        resp = authed_client.get(
+            f"/admin/route-servers/{FAKE_RS['id']}/config/{version_id}/view"
+        )
+        assert resp.status_code == 200
+        assert "BIRD rechazo esta config" in resp.text
+        assert "linea 2" in resp.text
 
     def test_diff_empty_shows_no_changes(self, authed_client, app):
         async def fake_get(path, token, params=None):

@@ -120,3 +120,20 @@ async def diff_config_versions(
         new_hash=diff_result.to_hash,
         diff=diff_result.diff,
     )
+
+
+@config_router.get("/{version_id}", response_model=ConfigVersionRead)
+async def get_config_version(
+    route_server_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: DBSession,
+    _admin: AdminUser,
+    ixp_id: IXPId,
+) -> ConfigVersion:
+    """Get a single config version (including its full generated content)."""
+    await _ensure_route_server_exists(db, ixp_id, route_server_id)
+
+    config_version = await db.get(ConfigVersion, version_id)
+    if config_version is None or config_version.route_server_id != route_server_id:
+        raise NotFoundError("ConfigVersion", str(version_id))
+    return config_version
