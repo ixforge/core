@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -367,6 +368,43 @@ async def route_server_config_history(request: Request) -> Response:
         "rs": rs,
         "configs": items,
         "page_title": f"Config Historial - {rs.get('name', '')}",
+    })
+
+
+@require_auth
+async def route_server_config_view(request: Request) -> Response:
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    rs_id = request.path_params["rs_id"]
+    version_id = request.path_params["version_id"]
+
+    try:
+        rs = await api.get(f"/api/v1/route-servers/{rs_id}", token)
+        config = await api.get(f"/api/v1/route-servers/{rs_id}/config/{version_id}", token)
+    except APIError as e:
+        if e.status_code == 404:
+            add_flash(request, "Configuracion no encontrada", "error")
+            return RedirectResponse(
+                f"/admin/route-servers/{rs_id}/config/history", status_code=302
+            )
+        raise
+
+    lines = (config.get("content") or "").split("\n")
+
+    # Si el agent reporto un error de bird -p, resaltar la linea que menciona
+    error_line = None
+    apply_error = config.get("apply_error")
+    if apply_error:
+        match = re.search(r"bird\.conf\.tmp:(\d+):", apply_error)
+        if match:
+            error_line = int(match.group(1))
+
+    return render(request, "route_servers/config_view.html", {
+        "rs": rs,
+        "config": config,
+        "lines": lines,
+        "error_line": error_line,
+        "page_title": f"Config generada - {rs.get('name', '')}",
     })
 
 

@@ -1,0 +1,50 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ page_title }} - IXForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+  <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+  <div class="flex gap-2">
+    <a href="/admin/route-servers/{{ rs.id }}/config/diff?to={{ config.id }}" class="btn-secondary">Ver Diff</a>
+    <a href="/admin/route-servers/{{ rs.id }}/config/history" class="btn-secondary">Historial</a>
+    <a href="/admin/route-servers/{{ rs.id }}" class="btn-secondary">Volver</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="flex flex-wrap items-center gap-x-6 gap-y-1 mb-4 text-sm">
+    <span><span class="text-gray-500 dark:text-gray-400">Generada:</span> {{ config.generated_at[:16] if config.generated_at else "-" }}</span>
+    <span>
+      <span class="text-gray-500 dark:text-gray-400">Aplicada:</span>
+      {% if config.get("applied_at") %}
+      <span class="text-green-600 dark:text-green-400">{{ config.applied_at[:16] }}</span>
+      {% else %}
+      <span class="text-yellow-600 dark:text-yellow-400">Pendiente</span>
+      {% endif %}
+    </span>
+    <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ config.config_hash[:16] if config.get("config_hash") else "" }}</span>
+  </div>
+
+  {% if config.get("apply_error") %}
+  <div class="mb-4 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+    <p class="text-sm font-medium text-red-800 dark:text-red-300">BIRD rechazo esta config en la validacion:</p>
+    <pre class="mt-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-red-900 dark:text-red-200">{{ config.apply_error }}</pre>
+    {% if error_line %}
+    <p class="text-xs text-red-700 dark:text-red-400 mt-1">Marcada abajo la linea {{ error_line }}.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+    <table class="border-collapse text-xs font-mono leading-relaxed">
+      <tbody>
+        {% for line in lines %}
+        <tr id="L{{ loop.index }}" class="{% if error_line == loop.index %}bg-red-100 dark:bg-red-900/40{% endif %}">
+          <td class="select-none text-right px-3 text-gray-400 dark:text-gray-500 align-top whitespace-nowrap border-r border-gray-200 dark:border-gray-700">{{ loop.index }}</td>
+          <td class="whitespace-pre px-3 text-gray-800 dark:text-gray-200">{{ line if line else " " }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

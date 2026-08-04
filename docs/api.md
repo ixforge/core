@@ -243,6 +243,7 @@ the previous one; pass `&from=<version>` to compare two explicit versions.
 | POST | `/route-servers/{id}/config/generate` | Generate BIRD config |
 | GET | `/route-servers/{id}/config/history` | Config version history |
 | GET | `/route-servers/{id}/config/current` | Latest config version |
+| GET | `/route-servers/{id}/config/{version_id}` | Get a config version (with full generated content) |
 | GET | `/route-servers/{id}/config/diff?from=&to=` | Unified diff between versions |
 
 ### Route Server Templates (admin only)

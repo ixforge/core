@@ -167,6 +167,7 @@ def create_ui_app() -> Starlette:
         Route("/admin/route-servers/{rs_id}/config/generate", route_servers.route_server_config_generate, methods=["POST"]),
         Route("/admin/route-servers/{rs_id}/config/history", route_servers.route_server_config_history),
         Route("/admin/route-servers/{rs_id}/config/diff", route_servers.route_server_config_diff),
+        Route("/admin/route-servers/{rs_id}/config/{version_id}/view", route_servers.route_server_config_view),
         # VLANs
         Route("/admin/vlans", vlans.vlan_list),
         Route("/admin/vlans/new", vlans.vlan_new, methods=["GET", "POST"]),
