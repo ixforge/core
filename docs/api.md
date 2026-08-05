@@ -12,13 +12,21 @@ Interactive docs: `/api/v1/docs` (Swagger) | `/api/v1/redoc` (ReDoc)
 
 API keys are bound to **either** a user (`POST /users/{id}/api-keys`) **or** a
 route server (`POST /route-servers/{id}/api-keys`), never both. A key only works
-on the endpoints of its scope; it does **not** authenticate the rest of the API
-(members, users, trunks, ...), which requires a JWT. Valid scopes:
+where its scopes allow. Two internal service scopes:
 
 | Scope | Used by | Grants |
 |-------|---------|--------|
 | `agent:route_server` | Route server agents | The `/route-servers/{id}/agent/*` endpoints for the bound RS |
 | `monitoring:read` | The collector | `GET /monitoring/targets` |
+
+Plus granular management scopes of the form `<resource>:read` / `<resource>:write`
+(`read` = GET, `write` = POST/PATCH/DELETE). Resources: `members`, `trunks`,
+`connections`, `bgp-sessions`, `ip-pools`, `ip-assignments`, `vlans`, `switches`,
+`route-servers`, `locations`, `users`, `ixp`, `events`, `contacts`,
+`custom-fields`, `rs-templates`. The required scope is derived from the request
+path and method; a key without it gets **403**. A key never exceeds its scopes nor
+its owner's role (double lock). See
+[guides/autenticacion.md](guides/autenticacion.md).
 
 ## Pagination
 

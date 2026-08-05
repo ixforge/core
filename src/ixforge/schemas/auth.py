@@ -53,7 +53,36 @@ class UserRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-VALID_API_KEY_SCOPES = frozenset({"agent:route_server", "monitoring:read"})
+# Recursos del API de gestion que aceptan scopes granulares de API key.
+# El nombre coincide con el segmento de path (/api/v1/<recurso>) para que el
+# enforcement pueda derivar el scope requerido del request
+MANAGEMENT_RESOURCES = frozenset({
+    "members",
+    "trunks",
+    "connections",
+    "bgp-sessions",
+    "ip-pools",
+    "ip-assignments",
+    "vlans",
+    "switches",
+    "route-servers",
+    "locations",
+    "users",
+    "ixp",
+    "events",
+    "contacts",
+    "custom-fields",
+    "rs-templates",
+})
+
+# Scopes de servicio (internos) mas los granulares <recurso>:read / <recurso>:write
+_SERVICE_SCOPES = frozenset({"agent:route_server", "monitoring:read"})
+_MANAGEMENT_SCOPES = frozenset(
+    f"{resource}:{action}"
+    for resource in MANAGEMENT_RESOURCES
+    for action in ("read", "write")
+)
+VALID_API_KEY_SCOPES = _SERVICE_SCOPES | _MANAGEMENT_SCOPES
 
 
 class RSAPIKeyCreate(BaseModel):

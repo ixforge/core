@@ -122,43 +122,96 @@ class TestAPIKeyAuth:
         await db_session.flush()
         return api_key
 
-    async def test_user_api_key_rejected_on_jwt_endpoint(
+    async def test_key_without_matching_scope_is_forbidden(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
         admin_user: User,
         ixp: IXP,
     ):
-        """Una API key de usuario NO autentica los endpoints generales (solo JWT).
-
-        Aceptarla daria acceso general con una key de scope acotado (escalada)
-        """
+        """Una key valida sin el scope del endpoint recibe 403 (no autoriza)."""
         raw_key = "ixf_testapikey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
         await self._make_key(db_session, admin_user, ["monitoring:read"], raw_key)
 
         resp = await client.get("/api/v1/auth/me", headers={"X-API-Key": raw_key})
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
-    async def test_user_api_key_cannot_do_admin_actions(
+    async def test_monitoring_key_cannot_reach_management_api(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
         admin_user: User,
         ixp: IXP,
     ):
-        """Regresion de escalada: una key monitoring:read no puede leer usuarios ni escribir."""
+        """Regresion de escalada: una key monitoring:read no toca el API de gestion."""
         raw_key = "ixf_escalationkey7890abcdef1234567890abcdef1234567890abcdef123456789012"
         await self._make_key(db_session, admin_user, ["monitoring:read"], raw_key)
 
         listed = await client.get("/api/v1/users", headers={"X-API-Key": raw_key})
-        assert listed.status_code == 401
+        assert listed.status_code == 403
 
         created = await client.post(
             "/api/v1/members",
             headers={"X-API-Key": raw_key},
             json={"name": "Escalada", "short_name": "ESC", "asn": 65099},
         )
-        assert created.status_code == 401
+        assert created.status_code == 403
+
+    async def test_scoped_key_reads_its_resource(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        ixp: IXP,
+    ):
+        """Una key members:read puede leer /members pero no escribir ni tocar otro recurso."""
+        raw_key = "ixf_membersread567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        await self._make_key(db_session, admin_user, ["members:read"], raw_key)
+
+        assert (await client.get(
+            "/api/v1/members", headers={"X-API-Key": raw_key})).status_code == 200
+        # sin members:write no puede crear
+        assert (await client.post(
+            "/api/v1/members", headers={"X-API-Key": raw_key},
+            json={"name": "X", "short_name": "X", "asn": 65001})).status_code == 403
+        # sin trunks:read no puede leer otro recurso
+        assert (await client.get(
+            "/api/v1/trunks", headers={"X-API-Key": raw_key})).status_code == 403
+
+    async def test_scoped_key_writes_with_write_scope(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        ixp: IXP,
+    ):
+        """Una key members:write (sobre un admin) puede crear miembros."""
+        raw_key = "ixf_memberswrite67890abcdef1234567890abcdef1234567890abcdef1234567890"
+        await self._make_key(db_session, admin_user, ["members:write"], raw_key)
+
+        resp = await client.post(
+            "/api/v1/members", headers={"X-API-Key": raw_key},
+            json={"name": "ConScope", "short_name": "CS", "asn": 65002},
+        )
+        assert resp.status_code == 201
+
+    async def test_double_lock_role_still_applies(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        member_user: User,
+        ixp: IXP,
+    ):
+        """Doble candado: aunque la key tenga members:write, si el usuario es member
+        (no admin) el rol lo frena en un endpoint admin-only."""
+        raw_key = "ixf_memberrolekey7890abcdef1234567890abcdef1234567890abcdef1234567890"
+        await self._make_key(db_session, member_user, ["members:write"], raw_key)
+
+        resp = await client.post(
+            "/api/v1/members", headers={"X-API-Key": raw_key},
+            json={"name": "Y", "short_name": "Y", "asn": 65003},
+        )
+        assert resp.status_code == 403
 
     async def test_monitoring_key_still_authorizes_monitoring(
         self,

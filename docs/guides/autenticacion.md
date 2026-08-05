@@ -40,22 +40,42 @@ validar que el token está vigente.
 ## API keys
 
 Las API keys son para servicios, no para personas. Se mandan en el header
-`X-API-Key` y cada una sirve **solo** para los endpoints de su scope, nada más.
-Scopes válidos:
+`X-API-Key` y cada una sirve **solo** para lo que le habilitan sus scopes, nada más.
+
+Hay dos scopes de servicio (internos):
 
 | Scope | Lo usa | Sirve para |
 |-------|--------|---------|
 | `monitoring:read` | El collector | `GET /monitoring/targets` |
 | `agent:route_server` | Los agents de route server | Los endpoints `/route-servers/{id}/agent/*` del RS al que está vinculada |
 
-Una API key **no** autentica el resto del API (miembros, usuarios, trunks, etc.):
-esos endpoints piden un JWT de admin. O sea una key de scope `monitoring:read`
-sirve para leer los targets de monitoreo y para nada más, aunque cuelgue de un
-usuario admin. Para operar el API se usa el JWT, no la key.
+Y scopes **granulares por recurso** para el API de gestión, con la forma
+`<recurso>:read` y `<recurso>:write`. `read` habilita los GET del recurso, `write`
+los POST/PATCH/DELETE. Recursos: `members`, `trunks`, `connections`,
+`bgp-sessions`, `ip-pools`, `ip-assignments`, `vlans`, `switches`, `route-servers`,
+`locations`, `users`, `ixp`, `events`, `contacts`, `custom-fields`, `rs-templates`.
+
+Ejemplo: una key con `members:read` puede hacer `GET /members` y `GET /members/{id}`,
+pero **no** `POST /members` (necesita `members:write`) ni tocar `/trunks` (necesita
+`trunks:read`). Una key sin el scope del endpoint recibe **403**.
+
+**Doble candado:** la key nunca puede pasar de sus scopes **ni** de los permisos
+del usuario dueño. Si la colgás de un usuario `member` (no admin), además queda
+limitada por el rol. Para leer todos los miembros, la key tiene que estar en un
+usuario admin y tener `members:read`.
 
 Una key está vinculada **a un usuario o a un route server, nunca a ambos**. El
 valor crudo (`raw_key`) se devuelve **una sola vez** al crearla; guárdalo, no se
 puede recuperar después.
+
+### Usar una key del API de gestión
+
+```bash
+curl -s "$CORE/api/v1/members?limit=2" -H "X-API-Key: ixf_...tu_key"
+```
+
+En el portal, al crear la key en el detalle del usuario, marcás `read`/`write` por
+cada recurso que necesite.
 
 ### Key de usuario (ej. para el collector)
 

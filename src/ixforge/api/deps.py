@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from ixforge.models.user import User, UserRole
 from ixforge.services.auth import decode_access_token, hash_api_key
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
@@ -30,24 +31,62 @@ DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 
 async def get_current_user(
+    request: Request,
     db: DBSession,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)] = None,
     x_api_key: Annotated[str | None, Header()] = None,
 ) -> User:
-    """Resolve the current user from a Bearer JWT.
+    """Resolve the current user from a Bearer JWT or a scoped API key.
 
-    Las API keys NO autentican este flujo. Son credenciales de servicio con scope
-    acotado (monitoring:read, agent:route_server) y solo valen en sus endpoints
-    dedicados, que hacen su propia verificacion de scope. Aceptarlas aca daria
-    acceso general al API con una key de scope limitado (escalada de privilegios)
+    Una API key solo autentica el endpoint si tiene el scope granular que le
+    corresponde (``<recurso>:read`` / ``<recurso>:write``, derivado del path y el
+    metodo). Ademas se devuelve el usuario dueno, asi que los checks de rol de mas
+    abajo siguen aplicando: la key nunca puede pasar de sus scopes NI del rol de su
+    usuario (doble candado). Una key sin el scope requerido recibe 403
     """
     if credentials is not None:
         return await _resolve_jwt_user(db, credentials.credentials)
 
     if x_api_key is not None:
-        raise UnauthorizedError("API keys are not valid for this endpoint, use a Bearer token")
+        return await _resolve_scoped_api_key_user(db, x_api_key, request)
 
     raise UnauthorizedError("Missing authentication credentials")
+
+
+def _required_scope(request: Request) -> str | None:
+    """Derive the ``<recurso>:<accion>`` scope required for this request.
+
+    Returns None if the path is not a scoped management resource
+    """
+    parts = request.url.path.strip("/").split("/")
+    # se espera ['api', 'v1', '<recurso>', ...]
+    if len(parts) < 3 or parts[0] != "api" or parts[1] != "v1":
+        return None
+    resource = parts[2]
+    action = "read" if request.method in _READ_METHODS else "write"
+    return f"{resource}:{action}"
+
+
+async def _resolve_scoped_api_key_user(db: AsyncSession, raw_key: str, request: Request) -> User:
+    key_hash = hash_api_key(raw_key)
+    stmt = select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
+    api_key = (await db.execute(stmt)).scalar_one_or_none()
+
+    if api_key is None:
+        raise UnauthorizedError("Invalid API key")
+    if api_key.user_id is None:
+        raise UnauthorizedError("API key is not associated with a user")
+
+    required = _required_scope(request)
+    if required is None or required not in api_key.scopes:
+        raise ForbiddenError(f"API key missing required scope: {required or 'unknown'}")
+
+    api_key.last_used_at = datetime.now(UTC)
+
+    user = await db.get(User, api_key.user_id)
+    if user is None or not user.is_active:
+        raise UnauthorizedError("User not found or inactive")
+    return user
 
 
 async def _resolve_jwt_user(db: AsyncSession, token: str) -> User:
