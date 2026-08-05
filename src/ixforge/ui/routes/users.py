@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from starlette.responses import RedirectResponse, Response
 
+from ixforge.schemas.auth import MANAGEMENT_RESOURCES
 from ixforge.ui.api_client import APIClient, APIError
 from ixforge.ui.deps import require_auth
 from ixforge.ui.session import add_flash, require_token, safe_detail
@@ -57,6 +58,7 @@ async def user_detail(request: Request) -> Response:
         "user": user,
         "api_keys": api_keys,
         "new_raw_key": new_raw_key,
+        "management_resources": sorted(MANAGEMENT_RESOURCES),
         "page_title": user.get("email", "Usuario"),
     })
 
