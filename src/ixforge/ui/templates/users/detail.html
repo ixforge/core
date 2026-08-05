@@ -144,25 +144,41 @@
   {# Create API Key form #}
   <div class="border-t dark:border-gray-700 pt-4">
     <h3 class="text-sm font-semibold mb-3">Crear API Key</h3>
-    <form method="post" action="/admin/users/{{ user.id }}/api-keys" class="flex flex-col sm:flex-row gap-3 items-end">
-      <div class="flex-1">
+    <form method="post" action="/admin/users/{{ user.id }}/api-keys" class="space-y-4">
+      <div class="max-w-sm">
         <label for="key_name" class="block text-sm font-medium mb-1">Nombre</label>
         <input type="text" id="key_name" name="name" required
                class="input-field w-full" placeholder="mi-api-key">
       </div>
-      <div class="flex-1">
+      <div>
         <p class="block text-sm font-medium mb-1">Scopes</p>
-        <div class="flex flex-wrap gap-3">
-          <label class="flex items-center gap-1.5 text-sm">
-            <input type="checkbox" name="scopes" value="agent:route_server"
-                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
-            agent:route_server
-          </label>
-          <label class="flex items-center gap-1.5 text-sm">
-            <input type="checkbox" name="scopes" value="monitoring:read"
-                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
-            monitoring:read
-          </label>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          La key solo puede hacer lo que marques aca, y nunca mas que los permisos del usuario.
+          <code>read</code> = GET, <code>write</code> = POST/PATCH/DELETE.
+        </p>
+        <label class="flex items-center gap-1.5 text-sm mb-3">
+          <input type="checkbox" name="scopes" value="monitoring:read"
+                 class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+          <code>monitoring:read</code> <span class="text-gray-500 dark:text-gray-400">(targets del collector)</span>
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1.5 border-t dark:border-gray-700 pt-3">
+          {% for resource in management_resources %}
+          <div class="flex items-center justify-between gap-2 text-sm">
+            <code class="text-gray-700 dark:text-gray-300">{{ resource }}</code>
+            <span class="flex gap-3 shrink-0">
+              <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" name="scopes" value="{{ resource }}:read"
+                       class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                read
+              </label>
+              <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" name="scopes" value="{{ resource }}:write"
+                       class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                write
+              </label>
+            </span>
+          </div>
+          {% endfor %}
         </div>
       </div>
       <button type="submit" class="btn-primary btn-sm">Crear Key</button>

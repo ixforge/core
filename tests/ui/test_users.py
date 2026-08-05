@@ -71,6 +71,10 @@ class TestUserDetail:
         assert resp.status_code == 200
         assert "admin@example.com" in resp.text
         assert "ci-deploy" in resp.text
+        # el form de crear key ofrece los scopes granulares por recurso
+        assert 'value="members:read"' in resp.text
+        assert 'value="members:write"' in resp.text
+        assert 'value="trunks:read"' in resp.text
 
     def test_detail_404_redirects(self, authed_client, app):
         app.state.api.get = AsyncMock(side_effect=APIError(404))
