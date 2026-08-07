@@ -17,15 +17,15 @@ curl -s -X POST $CORE/api/v1/members \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "name": "REDACTED_MEMBER SpA",
-    "short_name": "REDACTED_MEMBER",
-    "asn": 22860,
+    "name": "Ejemplo Networks SpA",
+    "short_name": "EJEMPLO",
+    "asn": 64500,
     "peering_policy": "open",
     "member_type": "isp",
     "contract_type": "standard",
     "country": "CL",
     "city": "Santiago",
-    "website": "https://REDACTED_MEMBER.cl"
+    "website": "https://ejemplo.example"
   }'
 ```
 
@@ -41,7 +41,7 @@ El miembro nace en estado `prospect`. La respuesta incluye su `id`:
 ```bash
 MEMBER_ID=$(curl -s -X POST $CORE/api/v1/members \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"REDACTED_MEMBER SpA","short_name":"REDACTED_MEMBER","asn":22860}' | jq -r .id)
+  -d '{"name":"Ejemplo Networks SpA","short_name":"EJEMPLO","asn":64500}' | jq -r .id)
 ```
 
 ## Listar (con paginación)
@@ -135,8 +135,8 @@ Resolver el nombre de un ASN antes de crear el miembro (busca en los miembros
 locales, luego en la cache con TTL de 7 días, y por último en PeeringDB):
 
 ```bash
-curl -s "$CORE/api/v1/members/asn-lookup?asn=22860" -H "Authorization: Bearer $TOKEN"
-# {"asn": 22860, "name": "REDACTED_MEMBER"}
+curl -s "$CORE/api/v1/members/asn-lookup?asn=64500" -H "Authorization: Bearer $TOKEN"
+# {"asn": 64500, "name": "EJEMPLO"}
 ```
 
 Para el nombre cacheado de un miembro ya creado: `GET /api/v1/members/{id}/asn-name`.
