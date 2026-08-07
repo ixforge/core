@@ -40,9 +40,11 @@ desde la red, se puede saltar por otro host con `ssh -J`.
 
 ## Los deploy.sh
 
-Cada repo tiene su `./deploy.sh <dev|prod>`. Todos despliegan el commit de HEAD
-(con `git archive`, no el working tree), abortan si hay cambios sin commitear,
-piden confirmacion para prod (saltable con `--yes`) y verifican al final.
+Cada repo tiene su `./deploy.sh <dev|prod>`. Los hosts de cada entorno se leen de
+un `deploy.env` local (gitignored, no va al repo); copia `deploy.env.example` a
+`deploy.env` y completa las IPs. Todos despliegan el commit de HEAD (con
+`git archive`, no el working tree), abortan si hay cambios sin commitear, piden
+confirmacion para prod (saltable con `--yes`) y verifican al final.
 
 ```bash
 ./deploy.sh dev            # despliega a dev

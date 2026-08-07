@@ -52,3 +52,4 @@ src/ixforge/ui/static/js/vendor/
 
 # Runtime uploaded media
 media/
+deploy.env
