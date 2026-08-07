@@ -10,9 +10,12 @@
 # verificable por hash al final
 set -euo pipefail
 
+# Hosts por entorno. Se definen en deploy.env (gitignored, ver deploy.env.example)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/deploy.env" ] && . "$SCRIPT_DIR/deploy.env"
 declare -A HOSTS=(
-  [dev]=REDACTED_IP
-  [prod]=REDACTED_IP
+  [dev]="${DEV_HOST:-}"
+  [prod]="${PROD_HOST:-}"
 )
 
 REMOTE_DIR=/opt/ixforge/core
