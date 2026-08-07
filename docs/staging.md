@@ -1,9 +1,10 @@
 # Staging: de desarrollo a produccion
 
-El commit es la unidad de promocion. Dev y prod no son dos copias que se editan
-por separado: son dos entornos que corren el mismo commit de git, verificable por
-hash. El codigo vive en tres repos (`core`, `agent`, `collector`); los servidores
-no tienen `.git`, se les manda una copia de un commit puntual.
+Lo que pasa de dev a prod es un commit, siempre el mismo, no un cambio suelto. Dev
+y prod no son dos copias que se editan por separado: son dos entornos que corren el
+mismo commit de git, verificable por hash. El codigo vive en tres repos (`core`,
+`agent`, `collector`); los servidores no tienen `.git`, se les manda una copia de
+un commit puntual.
 
 **Regla base:** commit primero, deploy despues. Nunca desplegar desde cambios sin
 commitear. Los `deploy.sh` de cada repo abortan si el working tree esta sucio.
