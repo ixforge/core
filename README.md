@@ -4,10 +4,10 @@ API REST central de [IXForge](https://github.com/ixforge), plataforma open-sourc
 
 ## Componentes del ecosistema
 
-- **Core** (este repo) — API REST, logica de negocio, base de datos
-- [Agent](https://github.com/ixforge/agent) — Daemon Rust que aplica configs BIRD en route servers
-- [Collector](https://github.com/ixforge/collector) — Daemon Python que recolecta metricas SNMP/ICMP
-- [E2E](https://github.com/ixforge/e2e) — Tests end-to-end del pipeline completo
+- **Core** (este repo) - API REST, logica de negocio, base de datos
+- [Agent](https://github.com/ixforge/agent) - Daemon Rust que aplica configs BIRD en route servers
+- [Collector](https://github.com/ixforge/collector) - Daemon Python que recolecta metricas SNMP/ICMP
+- [E2E](https://github.com/ixforge/e2e) - Tests end-to-end del pipeline completo
 
 ## Requisitos
 
@@ -33,7 +33,7 @@ IXFORGE_DEBUG=true uv run ixforge run
 
 API y Swagger UI en `http://localhost:8000/api/v1/docs`. En una BD nueva, crea el
 IXP y el usuario admin con el setup inicial (`POST /api/v1/setup`, o el portal en
-`http://localhost:8001/setup`) — ver [Quickstart](docs/quickstart.md).
+`http://localhost:8001/setup`) - ver [Quickstart](docs/quickstart.md).
 
 ## Deploy
 
@@ -45,12 +45,12 @@ flujo completo dev -> prod esta en [docs/staging.md](docs/staging.md).
 
 ## Documentacion
 
-- [Quickstart](docs/quickstart.md) — Setup inicial, configuracion, CLI, tests, Docker
-- [Staging dev -> prod](docs/staging.md) — Flujo de trabajo, ritual de deploy, reglas
-- [Guias de API](docs/guides/README.md) — Recetas: login, crear miembros, aprovisionar, consultar metricas
-- [API](docs/api.md) — Endpoints, autenticacion, paginacion
-- [Templates BIRD](docs/templates.md) — Como se genera la config, `include_globals`, editar templates
-- [Arquitectura](docs/architecture.md) — Capas, patrones, convenciones
+- [Quickstart](docs/quickstart.md) - Setup inicial, configuracion, CLI, tests, Docker
+- [Staging dev -> prod](docs/staging.md) - Flujo de trabajo, ritual de deploy, reglas
+- [Guias de API](docs/guides/README.md) - Recetas: login, crear miembros, aprovisionar, consultar metricas
+- [API](docs/api.md) - Endpoints, autenticacion, paginacion
+- [Templates BIRD](docs/templates.md) - Como se genera la config, `include_globals`, editar templates
+- [Arquitectura](docs/architecture.md) - Capas, patrones, convenciones
 
 ## Licencia
 
