@@ -96,7 +96,7 @@ log syslog all;
 roa6 table rpki6;
 protocol rpki rpkiv6 {
     roa6 { table rpki6; };
-    remote "REDACTED_IP" port 3323;
+    remote "<ip-del-validador-rpki>" port 3323;
     refresh 600;
     retry 600;
     expire 7200;

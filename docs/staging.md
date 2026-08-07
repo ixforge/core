@@ -10,11 +10,14 @@ commitear. Los `deploy.sh` de cada repo abortan si el working tree esta sucio.
 
 ## Entornos
 
+Hay dos entornos, dev y prod, cada uno con su VM Core y sus route servers. En los
+ejemplos se usan placeholders (`<core-host>`, `<rs1>`, `<rs2>`); reemplaza por los
+valores de tu entorno.
+
 | | dev | prod |
 |--|--|--|
-| IXP | REDACTED_IXP DEV | REDACTED_IXP |
-| Core (Docker) | REDACTED_IP | REDACTED_IP |
-| Route servers | REDACTED_IP / .136 | REDACTED_IP / .36 |
+| Core (Docker) | `<core-host>` | `<core-host>` |
+| Route servers | `<rs1>` / `<rs2>` | `<rs1>` / `<rs2>` |
 | Red | aislada, datos de prueba | peering real |
 
 En la VM Core corren, por Docker Compose: el stack del core (api + worker + portal
@@ -88,7 +91,7 @@ VPN pero si por jump host), esto es lo que automatiza, a mano:
 
 ```bash
 # core (desde el repo, working tree limpio)
-git archive --format=tar HEAD | gzip | ssh root@REDACTED_IP '
+git archive --format=tar HEAD | gzip | ssh root@<core-host> '
   rm -rf /opt/ixforge/core/src && tar xzf - -C /opt/ixforge/core \
   && cp /opt/ixforge/.env.core /opt/ixforge/core/docker/.env \
   && cd /opt/ixforge/core/docker && docker compose up -d --build \
@@ -97,7 +100,7 @@ git archive --format=tar HEAD | gzip | ssh root@REDACTED_IP '
 # agent a un RS via jump host (cuando el RS no responde directo)
 docker run --rm -v "$PWD":/src -v ixforge-cargo-cache:/usr/local/cargo/registry \
   -w /src rust:1-bookworm cargo build --release
-cat target/release/ixforge-agent | ssh -J root@REDACTED_IP root@REDACTED_IP \
+cat target/release/ixforge-agent | ssh -J root@<core-host> root@<rs1> \
   'systemctl stop ixforge-agent && cat > /usr/local/bin/ixforge-agent.new \
    && chmod 755 /usr/local/bin/ixforge-agent.new \
    && mv /usr/local/bin/ixforge-agent.new /usr/local/bin/ixforge-agent \
@@ -111,8 +114,8 @@ el arbol de fuentes y comparando con el commit local:
 
 ```bash
 H='find src -type f -name "*.py" -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum'
-eval "$H"                                   # local (con el working tree limpio)
-ssh root@REDACTED_IP "cd /opt/ixforge/core && $H"   # prod
+eval "$H"                                     # local (con el working tree limpio)
+ssh root@<core-host> "cd /opt/ixforge/core && $H"   # servidor
 ```
 
 **Ojo: usar `LC_ALL=C`.** Sin eso, la collation de WSL y la de las VMs difieren y

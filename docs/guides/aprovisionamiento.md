@@ -28,7 +28,7 @@ curl -s -X POST $CORE/api/v1/vlans -H "Authorization: Bearer $TOKEN" -H 'Content
 
 # Pool de IPs sobre la VLAN (af 4 o 6, network debe coincidir con af)
 curl -s -X POST $CORE/api/v1/ip-pools -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"vlan_id": "'$VLAN_ID'", "network": "REDACTED_NET.0/24", "af": 4}'
+  -d '{"vlan_id": "'$VLAN_ID'", "network": "192.0.2.0/24", "af": 4}'
 ```
 
 (Switch y route server tienen sus propios campos; ver [../api.md](../api.md).)
@@ -83,7 +83,7 @@ TRUNK_VLAN_ID=$(curl -s -X POST $CORE/api/v1/trunks/$TRUNK_ID/vlans \
 # Manual
 curl -s -X POST $CORE/api/v1/ip-pools/$POOL_ID/assign \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"trunk_vlan_id": "'$TRUNK_VLAN_ID'", "address": "REDACTED_NET.11"}'
+  -d '{"trunk_vlan_id": "'$TRUNK_VLAN_ID'", "address": "192.0.2.11"}'
 
 # Secuencial (siguiente libre)
 curl -s -X POST $CORE/api/v1/ip-pools/$POOL_ID/assign \
