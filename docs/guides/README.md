@@ -12,10 +12,10 @@ CORE=http://localhost:8000   # URL del Core
 
 ## Índice
 
-- [Autenticación](autenticacion.md) — login JWT, API keys y cómo usarlas
-- [Miembros](miembros.md) — crear, listar (paginación), consultar, modificar, cambiar estado, borrar
-- [Aprovisionamiento](aprovisionamiento.md) — alta completa de un miembro: trunk → conexión → VLAN → IP → sesiones BGP → activar
-- [Métricas y gráficos](metricas.md) — consultar tráfico y latencia desde VictoriaMetrics
+- [Autenticación](autenticacion.md) - login JWT, API keys y cómo usarlas
+- [Miembros](miembros.md) - crear, listar (paginación), consultar, modificar, cambiar estado, borrar
+- [Aprovisionamiento](aprovisionamiento.md) - alta completa de un miembro: trunk → conexión → VLAN → IP → sesiones BGP → activar
+- [Métricas y gráficos](metricas.md) - consultar tráfico y latencia desde VictoriaMetrics
 
 ## Notas comunes
 
