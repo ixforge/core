@@ -6,6 +6,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from ixforge.enums import RPKIPolicy
+
 
 def _validate_ipv4(v: str | None) -> str | None:
     """Validate that a value is a valid IPv4 address."""
@@ -46,6 +48,9 @@ class RouteServerCreate(BaseModel):
     ip_v6: str | None = None
     is_active: bool = True
     notes: str | None = Field(default=None, max_length=1000)
+    passive_sessions: bool = True
+    rpki_enabled: bool = False
+    rpki_policy: RPKIPolicy = RPKIPolicy.info_only
 
     @field_validator("ip_v4")
     @classmethod
@@ -69,6 +74,9 @@ class RouteServerUpdate(BaseModel):
     ip_v6: str | None = None
     is_active: bool | None = None
     notes: str | None = Field(default=None, max_length=1000)
+    passive_sessions: bool | None = None
+    rpki_enabled: bool | None = None
+    rpki_policy: RPKIPolicy | None = None
 
     @field_validator("ip_v4")
     @classmethod
@@ -95,6 +103,9 @@ class RouteServerRead(BaseModel):
     software: str
     is_active: bool
     notes: str | None
+    passive_sessions: bool
+    rpki_enabled: bool
+    rpki_policy: RPKIPolicy
     last_heartbeat_at: datetime | None
     agent_version: str | None
     created_at: datetime

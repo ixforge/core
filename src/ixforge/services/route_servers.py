@@ -28,6 +28,9 @@ async def create(
         ip_v6=data.ip_v6,
         is_active=data.is_active,
         notes=data.notes,
+        passive_sessions=data.passive_sessions,
+        rpki_enabled=data.rpki_enabled,
+        rpki_policy=data.rpki_policy,
     )
     session.add(rs)
     try:
@@ -79,6 +82,13 @@ async def update(
             "Route server could not be updated due to a conflict"
         ) from exc
     await session.refresh(rs)
+
+    # Cambiar ip, passive_sessions, rpki_enabled o rpki_policy cambia el config
+    # generado. Sin este defer la plataforma parece funcionar y el route server
+    # se queda con la version anterior
+    from ixforge.tasks.config import defer_rs_config_regeneration
+
+    await defer_rs_config_regeneration(route_server_id, "route_server.updated")
     return rs
 
 
