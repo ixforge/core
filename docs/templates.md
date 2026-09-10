@@ -1,129 +1,166 @@
-# Templates BIRD y `include_globals`
+# Templates BIRD
 
 Los route servers corren BIRD 2.x. IXForge genera la config de cada route server
 a partir de templates Jinja2 que viven en la base de datos por IXP (tabla
 `route_server_templates`), editables desde el portal admin (Route Servers ->
 Templates) con validacion de sintaxis y vista previa. El set por defecto esta en
-`services/default_templates.py` y se instala al crear el IXP. Los templates
-`bird_v4.conf.j2` y `bird_v6.conf.j2` estan protegidos (no se pueden borrar).
-
-## Como se arma la config
-
-BIRD 2.x es un daemon **dual-stack**: la misma instancia maneja IPv4 e IPv6. Por
-eso IXForge no genera dos archivos, genera **un solo `bird.conf`** que junta la
-parte v4 y la v6, y ese archivo lo valida un unico `bird -p`:
-
-```
-bird.conf  =  render(bird_v4.conf.j2)  +  render(bird_v6.conf.j2)
-```
+`services/default_templates.py` y se instala al crear el IXP.
 
 Cada regeneracion lee los templates **frescos de la base** (no hay cache): el
 proceso arma un entorno Jinja nuevo con lo que este guardado en ese momento. Lo
 que se edita y guarda en el portal se usa en la proxima regeneracion.
 
-## Que es `include_globals` y por que existe
+## La inversion de logica, lo primero que hay que entender
 
-Hay directivas de BIRD que solo pueden aparecer **una vez** en todo el archivo. Si
-aparecen dos veces, `bird -p` rechaza la config. Son:
+Es la parte contraintuitiva y la que mas confunde a quien edita un filtro por
+primera vez.
 
-- `router id`
-- `protocol device`
-- `protocol direct`
-- el `log`
-- las funciones comunes (`functions/common.j2`)
+**Los filtros de import NUNCA rechazan.** Cuando una ruta falla un chequeo, el
+filtro le agrega una large community de la forma `(routeserverasn, 1101, N)` y la
+**acepta**:
 
-Como el archivo se arma juntando el template v4 **y** el v6, si los dos emitieran
-esas directivas quedarian duplicadas y `bird -p` falla (por ejemplo "Kernel device
-protocol already defined").
-
-Para evitarlo, cada render recibe la variable booleana `include_globals`, y en el
-template esas directivas van envueltas en un guard:
-
-```jinja
-{% if include_globals | default(true) %}
-log syslog all;
-router id {{ route_server.router_id }};
-protocol device { scan time 10; }
-protocol direct { disabled; }
-{% include "functions/common.j2" %}
-{% endif %}
 ```
-
-IXForge pone `include_globals = True` en **un solo** render y `False` en el otro,
-asi los globals salen una sola vez en el archivo combinado.
-
-## Quien emite los globals
-
-La regla, tal cual esta en `config_generation.py`:
-
-- El render de **v4** siempre va con `include_globals = True`.
-- El render de **v6** va con `include_globals = not (el RS tiene IPv4)`.
-
-| Route server | v4 render | v6 render | Globals los emite |
-|--------------|-----------|-----------|-------------------|
-| Dual-stack (v4 + v6) | `True` | **`False`** | v4 |
-| Solo v4 | `True` | (sin v6) | v4 |
-| Solo v6 | (sin v4) | **`True`** | v6 |
-
-**Consecuencia clave:** en un route server dual-stack (el caso normal), el
-`bird_v6.conf.j2` se renderiza con `include_globals = False`, asi que **todo lo que
-este dentro del `{% if include_globals %}` en el template v6 se descarta**. Solo
-sobrevive lo que este fuera del guard (por ejemplo `protocol kernel`, los bogons y
-los peers BGP, que estan despues del `{% endif %}`).
-
-## Regla de oro al editar templates
-
-El bloque `{% if include_globals %}` es **solo** para lo que debe salir una vez en
-todo el daemon. Nada mas.
-
-Cualquier cosa **por familia** va **fuera** del guard, porque no se duplica: v4 y
-v6 tienen bloques con nombres distintos que no chocan entre si.
-
-## Ejemplo: RPKI
-
-RPKI es por familia. Las tablas ROA y los protocolos RPKI de v4 y v6 tienen nombres
-distintos, no chocan, asi que cada uno va en su template, **fuera** del guard.
-
-En `bird_v6.conf.j2`, despues del `{% endif %}` y antes del `protocol kernel`:
-
-```jinja
-{% if include_globals | default(true) %}
-log syslog all;
-...
-{% include "functions/common.j2" %}
-{% endif %}
-
-roa6 table rpki6;
-protocol rpki rpkiv6 {
-    roa6 { table rpki6; };
-    remote "<ip-del-validador-rpki>" port 3323;
-    refresh 600;
-    retry 600;
-    expire 7200;
-}
-
-protocol kernel {
-    ipv6 { ... }
+if !(avoid_martians4()) then {
+    bgp_large_community.add( IXP_LC_FILTERED_BOGON );
+    accept;
 }
 ```
 
-Lo mismo para v4 en `bird_v4.conf.j2` (`roa4 table rpki4;` + `protocol rpki
-rpkiv4`, fuera del guard). Para que el RPKI filtre de verdad, agregar
-`roa_check()` en el filtro de import de los peers.
+La ruta entra igual a la tabla del peer, marcada con la razon. Quien la mata es el
+pipe hacia master, con un unico filtro:
 
-Error tipico: poner el bloque RPKI v6 **dentro** del `{% if include_globals %}`. En
-un RS dual-stack se descarta y el RPKI v6 nunca aparece, aunque el sistema diga que
-la config se genero y aplico bien (la config es valida, solo le falta ese bloque).
+```
+filter f_export_to_master
+{
+    if bgp_large_community ~ [( routeserverasn, 1101, * )] then reject;
+    accept;
+}
+```
 
-## Como debuggear un template
+El motivo es operativo: asi un looking glass puede mostrar "esta ruta la recibi y
+la filtre por esta razon". Si se rechazara en el import, la ruta no existiria y no
+habria nada que explicar.
 
-- **Ver config generada** (detalle del route server, o el historial): muestra el
-  `bird.conf` exacto que va al RS, con numeros de linea. Si un bloque que editaste
-  no aparece ahi, casi siempre es que quedo dentro de un `{% if %}` que no se
-  renderizo (tipicamente el `include_globals` del v6 en dual-stack).
-- **Aviso de config pendiente** (detalle del RS): si el agente rechazo la config en
-  la validacion de BIRD, muestra el error de `bird -p` con la linea. La vista de
-  config generada resalta esa linea.
-- El archivo temporal del RS (`/etc/bird/bird.conf.tmp`) se borra cuando `bird -p`
-  falla, por eso no queda para mirar en el route server; el contenido siempre esta
-  en el Core (vista de config generada).
+**Si vas a agregar un chequeo nuevo, marca y acepta. No pongas `reject`.** El
+unico `reject` del config vive en `f_export_to_master`, y hay un test que verifica
+que siga siendo el unico.
+
+## Como se arma la config
+
+BIRD 2.x es un daemon dual-stack: la misma instancia maneja IPv4 e IPv6. IXForge
+hace **un solo render** de `bird.conf.j2`, con las dos familias adentro:
+
+```
+bird.conf = render(bird.conf.j2, peers_v4, peers_v6, rs_peers_v4, rs_peers_v6)
+```
+
+No existe `include_globals`. Antes se renderizaban `bird_v4.conf.j2` y
+`bird_v6.conf.j2` por separado y se concatenaban, coordinando con una variable
+booleana que los templates tenian que respetar por convencion. De ahi salio el
+`protocol device` duplicado que llego a produccion. Con un solo render el problema
+no se puede plantear.
+
+## Los once templates
+
+| Archivo | Contenido |
+|---|---|
+| `bird.conf.j2` | esqueleto: globals, includes, loops de peers de ambas familias. **Protegido** |
+| `functions/communities.j2` | defines de large communities euro-ix: `1101` filtrado, `1000`/`1001` informativas |
+| `filters/bogons.j2` | sets `MARTIANS_V4` y `MARTIANS_V6` |
+| `functions/common.j2` | `avoid_martians4`, `avoid_martians6`, `honor_graceful_shutdown` |
+| `functions/transit.j2` | `TRANSIT_ASNS` y `filter_has_transit_path` |
+| `functions/announce_control.j2` | `ixp_community_filter`, el anuncio selectivo |
+| `filters/to_master.j2` | `f_export_to_master`, el unico lugar que descarta |
+| `protocols/rpki.j2` | tablas ROA y protocolos RPKI |
+| `protocols/rs_client.j2` | `template bgp tb_rsclient_v4` / `_v6` |
+| `protocols/bgp_peer.j2` | por peer miembro: tabla, filtros, protocolo y pipe |
+| `protocols/rs_peer.j2` | por peer que no es miembro: upstream, colector, especial |
+
+Solo `bird.conf.j2` esta protegido. Los otros diez son editables a proposito: un
+operador tiene que poder ajustar filtros o actualizar la lista de ASNs
+transit-free sin esperar un release.
+
+## Simbolos derivados y el limite de 64
+
+BIRD limita los simbolos a 64 caracteres. El patron euro-ix deriva **cinco**
+simbolos del mismo slug por peer y familia:
+
+| Simbolo | Prefijo | Largo |
+|---|---|---|
+| tabla | `t_` | 2 |
+| protocolo bgp | `pb_` | 3 |
+| pipe | `pp_` | 3 |
+| filtro import | `f_import_` | 9 |
+| filtro export | `f_export_` | 9 |
+
+El prefijo mas largo mide 9, asi que el slug se trunca a **55**, no a 64.
+
+Y lo que se recorta es el **nombre**: la IP y la familia van al final y no se
+truncan nunca, porque son lo unico que distingue dos sesiones del mismo miembro.
+Truncar el string completo, que es lo obvio, hace que dos peers con nombre largo
+colapsen en el mismo simbolo y BIRD rechace el config con `Symbol already
+defined`. La unicidad se verifica ademas sobre **todo el config**, no por familia:
+BIRD tiene un unico namespace de simbolos por daemon.
+
+## StrictUndefined
+
+El entorno Jinja usa `StrictUndefined`. Un atributo que no existe en el contexto
+**revienta al renderear** en vez de resolverse a string vacio.
+
+Esto no es una preferencia de estilo. Sin `StrictUndefined`, un `{{ peer.tipo }}`
+mal escrito produce `protocol bgp  {`, que BIRD rechaza, pero el config se guarda
+igual como `ConfigVersion` y se le manda al agent: el error se descubre en el
+route server y no en el origen.
+
+Consecuencia al editar templates: para una variable que puede no estar, usa
+`| default(...)` o `is defined`, no confies en que un `{% if %}` sobre algo
+inexistente sea falso.
+
+## Variables del contexto
+
+`route_server`: `name`, `ip_v4`, `ip_v6`, `asn`, `router_id`, `passive_sessions`,
+`rpki_enabled`, `rpki_policy`, `rpki_servers`.
+
+`peers_v4` / `peers_v6`, cada uno con: `slug`, `member_name`, `member_short_name`,
+`member_type_community`, `peer_ip`, `all_peer_ips`, `peer_asn`, `origin_asns`,
+`prefixes`, `max_prefixes`, `af`.
+
+`rs_peers_v4` / `rs_peers_v6`, cada uno con: `slug`, `name`, `description`,
+`peer_ip`, `peer_asn`, `local_asn`, `passive`, `peer_type`, `mark_community`,
+`max_prefixes`, `af`.
+
+Sobre `prefixes`: **`none` y lista vacia no son lo mismo**. `none` desactiva el
+filtro de prefijos; la lista vacia se renderea como `allnet = [ ];` y, como
+`net ~ []` nunca matchea, marca todo como filtrado. Por eso los templates usan
+`{% if peer.prefixes is not none %}` y no `{% if peer.prefixes %}`.
+
+## Filtros Jinja propios
+
+- `bird_str`: sanitiza un string para meterlo en el config
+- `bird_community`: convierte `"64166:9999"` en `"64166, 9999"`. Rechaza ASNs de
+  4 bytes, porque una community estandar son 32 bits partidos 16:16 y BIRD
+  rechaza el config entero con `value out of bounds in pair constructor`
+- `ipaddr`, `prefixlist`
+
+## IXPs con ASN de 4 bytes
+
+Un IXP con ASN mayor a 65535 no puede expresar communities estandar. Los templates
+condicionan esas formas al tamano del ASN y dejan solo las large, que cubren el
+mismo caso. Para esos IXPs el control de anuncio y la community de tipo de miembro
+funcionan exclusivamente por large communities, y hay que documentarselo a los
+miembros.
+
+## Validar cambios
+
+Hay un golden file en `tests/golden/rs_dual_full.conf` con el config completo de
+un IXP de referencia. Cualquier cambio de template aparece en su diff, que es el
+punto: que se vea en el PR y no en produccion.
+
+```bash
+docker build -t ixforge-bird-validator:2 docker/bird-validator/
+uv run pytest tests/test_config_generation.py
+```
+
+La imagen del validador tiene que construirse con **la misma version de BIRD que
+corre en los route servers**: la sintaxis cambia entre menores de 2.x y un config
+que pasa con una version no garantiza nada sobre otra.

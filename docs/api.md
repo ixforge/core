@@ -240,6 +240,50 @@ States: `draft` -> `provisioning` -> `active` <-> `disabled`; `provisioning` and
 | GET | `/route-servers/{id}/api-keys` | List agent API keys for RS |
 | POST | `/route-servers/{id}/api-keys` | Create agent API key bound to RS (returns raw key once, scope `agent:route_server`) |
 | DELETE | `/route-servers/{id}/api-keys/{key_id}` | Revoke agent API key |
+| GET | `/route-servers/{id}/peers` | List peers that are not members |
+| POST | `/route-servers/{id}/peers` | Create upstream, collector or special peer |
+| GET | `/route-servers/{id}/peers/{peer_id}` | Get peer |
+| PATCH | `/route-servers/{id}/peers/{peer_id}` | Update peer |
+| DELETE | `/route-servers/{id}/peers/{peer_id}` | Delete peer |
+
+`passive_sessions`, `rpki_enabled` y `rpki_policy` (`info_only` / `reject_invalid`)
+son campos del route server: se leen y se escriben con el CRUD de arriba, y
+cambiarlos regenera la config.
+
+Los peers de `/peers` son sesiones que **no pertenecen a un miembro**: upstream,
+colectores, looking glass. La familia se deriva de `peer_ip`, no se manda.
+`mark_community` va en forma `asn:value` y se valida con la misma regla que el
+generador: cada componente admite hasta 65535, porque una community estandar son
+32 bits partidos 16:16.
+
+### Member Prefix Filters (admin only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/members/{id}/prefix-filters/{af}` | Get prefix filter for one address family |
+| PUT | `/members/{id}/prefix-filters/{af}` | Create or replace prefix filter |
+| DELETE | `/members/{id}/prefix-filters/{af}` | Delete prefix filter |
+
+`af` es `4` o `6`. Un miembro **sin fila** se comporta como "solo su propio ASN,
+sin filtro de prefijos", que es el default seguro.
+
+`prefixes` en `null` desactiva el filtro de prefijos. La lista **vacia** se
+rechaza con 422: en el modelo significa "no autorizar ningun prefijo", pero por
+API casi nunca es lo que se quiso, asi que hay que mandar `null` explicito.
+
+### RPKI Servers (admin only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/rpki-servers` | List RTR servers |
+| POST | `/rpki-servers` | Create RTR server |
+| GET | `/rpki-servers/{id}` | Get RTR server |
+| PATCH | `/rpki-servers/{id}` | Update RTR server |
+| DELETE | `/rpki-servers/{id}` | Delete RTR server |
+
+`route_server_id` en `null` aplica el servidor a todos los route servers del IXP.
+El transporte `ssh` se rechaza con 422: esta en el modelo pero el generador solo
+emite TCP.
 
 ### Config Generation (admin only)
 
