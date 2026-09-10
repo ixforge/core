@@ -148,6 +148,31 @@ curl -s -X PATCH $CORE/api/v1/bgp-sessions/$SESSION_ID \
   -d '{"admin_state": "down"}'
 ```
 
+## 8b. Cargar el filtro de prefijos (opcional pero recomendado)
+
+Un miembro sin filtro se comporta como "solo su propio ASN, sin filtro de
+prefijos". Sirve para arrancar, pero si el miembro anuncia prefijos de terceros
+legítimos (clientes, un AS-SET) hay que declararlo, y si querés filtrar por
+prefijo además de por origen, también:
+
+```bash
+curl -s -X PUT $CORE/api/v1/members/$MEMBER_ID/prefix-filters/4 \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{
+        "origin_asns": [64500, 64501],
+        "prefixes": ["203.0.113.0/24"],
+        "as_set": "AS-EJEMPLO"
+      }'
+```
+
+Es por familia: el filtro v6 se carga aparte en `/prefix-filters/6`. Mandar
+`"prefixes": null` desactiva el filtrado por prefijo y deja solo el de origen. La
+lista vacía se rechaza: en el modelo significa "no autorizar ningún prefijo" y por
+API casi nunca es lo que se quiso.
+
+Hoy estas listas se cargan a mano. El campo `as_set` es informativo hasta que
+exista el resolver de IRR.
+
 ## 9. Activar el miembro
 
 Finalmente, el miembro `provisioning → active` (requiere el trunk activo del paso 7):
