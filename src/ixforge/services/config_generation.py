@@ -4,8 +4,9 @@ import difflib
 import hashlib
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -57,16 +58,56 @@ class DiffResult:
     to_hash: str
 
 
-def _sanitize_protocol_name(name: str, peer_ip: str, af: int) -> str:
-    """Build a unique valid BIRD protocol name from member name, peer IP and AF
+# BIRD limita los simbolos a 64 caracteres. El patron euro-ix deriva cinco
+# simbolos del mismo slug (t_, pb_, pp_, f_import_, f_export_) y el prefijo
+# mas largo mide 9, asi que el slug no puede pasar de 55
+PEER_SLUG_MAX_LEN = 55
 
-    BIRD protocol names must be alphanumeric plus underscores. Includes the
-    address family suffix to guarantee uniqueness across IPv4/IPv6 sessions
-    with the same peer IP (after sanitization and 64-char truncation).
+
+def _sanitize_symbol(value: str) -> str:
+    """Deja solo los caracteres que BIRD acepta en un simbolo"""
+    return re.sub(r"[^a-zA-Z0-9_]", "_", value)
+
+
+def _build_peer_slug(short_name: str, peer_ip: str, af: int) -> str:
+    """Base alfanumerica de la que salen todos los simbolos BIRD de un peer
+
+    La IP y la familia van al final y NO se truncan nunca: son lo unico que
+    distingue dos sesiones del mismo miembro. Lo que se recorta es el nombre.
+    Truncar el string completo, que es lo obvio, borra justo la parte que da
+    unicidad: dos peers con nombre largo colapsan en el mismo simbolo y BIRD
+    rechaza el config con "Symbol already defined"
     """
-    raw = f"{name}_{peer_ip}_v{af}"
-    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", raw)
-    return sanitized[:64]
+    tail = _sanitize_symbol(f"_{peer_ip}_v{af}")
+    head = _sanitize_symbol(short_name)
+    budget = max(PEER_SLUG_MAX_LEN - len(tail), 0)
+    return (head[:budget] + tail)[:PEER_SLUG_MAX_LEN]
+
+
+def _deduplicate_slugs(groups: list[list[Any]]) -> list[list[Any]]:
+    """Unicidad de simbolos sobre TODO el config, no por familia
+
+    BIRD tiene un unico namespace de simbolos por daemon. Antes v4 y v6 corrian
+    en daemons separados y podian repetir nombres sin problema; ahora comparten
+    archivo. Desambiguar dentro de build_peers, que se llama una vez por familia,
+    deja pasar las colisiones cruzadas
+    """
+    seen: set[str] = set()
+    out: list[list[Any]] = []
+    for group in groups:
+        new_group = []
+        for ctx in group:
+            slug = ctx.slug
+            base = slug
+            counter = 2
+            while slug in seen:
+                suffix = f"_{counter}"
+                slug = base[: PEER_SLUG_MAX_LEN - len(suffix)] + suffix
+                counter += 1
+            seen.add(slug)
+            new_group.append(ctx if slug == ctx.slug else replace(ctx, slug=slug))
+        out.append(new_group)
+    return out
 
 
 async def build_peers(
@@ -114,13 +155,13 @@ async def build_peers(
     peers: list[PeerContext] = []
     for bgp_session, member, peer_ip in rows:
         peer_ip_str = str(peer_ip)
-        protocol_name = _sanitize_protocol_name(member.short_name, peer_ip_str, af)
-        # Append numeric suffix on the rare collision after truncation
+        protocol_name = _build_peer_slug(member.short_name, peer_ip_str, af)
+        # La unicidad definitiva la da _deduplicate_slugs sobre todo el config
         base = protocol_name
         counter = 2
         while protocol_name in seen_names:
             suffix = f"_{counter}"
-            protocol_name = base[: 64 - len(suffix)] + suffix
+            protocol_name = base[: PEER_SLUG_MAX_LEN - len(suffix)] + suffix
             counter += 1
         seen_names.add(protocol_name)
         peers.append(

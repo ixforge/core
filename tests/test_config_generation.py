@@ -749,3 +749,72 @@ class TestConfigDiff:
             params={"from": v1_id, "to": v2_id},
         )
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Presupuesto de nombres de simbolos BIRD
+# ---------------------------------------------------------------------------
+
+
+def test_peer_slug_truncates_to_55():
+    from ixforge.services.config_generation import PEER_SLUG_MAX_LEN, _build_peer_slug
+
+    slug = _build_peer_slug("A" * 200, "192.0.2.1", 4)
+
+    assert len(slug) == PEER_SLUG_MAX_LEN == 55
+
+
+def test_derived_symbols_fit_in_bird_limit():
+    """f_import_ es el prefijo mas largo del patron euro-ix: 9 caracteres"""
+    from ixforge.services.config_generation import _build_peer_slug
+
+    slug = _build_peer_slug("A" * 200, "192.0.2.1", 4)
+
+    for prefix in ("t_", "pb_", "pp_", "f_import_", "f_export_"):
+        assert len(prefix + slug) <= 64
+
+
+def test_peer_slug_sanitizes_and_keeps_af():
+    from ixforge.services.config_generation import _build_peer_slug
+
+    slug_v4 = _build_peer_slug("Rio Negro S.A.", "192.0.2.1", 4)
+    slug_v6 = _build_peer_slug("Rio Negro S.A.", "2001:db8::1", 6)
+
+    assert slug_v4 == "Rio_Negro_S_A__192_0_2_1_v4"
+    assert slug_v6 != slug_v4
+    assert all(c.isalnum() or c == "_" for c in slug_v4)
+
+
+def test_long_name_does_not_eat_the_distinguishing_part():
+    """Truncar el string completo borra la IP y la familia, que es lo unico
+    que distingue dos sesiones del mismo miembro
+    """
+    from ixforge.services.config_generation import _build_peer_slug
+
+    largo = "A" * 200
+    v4 = _build_peer_slug(largo, "192.0.2.5", 4)
+    v6 = _build_peer_slug(largo, "2001:db8::5", 6)
+    otra_ip = _build_peer_slug(largo, "192.0.2.6", 4)
+
+    assert v4 != v6
+    assert v4 != otra_ip
+    assert v4.endswith("_192_0_2_5_v4")
+    assert v6.endswith("_2001_db8__5_v6")
+
+
+def test_deduplicate_slugs_works_across_families():
+    """BIRD tiene un namespace de simbolos por daemon, no uno por familia"""
+    from dataclasses import dataclass
+
+    from ixforge.services.config_generation import _deduplicate_slugs
+
+    # frozen igual que los contextos reales: por eso la funcion usa
+    # dataclasses.replace en vez de asignar el atributo
+    @dataclass(frozen=True)
+    class _Ctx:
+        slug: str
+
+    grupos = _deduplicate_slugs([[_Ctx("dup")], [_Ctx("dup")]])
+    slugs = [c.slug for grupo in grupos for c in grupo]
+
+    assert len(set(slugs)) == 2
