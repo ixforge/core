@@ -111,7 +111,7 @@ protocol kernel {
         "description": "BGP peer protocol block for BIRD route servers",
         "is_protected": False,
         "content": r"""# BGP peer: {{ peer.member_name | bird_str }} (AS{{ peer.peer_asn }})
-protocol bgp {{ peer.protocol_name }} {
+protocol bgp {{ peer.slug }} {
     local as {{ route_server.asn }};
     neighbor {{ peer.peer_ip }} as {{ peer.peer_asn }};
     description "{{ peer.member_name | bird_str }}";
