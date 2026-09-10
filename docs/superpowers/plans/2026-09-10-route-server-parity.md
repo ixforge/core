@@ -1494,11 +1494,12 @@ Deliverable: un IXP sin peers genera un config que `bird -p` acepta.
 - Modify: `src/ixforge/services/default_templates.py`
 - Modify: `src/ixforge/services/config_generation.py`
 - Modify: `src/ixforge/services/template_filters.py`
+- Modify: `src/ixforge/services/template_env.py`
 - Test: `tests/test_config_generation.py`, `tests/test_template_filters.py`
 
 **Interfaces:**
 - Consumes: los contextos de las Tasks 5 y 6
-- Produces: template `bird.conf.j2` como unico punto de entrada; `generate_config` con un solo render; filtro Jinja `bird_community`; helper `tests.bird_validator.assert_bird_parses(config)`
+- Produces: template `bird.conf.j2` como unico punto de entrada; `generate_config` con un solo render; filtro Jinja `bird_community`; `StrictUndefined` en el entorno Jinja; helper `tests.bird_validator.assert_bird_parses(config)`
 
 - [ ] **Step 1: Crear la imagen de validacion**
 
@@ -2010,6 +2011,67 @@ filter f_export_to_master
 
 Borrar del set `bird_v4.conf.j2`, `bird_v6.conf.j2`, `protocols/bgp_peer.j2`
 (se reescribe en la Task 8), `protocols/static.j2` y `filters/communities.j2`.
+
+- [ ] **Step 6b: Poner `StrictUndefined` en el entorno Jinja**
+
+Descubierto implementando la Task 5: al renombrar `PeerContext.protocol_name` a
+`slug`, el template quedo referenciando un atributo inexistente y **la suite
+siguio en verde**. Jinja lo resolvio a string vacio y el config salio con
+`protocol bgp  {`, que BIRD rechaza. Ese config se guarda como `ConfigVersion` y
+se le manda al agent igual: el unico chequeo que queda es el `bird -p` del route
+server, o sea el error se descubre en el destino y no en el origen.
+
+Escribir el test primero, en `tests/test_config_generation.py`:
+
+```python
+async def test_template_with_unknown_attribute_fails_loudly(db_session, ixp):
+    """Un atributo que no existe tiene que reventar al renderear, no producir
+    un config mudo que igual se le manda al route server
+    """
+    from jinja2 import UndefinedError
+
+    from ixforge.services.config_generation import generate_config
+    from ixforge.services.rs_templates import update_template
+
+    await update_template(
+        db_session,
+        ixp.id,
+        "protocols/bgp_peer.j2",
+        "protocol bgp {{ peer.no_existe }} { }",
+    )
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
+
+    with pytest.raises(UndefinedError):
+        await generate_config(db_session, rs.id, ixp.id)
+```
+
+Verificar la firma real de `update_template` en `services/rs_templates.py` y
+ajustar la llamada; si no existe una funcion asi, escribir el template
+directamente con `session.add(RouteServerTemplate(...))`.
+
+En `src/ixforge/services/template_env.py`:
+
+```python
+from jinja2 import DictLoader, StrictUndefined
+
+    env = SandboxedEnvironment(
+        loader=DictLoader(templates),
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+        undefined=StrictUndefined,
+    )
+```
+
+Esto tiene que ir **junto con** el set de templates nuevo, no antes: los
+templates viejos tienen referencias que solo se resuelven cuando se reemplazan,
+asi que activarlo antes deja la suite roja sin necesidad.
+
+Ojo con el efecto sobre los templates: con `StrictUndefined`, un
+`{% if peer.algo %}` sobre un atributo que no existe pasa a reventar. Las
+variables opcionales de contexto tienen que usar `| default(...)` o
+`is defined`. Revisar los once templates del set nuevo con eso en mente.
 
 - [ ] **Step 7: Pasar `generate_config` a un solo render**
 
