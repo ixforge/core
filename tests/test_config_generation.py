@@ -1794,7 +1794,11 @@ async def _build_golden_ixp(db_session: AsyncSession, ixp: IXP) -> RouteServer:
                 member_id=isp.id,
                 af=6,
                 origin_asns=[273973],
-                prefixes=["2001:db8:aa::/48"],
+                # 3fff::/20 es el prefijo de documentacion de RFC 9637 y NO es
+                # martian. 2001:db8::/32 si lo es: usarlo aca hacia que la ruta
+                # muriera en avoid_martians6 antes de llegar al filtro de
+                # prefijos, o sea el test no probaba lo que decia probar
+                prefixes=["3fff:aa::/48"],
             ),
         ]
     )
@@ -1873,3 +1877,19 @@ async def test_golden_config_matches(db_session, ixp):
 @requires_bird
 def test_golden_config_parses():
     assert_bird_parses(GOLDEN_PATH.read_text(encoding="utf-8"))
+
+
+async def test_export_filter_strips_both_community_forms(db_session, ixp):
+    """Dejar pasar las estandar (routeserverasn, *) filtra menos de lo que
+    parece: las de control de anuncio y la marca de upstream llegarian al miembro
+    """
+    from ixforge.services.config_generation import build_peers, generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    slug = (await build_peers(db_session, rs.id, af=4))[0].slug
+    export_block = cv.content.split(f"filter f_export_{slug}")[1].split("}")[0]
+    assert "bgp_large_community.delete( [( routeserverasn, *, * )] );" in export_block
+    assert "bgp_community.delete( [( routeserverasn, * )] );" in export_block
