@@ -440,34 +440,29 @@ async def generate_config(
 
     env = await build_template_env(session, ixp_id)
 
-    v4_peers = await build_peers(session, route_server_id, af=4)
-    v6_peers = await build_peers(session, route_server_id, af=6)
+    # Un solo render con las dos familias adentro. Coordinar dos renders con una
+    # variable include_globals que los templates tienen que respetar por
+    # convencion es la misma clase de bug que produjo el protocol device
+    # duplicado en produccion
+    v4_peers, v6_peers, v4_rs_peers, v6_rs_peers = _deduplicate_slugs(
+        [
+            await build_peers(session, route_server_id, af=4),
+            await build_peers(session, route_server_id, af=6),
+            await build_rs_peers(session, route_server_id, af=4),
+            await build_rs_peers(session, route_server_id, af=6),
+        ]
+    )
 
-    v4_config = ""
-    if rs.ip_v4:
-        v4_template = env.get_template("bird_v4.conf.j2")
-        v4_config = v4_template.render(
-            route_server=rs_context,
-            peers=v4_peers,
-            generated_at=generated_at_str,
-            config_hash="",
-            include_globals=True,
-        )
-
-    v6_config = ""
-    if rs.ip_v6:
-        v6_template = env.get_template("bird_v6.conf.j2")
-        # Un solo daemon BIRD carga ambas familias: los globals (log, router id,
-        # device, funciones) deben aparecer una sola vez en el config combinado
-        v6_config = v6_template.render(
-            route_server=rs_context,
-            peers=v6_peers,
-            generated_at=generated_at_str,
-            config_hash="",
-            include_globals=not bool(rs.ip_v4),
-        )
-
-    combined = _combine_configs(v4_config, v6_config)
+    template = env.get_template("bird.conf.j2")
+    combined = template.render(
+        route_server=rs_context,
+        peers_v4=v4_peers,
+        peers_v6=v6_peers,
+        rs_peers_v4=v4_rs_peers,
+        rs_peers_v6=v6_rs_peers,
+        generated_at=generated_at_str,
+        config_hash="",
+    )
     config_hash = hashlib.sha256(combined.encode()).hexdigest()
 
     template_snapshot = await get_all_templates(session, ixp_id)
@@ -484,16 +479,6 @@ async def generate_config(
     await session.flush()
 
     return config_version
-
-
-def _combine_configs(v4_config: str, v6_config: str) -> str:
-    """Combine IPv4 and IPv6 configs into a single output with section markers."""
-    sections: list[str] = []
-    if v4_config:
-        sections.append(f"# === IPv4 Configuration ===\n{v4_config}")
-    if v6_config:
-        sections.append(f"# === IPv6 Configuration ===\n{v6_config}")
-    return "\n\n".join(sections)
 
 
 async def get_diff(

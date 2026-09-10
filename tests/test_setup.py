@@ -221,8 +221,12 @@ class TestSetupDefaultTemplates:
         templates = {t.filename: t for t in tpl_result.scalars()}
 
         assert set(templates) == {t["filename"] for t in DEFAULT_TEMPLATES}
-        assert templates["bird_v4.conf.j2"].is_protected is True
-        assert templates["bird_v6.conf.j2"].is_protected is True
+        # el esqueleto es el unico protegido: los includes son editables para que
+        # un operador pueda ajustar filtros sin pedir un release
+        assert templates["bird.conf.j2"].is_protected is True
+        assert not any(
+            t.is_protected for name, t in templates.items() if name != "bird.conf.j2"
+        )
 
 
 class TestSetupStatus:

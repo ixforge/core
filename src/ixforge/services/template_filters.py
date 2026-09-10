@@ -42,3 +42,27 @@ def prefixlist(prefixes: list[str], name: str = "pfxlist") -> str:
         lines.append(f"    {prefix}{separator}")
     lines.append("];")
     return "\n".join(lines)
+
+
+def bird_community(value: str) -> str:
+    """Convierte "64166:9999" en "64166, 9999" para usar dentro de parentesis
+
+    Valida agresivamente porque el resultado se inyecta en un config que maneja
+    infraestructura critica
+    """
+    parts = value.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"community invalida, se esperaba asn:value: {value!r}")
+    try:
+        asn, val = int(parts[0]), int(parts[1])
+    except ValueError as exc:
+        raise ValueError(f"community con partes no numericas: {value!r}") from exc
+    # una community estandar es de 32 bits partidos en 16:16, asi que NINGUNO
+    # de los dos componentes puede pasar de 65535. Permitir un ASN de 4 bytes
+    # aca produce un config que BIRD rechaza con "Can't operate with value out
+    # of bounds in pair constructor"
+    if not (0 <= asn <= 65535) or not (0 <= val <= 65535):
+        raise ValueError(
+            f"community fuera de rango, cada componente admite hasta 65535: {value!r}"
+        )
+    return f"{asn}, {val}"
