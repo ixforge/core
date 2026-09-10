@@ -2,6 +2,7 @@
 
 import difflib
 import hashlib
+import ipaddress
 import re
 import uuid
 from dataclasses import dataclass, replace
@@ -9,7 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import BGPAdminState, MemberState, TrunkState
@@ -21,6 +22,8 @@ from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
 from ixforge.models.member_prefix_filter import MemberPrefixFilter
 from ixforge.models.route_server import RouteServer
+from ixforge.models.route_server_peer import RouteServerPeer
+from ixforge.models.rpki_server import RPKIServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.services.communities import member_type_community
 from ixforge.services.rs_templates import get_all_templates
@@ -52,6 +55,37 @@ class PeerContext:
 
 
 @dataclass(frozen=True)
+class RSPeerContext:
+    """Template context para una sesion que no pertenece a un miembro."""
+
+    slug: str
+    name: str
+    description: str | None
+    peer_ip: str
+    peer_asn: int
+    local_asn: int
+    passive: bool
+    peer_type: str
+    mark_community: str | None
+    max_prefixes: int | None
+    af: int
+
+
+@dataclass(frozen=True)
+class RPKIServerContext:
+    """Template context para un servidor RTR."""
+
+    slug: str
+    name: str
+    host: str
+    port: int
+    transport: str
+    refresh_time: int | None
+    retry_time: int | None
+    expire_time: int | None
+
+
+@dataclass(frozen=True)
 class RouteServerContext:
     """Template context for the route server itself."""
 
@@ -60,6 +94,10 @@ class RouteServerContext:
     ip_v6: str | None
     asn: int
     router_id: str
+    passive_sessions: bool
+    rpki_enabled: bool
+    rpki_policy: str
+    rpki_servers: tuple[RPKIServerContext, ...]
 
 
 @dataclass(frozen=True)
@@ -242,10 +280,57 @@ async def build_peers(
     return peers
 
 
+async def build_rs_peers(
+    session: AsyncSession, route_server_id: uuid.UUID, af: int
+) -> list[RSPeerContext]:
+    """Peers de upstream, colectores y especiales de un route server
+
+    La familia se deriva de peer_ip: el modelo no guarda af para no tener dos
+    fuentes de verdad
+    """
+    ixp_asn_stmt = (
+        select(IXP.asn)
+        .join(RouteServer, RouteServer.ixp_id == IXP.id)
+        .where(RouteServer.id == route_server_id)
+    )
+    ixp_asn = (await session.execute(ixp_asn_stmt)).scalar_one()
+
+    stmt = (
+        select(RouteServerPeer)
+        .where(
+            RouteServerPeer.route_server_id == route_server_id,
+            RouteServerPeer.admin_state == BGPAdminState.up,
+        )
+        .order_by(RouteServerPeer.peer_asn, RouteServerPeer.peer_ip)
+    )
+    result = await session.execute(stmt)
+
+    peers: list[RSPeerContext] = []
+    for peer in result.scalars():
+        peer_ip = str(peer.peer_ip)
+        if ipaddress.ip_address(peer_ip).version != af:
+            continue
+
+        peers.append(
+            RSPeerContext(
+                slug=_build_peer_slug(peer.name, peer_ip, af),
+                name=peer.name,
+                description=peer.description,
+                peer_ip=peer_ip,
+                peer_asn=peer.peer_asn,
+                local_asn=peer.local_asn if peer.local_asn is not None else ixp_asn,
+                passive=peer.passive,
+                peer_type=peer.peer_type.value,
+                mark_community=peer.mark_community,
+                max_prefixes=peer.max_prefixes,
+                af=af,
+            )
+        )
+    return peers
+
+
 async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int) -> RouteServerContext:
     """Build the route server template context from the model."""
-    import ipaddress
-
     if not rs.ip_v4 and not rs.ip_v6:
         raise ValidationError(
             f"Route server '{rs.name}' must have at least one IP (v4 or v6) to generate config"
@@ -291,12 +376,42 @@ async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int)
                     f"Assign a unique IPv4 address to this route server"
                 )
 
+    rpki_stmt = (
+        select(RPKIServer)
+        .where(
+            RPKIServer.ixp_id == rs.ixp_id,
+            or_(
+                RPKIServer.route_server_id.is_(None),
+                RPKIServer.route_server_id == rs.id,
+            ),
+        )
+        .order_by(RPKIServer.name)
+    )
+    rpki_result = await session.execute(rpki_stmt)
+    rpki_servers = tuple(
+        RPKIServerContext(
+            slug=_sanitize_symbol(srv.name)[:PEER_SLUG_MAX_LEN],
+            name=srv.name,
+            host=srv.host,
+            port=srv.port,
+            transport=srv.transport.value,
+            refresh_time=srv.refresh_time,
+            retry_time=srv.retry_time,
+            expire_time=srv.expire_time,
+        )
+        for srv in rpki_result.scalars()
+    )
+
     return RouteServerContext(
         name=rs.name,
         ip_v4=rs.ip_v4,
         ip_v6=rs.ip_v6,
         asn=ixp_asn,
         router_id=router_id,
+        passive_sessions=rs.passive_sessions,
+        rpki_enabled=rs.rpki_enabled,
+        rpki_policy=rs.rpki_policy.value,
+        rpki_servers=tuple(_deduplicate_slugs([list(rpki_servers)])[0]),
     )
 
 

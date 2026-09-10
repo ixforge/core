@@ -26,6 +26,8 @@ from ixforge.models.location import Location
 from ixforge.models.member import Member
 from ixforge.models.member_prefix_filter import MemberPrefixFilter
 from ixforge.models.route_server import RouteServer
+from ixforge.models.route_server_peer import RouteServerPeer
+from ixforge.models.rpki_server import RPKIServer
 from ixforge.models.switch import Switch
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
@@ -1181,3 +1183,132 @@ async def test_generated_config_names_every_protocol(db_session, ixp):
     assert slug
     assert f"protocol bgp {slug} " in cv.content
     assert "protocol bgp  " not in cv.content
+
+
+# ---------------------------------------------------------------------------
+# Peers que no son miembros, y RPKI
+# ---------------------------------------------------------------------------
+
+
+async def test_build_rs_peers_splits_by_family(db_session, ixp):
+    """El af sale de la IP, no de una columna"""
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.config_generation import build_rs_peers
+
+    rs = await _setup_route_server(db_session, ixp)
+    db_session.add_all(
+        [
+            RouteServerPeer(
+                ixp_id=ixp.id,
+                route_server_id=rs.id,
+                name="PIT v4",
+                peer_ip="192.0.2.5",
+                peer_asn=64166,
+                peer_type=RouteServerPeerType.upstream,
+                mark_community="64166:9999",
+            ),
+            RouteServerPeer(
+                ixp_id=ixp.id,
+                route_server_id=rs.id,
+                name="PIT v6",
+                peer_ip="2001:db8::5",
+                peer_asn=64166,
+                peer_type=RouteServerPeerType.upstream,
+                mark_community="64166:9999",
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    v4 = await build_rs_peers(db_session, rs.id, af=4)
+    v6 = await build_rs_peers(db_session, rs.id, af=6)
+
+    assert [p.peer_ip for p in v4] == ["192.0.2.5"]
+    assert [p.peer_ip for p in v6] == ["2001:db8::5"]
+    assert v4[0].mark_community == "64166:9999"
+
+
+async def test_rs_peer_local_asn_defaults_to_ixp_asn(db_session, ixp):
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.config_generation import build_rs_peers
+
+    rs = await _setup_route_server(db_session, ixp)
+    db_session.add(
+        RouteServerPeer(
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            name="colector",
+            peer_ip="192.0.2.17",
+            peer_asn=212232,
+            peer_type=RouteServerPeerType.collector,
+        )
+    )
+    await db_session.flush()
+
+    peers = await build_rs_peers(db_session, rs.id, af=4)
+
+    assert peers[0].local_asn == ixp.asn
+
+
+async def test_rs_peer_admin_state_down_is_excluded(db_session, ixp):
+    from ixforge.enums import BGPAdminState, RouteServerPeerType
+    from ixforge.services.config_generation import build_rs_peers
+
+    rs = await _setup_route_server(db_session, ixp)
+    db_session.add(
+        RouteServerPeer(
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            name="apagado",
+            peer_ip="192.0.2.99",
+            peer_asn=65000,
+            peer_type=RouteServerPeerType.special,
+            admin_state=BGPAdminState.down,
+        )
+    )
+    await db_session.flush()
+
+    assert await build_rs_peers(db_session, rs.id, af=4) == []
+
+
+async def test_rs_context_collects_applicable_rpki_servers(db_session, ixp):
+    """Un servidor con route_server_id NULL aplica a todos los RS del IXP"""
+    from ixforge.services.config_generation import build_rs_context
+
+    rs = await _setup_route_server(db_session, ixp)
+    other = await _setup_route_server(
+        db_session, ixp, name="rs2", ip_v4="192.0.2.251", ip_v6=None
+    )
+    db_session.add_all(
+        [
+            RPKIServer(ixp_id=ixp.id, name="global", host="10.0.0.1"),
+            RPKIServer(
+                ixp_id=ixp.id,
+                name="solo-rs2",
+                host="10.0.0.2",
+                route_server_id=other.id,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    ctx = await build_rs_context(db_session, rs, ixp.asn)
+
+    assert [s.name for s in ctx.rpki_servers] == ["global"]
+
+
+async def test_rs_context_carries_policy_fields(db_session, ixp):
+    from ixforge.enums import RPKIPolicy
+    from ixforge.services.config_generation import build_rs_context
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    rs.rpki_policy = RPKIPolicy.reject_invalid
+    rs.passive_sessions = False
+    await db_session.flush()
+
+    ctx = await build_rs_context(db_session, rs, ixp.asn)
+
+    assert ctx.rpki_enabled is True
+    assert ctx.rpki_policy == "reject_invalid"
+    assert ctx.passive_sessions is False
