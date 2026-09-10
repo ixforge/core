@@ -32,6 +32,7 @@ from ixforge.models.switch import Switch
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
 from ixforge.services.default_templates import install_default_templates
+from tests.bird_validator import assert_bird_parses, bird_available
 
 
 @pytest.fixture(autouse=True)
@@ -206,15 +207,19 @@ class TestCombinedConfigValidity:
         content = resp.json()["content"]
 
         assert content.count("protocol device") == 1
-        assert content.count("protocol direct") == 1
         assert content.count("router id ") == 1
-        assert content.count("function net_len_valid") == 1
+        assert content.count("define routeserverasn") == 1
+        assert content.count("function avoid_martians4") == 1
+        assert content.count("function avoid_martians6") == 1
         assert content.count("function honor_graceful_shutdown") == 1
+        assert content.count("function ixp_community_filter") == 1
+        assert content.count("filter f_export_to_master") == 1
         assert content.count("log syslog all;") == 1
         # Lo especifico de cada familia si va una vez por AF
-        assert content.count("protocol kernel") == 2
-        assert content.count("function is_bogon_v4") == 1
-        assert content.count("function is_bogon_v6") == 1
+        assert content.count("template bgp tb_rsclient_v4") == 1
+        assert content.count("template bgp tb_rsclient_v6") == 1
+        assert content.count("define MARTIANS_V4") == 1
+        assert content.count("define MARTIANS_V6") == 1
 
     async def test_v6_only_config_includes_globals(
         self,
@@ -237,7 +242,12 @@ class TestCombinedConfigValidity:
 
         assert content.count("protocol device") == 1
         assert content.count("router id ") == 1
-        assert content.count("function net_len_valid") == 1
+        assert content.count("function avoid_martians6") == 1
+        assert content.count("define routeserverasn") == 1
+        # sin IPv4 no se emite el template de clientes v4 ni su source address
+        assert content.count("template bgp tb_rsclient_v6") == 1
+        assert "tb_rsclient_v4" not in content
+        assert "routeserveraddress4" not in content
 
 
 class TestConfigGeneration:
@@ -1181,8 +1191,8 @@ async def test_generated_config_names_every_protocol(db_session, ixp):
 
     slug = (await build_peers(db_session, rs.id, af=4))[0].slug
     assert slug
-    assert f"protocol bgp {slug} " in cv.content
-    assert "protocol bgp  " not in cv.content
+    assert f"protocol bgp pb_{slug} " in cv.content
+    assert "protocol bgp pb_ " not in cv.content
 
 
 # ---------------------------------------------------------------------------
@@ -1312,3 +1322,423 @@ async def test_rs_context_carries_policy_fields(db_session, ixp):
     assert ctx.rpki_enabled is True
     assert ctx.rpki_policy == "reject_invalid"
     assert ctx.passive_sessions is False
+
+
+# ---------------------------------------------------------------------------
+# Set de templates euro-ix
+# ---------------------------------------------------------------------------
+
+requires_bird = pytest.mark.skipif(
+    not bird_available(), reason="falta la imagen ixforge-bird-validator:2"
+)
+
+
+async def test_config_has_single_globals_section(db_session, ixp):
+    """Un solo daemon: los globals no pueden aparecer dos veces"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert cv.content.count("protocol device") == 1
+    assert cv.content.count("define routeserverasn") == 1
+    assert cv.content.count("router id") == 1
+
+
+async def test_config_defines_euroix_communities(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "define IXP_LC_FILTERED_BOGON " in cv.content
+    assert "define IXP_LC_FILTERED_NEXT_HOP_NOT_PEER_IP " in cv.content
+    assert "define IXP_LC_INFO_RPKI_NOT_CHECKED " in cv.content
+    assert "filter f_export_to_master" in cv.content
+    assert "function ixp_community_filter" in cv.content
+
+
+async def test_config_defines_source_address_per_family(db_session, ixp):
+    """Sin source address, un RS con mas de una IP en la LAN elige origen por
+    lookup de ruta, que es ambiguo
+    """
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "define routeserveraddress4 = 192.0.2.250;" in cv.content
+    assert "define routeserveraddress6 = 2001:db8::250;" in cv.content
+    assert "source address routeserveraddress4;" in cv.content
+    assert "source address routeserveraddress6;" in cv.content
+
+
+async def test_template_with_unknown_attribute_fails_loudly(db_session, ixp):
+    """Un atributo que no existe tiene que reventar al renderear, no producir
+    un config mudo que igual se le manda al route server
+    """
+    from jinja2 import UndefinedError
+    from sqlalchemy import update
+
+    from ixforge.models.rs_template import RouteServerTemplate
+    from ixforge.services.config_generation import generate_config
+
+    await db_session.execute(
+        update(RouteServerTemplate)
+        .where(
+            RouteServerTemplate.ixp_id == ixp.id,
+            RouteServerTemplate.filename == "protocols/bgp_peer.j2",
+        )
+        .values(content="protocol bgp {{ peer.no_existe }} { }")
+    )
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
+
+    with pytest.raises(UndefinedError):
+        await generate_config(db_session, rs.id, ixp.id)
+
+
+@requires_bird
+async def test_empty_config_parses(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert_bird_parses(cv.content)
+
+
+@requires_bird
+async def test_v4_only_config_parses(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp, name="rs-v4", ip_v6=None)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "routeserveraddress6" not in cv.content
+    assert_bird_parses(cv.content)
+
+
+# ---------------------------------------------------------------------------
+# Bloques de peer de miembro
+# ---------------------------------------------------------------------------
+
+
+async def test_peer_block_has_all_five_symbols(db_session, ixp):
+    from ixforge.services.config_generation import build_peers, generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    slug = (await build_peers(db_session, rs.id, af=4))[0].slug
+    for symbol in (
+        f"ipv4 table t_{slug};",
+        f"filter f_import_{slug}",
+        f"filter f_export_{slug}",
+        f"protocol bgp pb_{slug} from tb_rsclient_v4",
+        f"protocol pipe pp_{slug}",
+    ):
+        assert symbol in cv.content, symbol
+
+
+async def test_peer_import_filter_marks_instead_of_rejecting(db_session, ixp):
+    """El patron euro-ix nunca rechaza en el import: marca y acepta"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "reject" not in import_block
+    assert "IXP_LC_FILTERED_BOGON" in import_block
+    assert "IXP_LC_FILTERED_FIRST_AS_NOT_PEER_AS" in import_block
+    assert "IXP_LC_FILTERED_NEXT_HOP_NOT_PEER_IP" in import_block
+
+
+async def test_only_the_pipe_to_master_rejects(db_session, ixp):
+    """Todo lo marcado muere en un unico lugar"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert cv.content.count("then reject;") == 1
+    to_master = cv.content.split("filter f_export_to_master")[1].split("}")[0]
+    assert "( routeserverasn, 1101, * )" in to_master
+
+
+async def test_peer_allips_lists_every_member_ip(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    member = await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
+    await _add_second_connection(db_session, ixp, rs, member, ipv4="192.0.2.12")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "allips = [ 192.0.2.11, 192.0.2.12 ];" in cv.content
+
+
+async def test_peer_without_prefix_filter_omits_allnet(db_session, ixp):
+    """Sin filtro de prefijos no se declara allnet"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "prefix set allnet;" not in cv.content
+    assert "IXP_LC_INFO_IRRDB_NOT_CHECKED" in cv.content
+
+
+async def test_peer_with_prefix_filter_renders_allnet(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    member = await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
+    db_session.add(
+        MemberPrefixFilter(
+            ixp_id=ixp.id,
+            member_id=member.id,
+            af=4,
+            prefixes=["45.170.100.0/24", "45.238.179.0/24"],
+        )
+    )
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "prefix set allnet;" in cv.content
+    assert "allnet = [ 45.170.100.0/24, 45.238.179.0/24 ];" in cv.content
+    assert "IXP_LC_FILTERED_IRRDB_PREFIX_FILTERED" in cv.content
+
+
+async def test_empty_prefix_list_authorizes_nothing_in_the_config(db_session, ixp):
+    """La lista vacia se renderea como un set vacio y net ~ [] nunca matchea,
+    asi que marca todo como filtrado por prefijo
+    """
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    member = await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
+    db_session.add(
+        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=[])
+    )
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "allnet = [  ];" in import_block
+    assert "IXP_LC_FILTERED_IRRDB_PREFIX_FILTERED" in import_block
+    assert "IXP_LC_INFO_IRRDB_NOT_CHECKED" not in import_block
+
+
+async def test_rs_client_template_has_rs_client_and_passive(db_session, ixp):
+    """Sin rs client BIRD mete su ASN en el AS path: no es un route server"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "rs client;" in cv.content
+    assert "passive yes;" in cv.content
+    assert "interpret communities off;" in cv.content
+    assert "connect delay time 30;" in cv.content
+
+
+async def test_passive_sessions_false_omits_passive(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp, name="rs-activo")
+    rs.passive_sessions = False
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "passive yes;" not in cv.content
+
+
+async def test_member_type_renders_standard_community(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(
+        db_session, ixp, rs, asn=61455, ipv4="192.0.2.16", member_type=MemberType.cdn
+    )
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "bgp_community.add( (routeserverasn, 250) );" in cv.content
+
+
+@requires_bird
+async def test_config_with_peers_parses(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    member = await _setup_member_peer(
+        db_session, ixp, rs, asn=273973, ipv4="192.0.2.11", ipv6="2001:db8::11"
+    )
+    db_session.add(
+        MemberPrefixFilter(
+            ixp_id=ixp.id, member_id=member.id, af=4, prefixes=["45.170.100.0/24"]
+        )
+    )
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert_bird_parses(cv.content)
+
+
+# ---------------------------------------------------------------------------
+# RPKI y peers que no son miembros
+# ---------------------------------------------------------------------------
+
+
+async def test_rpki_disabled_marks_not_checked(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "protocol rpki" not in cv.content
+    assert "roa_check" not in cv.content
+    assert "import table on;" not in cv.content
+
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "IXP_LC_INFO_RPKI_NOT_CHECKED" in import_block
+
+
+async def test_rpki_info_only_checks_without_filtering(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "roa4 table roa_v4;" in cv.content
+    assert 'remote "10.0.0.1" port 3323;' in cv.content
+    assert "roa_check(roa_v4, net, bgp_path.last)" in cv.content
+
+    # el assert tiene que mirar DENTRO del filtro de import: las communities
+    # estan todas declaradas en el bloque global de defines, asi que buscarlas
+    # en cv.content entero pasa o falla sin relacion con lo que se filtra
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "IXP_LC_INFO_RPKI_INVALID" in import_block
+    assert "IXP_LC_FILTERED_RPKI_INVALID" not in import_block
+
+
+async def test_rpki_reject_invalid_adds_filter_community(db_session, ixp):
+    from ixforge.enums import RPKIPolicy
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    rs.rpki_policy = RPKIPolicy.reject_invalid
+    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "IXP_LC_FILTERED_RPKI_INVALID" in import_block
+
+
+async def test_rpki_enabled_turns_on_import_table(db_session, ixp):
+    """Sin import table, cuando cambian o expiran las ROAs BIRD no puede
+    reevaluar el filtro sobre las rutas ya recibidas sin pedir route refresh
+    """
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    # una vez por familia, dentro del template de clientes
+    assert cv.content.count("import table on;") == 2
+
+
+async def test_rs_peer_upstream_block(db_session, ixp):
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.config_generation import build_rs_peers, generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    db_session.add(
+        RouteServerPeer(
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            name="PIT Chile",
+            peer_ip="192.0.2.5",
+            peer_asn=64166,
+            local_asn=64166,
+            peer_type=RouteServerPeerType.upstream,
+            mark_community="64166:9999",
+        )
+    )
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    slug = (await build_rs_peers(db_session, rs.id, af=4))[0].slug
+    assert f"protocol bgp pb_{slug} {{" in cv.content
+    assert "local as 64166;" in cv.content
+    assert "neighbor 192.0.2.5 as 64166;" in cv.content
+    assert "bgp_community.add( (64166, 9999) );" in cv.content
+    assert "export where !(bgp_community ~ [(64166, 9999)]);" in cv.content
+    # un peer no-miembro no es cliente del route server
+    assert f"pb_{slug} from tb_rsclient" not in cv.content
+
+
+@requires_bird
+async def test_full_config_with_rpki_and_upstream_parses(db_session, ixp):
+    from ixforge.enums import RouteServerPeerType, RPKIPolicy
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    rs.rpki_policy = RPKIPolicy.reject_invalid
+    db_session.add_all(
+        [
+            RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"),
+            RouteServerPeer(
+                ixp_id=ixp.id,
+                route_server_id=rs.id,
+                name="PIT Chile v4",
+                peer_ip="192.0.2.5",
+                peer_asn=64166,
+                local_asn=64166,
+                peer_type=RouteServerPeerType.upstream,
+                mark_community="64166:9999",
+            ),
+        ]
+    )
+    member = await _setup_member_peer(
+        db_session,
+        ixp,
+        rs,
+        asn=273973,
+        ipv4="192.0.2.11",
+        ipv6="2001:db8::11",
+        member_type=MemberType.isp,
+    )
+    db_session.add(
+        MemberPrefixFilter(
+            ixp_id=ixp.id, member_id=member.id, af=4, prefixes=["45.170.100.0/24"]
+        )
+    )
+    await _setup_member_peer(
+        db_session,
+        ixp,
+        rs,
+        asn=25152,
+        ipv4="192.0.2.10",
+        member_type=MemberType.infraestructura_critica,
+    )
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert_bird_parses(cv.content)
