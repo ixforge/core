@@ -151,6 +151,12 @@ Semantica, elegida para reproducir exacto lo que corre hoy:
 - `prefixes` NULL: no se filtra por prefijo, solo por ASN de origen
 - `prefixes` presente: la ruta que no matchee se marca
   `IXP_LC_FILTERED_IRRDB_PREFIX_FILTERED`
+- `prefixes` en lista **vacia** no es lo mismo que NULL: autoriza cero prefijos y
+  marca todo. Se renderea como `allnet = [ ];`, y `net ~ []` nunca matchea.
+  Colapsar los dos casos seria fail-open, que es la peor direccion para
+  equivocarse: el operador que vacia la lista para cerrar el filtro terminaria
+  abriendolo. La API rechaza la lista vacia y pide NULL explicito para desactivar,
+  pero el generador igual la maneja por si entra por SQL
 
 Un miembro sin fila en esta tabla se comporta como `origin_asns` = su propio ASN y
 sin filtro de prefijos, que es el default seguro y lo que hacen 4 de los 5
@@ -185,6 +191,12 @@ miembros de PatagoniaIX.
 agrega la community de filtrado `1101:13`, que es lo que hace que el pipe la
 descarte. El paso de un modo al otro es un campo y una regeneracion, sin cambio de
 template y sin downtime.
+
+Con RPKI encendido los canales BGP llevan `import table on`. Sin eso BIRD no puede
+reevaluar el filtro de import sobre las rutas ya recibidas cuando cambian o expiran
+las ROAs, y tendria que pedirle un route refresh al peer. Cuesta memoria, asi que
+se activa solo con RPKI encendido, que es el unico caso donde el resultado del
+filtro depende de datos que cambian por su cuenta.
 
 ### Enums nuevos
 
@@ -401,9 +413,16 @@ TDD, como el resto del repo.
 2. **`interpret communities off`** cambia como BIRD trata las communities
    well-known. Es lo correcto para un route server y es lo que corre hoy en
    PatagoniaIX, pero para MetroportIX es un cambio de comportamiento
-3. **Los ASNs transit-free** son una lista que envejece. Va como template editable,
+3. **Un IXP con ASN de 4 bytes pierde las communities estandar.** Una community
+   estandar son 32 bits partidos 16:16, asi que un ASN mayor a 65535 no entra:
+   BIRD rechaza el config entero en la preevaluacion del filtro. Los templates
+   condicionan las formas estandar al tamano del ASN y dejan solo las large, que
+   cubren el mismo caso. Para esos IXPs el control de anuncio y la community de
+   tipo de miembro funcionan exclusivamente por large communities, y hay que
+   documentarselo a los miembros
+4. **Los ASNs transit-free** son una lista que envejece. Va como template editable,
    no como constante de codigo, para que un operador la pueda actualizar sin
    esperar un release
-4. **Sin resolver IRR**, `member_prefix_filters` depende de que alguien la
+5. **Sin resolver IRR**, `member_prefix_filters` depende de que alguien la
    mantenga. Para un IXP chico es correcto. Para uno que crezca es deuda conocida,
    y el campo `as_set` esta puesto para pagarla despues sin migrar datos
