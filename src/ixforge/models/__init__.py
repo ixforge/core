@@ -13,8 +13,11 @@ from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.location import Location
 from ixforge.models.member import Member
+from ixforge.models.member_prefix_filter import MemberPrefixFilter
 from ixforge.models.route_server import RouteServer
+from ixforge.models.route_server_peer import RouteServerPeer
 from ixforge.models.route_server_vlan import RouteServerVLAN
+from ixforge.models.rpki_server import RPKIServer
 from ixforge.models.rs_ip_assignment import RSIPAssignment
 from ixforge.models.rs_template import RouteServerTemplate
 from ixforge.models.switch import Switch
@@ -39,8 +42,11 @@ __all__ = [
     "IPPool",
     "Location",
     "Member",
+    "MemberPrefixFilter",
+    "RPKIServer",
     "RSIPAssignment",
     "RouteServer",
+    "RouteServerPeer",
     "RouteServerTemplate",
     "RouteServerVLAN",
     "Switch",

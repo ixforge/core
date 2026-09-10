@@ -14,6 +14,10 @@ __all__ = [
     "MemberState",
     "MemberType",
     "PeeringPolicy",
+    "PrefixFilterSource",
+    "RPKIPolicy",
+    "RPKITransport",
+    "RouteServerPeerType",
     "TrunkState",
     "UserRole",
     "VLANType",
@@ -141,3 +145,33 @@ class BGPOperState(StrEnum):
     up = "up"
     down = "down"
     unknown = "unknown"
+
+
+# -- Route server peers --
+
+
+class RouteServerPeerType(StrEnum):
+    upstream = "upstream"
+    collector = "collector"
+    special = "special"
+
+
+# -- Filtrado de prefijos --
+
+
+class PrefixFilterSource(StrEnum):
+    manual = "manual"
+    irr = "irr"
+
+
+# -- RPKI --
+
+
+class RPKIPolicy(StrEnum):
+    info_only = "info_only"
+    reject_invalid = "reject_invalid"
+
+
+class RPKITransport(StrEnum):
+    tcp = "tcp"
+    ssh = "ssh"

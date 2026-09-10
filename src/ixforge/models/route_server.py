@@ -2,9 +2,10 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text, text
+from sqlalchemy import Boolean, DateTime, Enum, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ixforge.enums import RPKIPolicy
 from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKey
 from ixforge.models.types import INET
 
@@ -16,6 +17,22 @@ class RouteServer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     ip_v4: Mapped[str | None] = mapped_column(INET, nullable=True)
     ip_v6: Mapped[str | None] = mapped_column(INET, nullable=True)
     software: Mapped[str] = mapped_column(String(50), nullable=False, default="bird")
+    passive_sessions: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=text("true"),
+        nullable=False,
+        comment="El route server nunca inicia la conexion BGP",
+    )
+    rpki_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    rpki_policy: Mapped[RPKIPolicy] = mapped_column(
+        Enum(RPKIPolicy, name="rpki_policy"),
+        default=RPKIPolicy.info_only,
+        server_default=RPKIPolicy.info_only.value,
+        nullable=False,
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
     )
