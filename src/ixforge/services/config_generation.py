@@ -19,8 +19,10 @@ from ixforge.models.config import ConfigVersion
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
+from ixforge.models.member_prefix_filter import MemberPrefixFilter
 from ixforge.models.route_server import RouteServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
+from ixforge.services.communities import member_type_community
 from ixforge.services.rs_templates import get_all_templates
 from ixforge.services.template_env import build_template_env
 
@@ -29,13 +31,24 @@ logger = structlog.get_logger()
 
 @dataclass(frozen=True)
 class PeerContext:
-    """Template context for a single BGP peer."""
+    """Template context for a single BGP peer.
 
-    protocol_name: str
+    all_peer_ips, origin_asns y prefixes van como tuplas porque el dataclass es
+    frozen: una lista mutable adentro de un contexto congelado invita a que
+    alguien la modifique durante el render
+    """
+
+    slug: str
     member_name: str
+    member_short_name: str
+    member_type_community: int | None
     peer_ip: str
+    all_peer_ips: tuple[str, ...]
     peer_asn: int
+    origin_asns: tuple[int, ...]
+    prefixes: tuple[str, ...] | None
     max_prefixes: int | None
+    af: int
 
 
 @dataclass(frozen=True)
@@ -110,6 +123,44 @@ def _deduplicate_slugs(groups: list[list[Any]]) -> list[list[Any]]:
     return out
 
 
+async def _member_vlan_ips(
+    session: AsyncSession, af: int
+) -> dict[tuple[uuid.UUID, uuid.UUID], list[str]]:
+    """Todas las IPs de cada miembro en cada VLAN, para el chequeo de next hop
+
+    Clave: (member_id, vlan_id). El chequeo euro-ix necesita el conjunto completo
+    del miembro y no solo la IP de la sesion que se esta renderizando, o el
+    propio segundo puerto del miembro queda marcado como next hop hijacking
+    """
+    stmt = (
+        select(Trunk.member_id, TrunkVLAN.vlan_id, IPAssignment.address)
+        .join(TrunkVLAN, IPAssignment.trunk_vlan_id == TrunkVLAN.id)
+        .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
+        .join(IPPool, IPAssignment.pool_id == IPPool.id)
+        .where(IPPool.af == af, Trunk.state == TrunkState.active)
+        .order_by(IPAssignment.address)
+    )
+    result = await session.execute(stmt)
+    out: dict[tuple[uuid.UUID, uuid.UUID], list[str]] = {}
+    for member_id, vlan_id, address in result.all():
+        out.setdefault((member_id, vlan_id), []).append(str(address))
+    return out
+
+
+async def _prefix_filters(
+    session: AsyncSession, member_ids: set[uuid.UUID], af: int
+) -> dict[uuid.UUID, MemberPrefixFilter]:
+    """Filtros de prefijos de esos miembros para esa familia, en una sola consulta"""
+    if not member_ids:
+        return {}
+    stmt = select(MemberPrefixFilter).where(
+        MemberPrefixFilter.member_id.in_(member_ids),
+        MemberPrefixFilter.af == af,
+    )
+    result = await session.execute(stmt)
+    return {pf.member_id: pf for pf in result.scalars()}
+
+
 async def build_peers(
     session: AsyncSession,
     route_server_id: uuid.UUID,
@@ -130,7 +181,7 @@ async def build_peers(
     )
 
     stmt = (
-        select(BGPSession, Member, ip_subq.c.address)
+        select(BGPSession, Member, ip_subq.c.address, TrunkVLAN.vlan_id)
         .join(TrunkVLAN, BGPSession.trunk_vlan_id == TrunkVLAN.id)
         .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
         .join(Member, Trunk.member_id == Member.id)
@@ -151,26 +202,41 @@ async def build_peers(
     result = await session.execute(stmt)
     rows = result.all()
 
-    seen_names: set[str] = set()
+    member_ids = {member.id for _s, member, _ip, _vlan in rows}
+    ips_by_member_vlan = await _member_vlan_ips(session, af)
+    filters_by_member = await _prefix_filters(session, member_ids, af)
+
     peers: list[PeerContext] = []
-    for bgp_session, member, peer_ip in rows:
+    for bgp_session, member, peer_ip, vlan_id in rows:
         peer_ip_str = str(peer_ip)
-        protocol_name = _build_peer_slug(member.short_name, peer_ip_str, af)
-        # La unicidad definitiva la da _deduplicate_slugs sobre todo el config
-        base = protocol_name
-        counter = 2
-        while protocol_name in seen_names:
-            suffix = f"_{counter}"
-            protocol_name = base[: PEER_SLUG_MAX_LEN - len(suffix)] + suffix
-            counter += 1
-        seen_names.add(protocol_name)
+        pf = filters_by_member.get(member.id)
+
+        # Las dos listas se tratan distinto a proposito. origin_asns cae al ASN
+        # del miembro tanto si no hay fila como si la lista esta vacia, que es el
+        # lado restrictivo: un allas vacio marcaria todas sus rutas como
+        # filtradas por origen. prefixes distingue NULL de lista vacia, porque
+        # colapsarlos seria fail-open
+        origin_asns = (
+            tuple(pf.origin_asns) if pf is not None and pf.origin_asns else (member.asn,)
+        )
+        prefixes = (
+            tuple(pf.prefixes) if pf is not None and pf.prefixes is not None else None
+        )
+        all_ips = ips_by_member_vlan.get((member.id, vlan_id), [peer_ip_str])
+
         peers.append(
             PeerContext(
-                protocol_name=protocol_name,
+                slug=_build_peer_slug(member.short_name, peer_ip_str, af),
                 member_name=member.name,
+                member_short_name=member.short_name,
+                member_type_community=member_type_community(member.member_type),
                 peer_ip=peer_ip_str,
+                all_peer_ips=tuple(all_ips),
                 peer_asn=member.asn,
+                origin_asns=origin_asns,
+                prefixes=prefixes,
                 max_prefixes=bgp_session.max_prefixes,
+                af=af,
             )
         )
     return peers
