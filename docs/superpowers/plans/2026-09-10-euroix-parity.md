@@ -655,7 +655,43 @@ def test_peer_slug_sanitizes_and_keeps_af():
     assert slug_v4 == "Rio_Negro_S_A__192_0_2_1_v4"
     assert slug_v6 != slug_v4
     assert all(c.isalnum() or c == "_" for c in slug_v4)
+
+
+def test_long_name_does_not_eat_the_distinguishing_part():
+    """Truncar el string completo borra la IP y la familia, que es lo unico
+    que distingue dos sesiones del mismo miembro
+    """
+    from ixforge.services.config_generation import _build_peer_slug
+
+    largo = "A" * 200
+    v4 = _build_peer_slug(largo, "192.0.2.5", 4)
+    v6 = _build_peer_slug(largo, "2001:db8::5", 6)
+    otra_ip = _build_peer_slug(largo, "192.0.2.6", 4)
+
+    assert v4 != v6
+    assert v4 != otra_ip
+    assert v4.endswith("_192_0_2_5_v4")
+    assert v6.endswith("_2001_db8__5_v6")
+
+
+def test_deduplicate_slugs_works_across_families():
+    """BIRD tiene un namespace de simbolos por daemon, no uno por familia"""
+    from ixforge.services.config_generation import _deduplicate_slugs
+
+    class _Ctx:
+        def __init__(self, slug):
+            self.slug = slug
+
+    # dos contextos que ya llegan con el mismo slug desde familias distintas
+    grupos = _deduplicate_slugs([[_Ctx("dup")], [_Ctx("dup")]])
+    slugs = [c.slug for grupo in grupos for c in grupo]
+
+    assert len(set(slugs)) == 2
 ```
+
+`_Ctx` es un stub porque `_deduplicate_slugs` solo necesita el atributo `slug`; en
+el codigo real recibe `PeerContext` y `RSPeerContext`, que son `frozen` y por eso
+la funcion usa `dataclasses.replace` en vez de asignar.
 
 - [ ] **Step 2: Correr los tests y verificar que fallan**
 
@@ -673,30 +709,64 @@ En `src/ixforge/services/config_generation.py`, borrar `_sanitize_protocol_name`
 PEER_SLUG_MAX_LEN = 55
 
 
+def _sanitize_symbol(value: str) -> str:
+    """Deja solo los caracteres que BIRD acepta en un simbolo"""
+    return re.sub(r"[^a-zA-Z0-9_]", "_", value)
+
+
 def _build_peer_slug(short_name: str, peer_ip: str, af: int) -> str:
     """Base alfanumerica de la que salen todos los simbolos BIRD de un peer
 
-    Incluye la familia porque un mismo peer tiene sesiones v4 y v6 en el mismo
-    daemon y sus tablas no pueden colisionar
+    La IP y la familia van al final y NO se truncan nunca: son lo unico que
+    distingue dos sesiones del mismo miembro. Lo que se recorta es el nombre.
+    Truncar el string completo, que es lo obvio, borra justo la parte que da
+    unicidad: dos peers con nombre de 55 caracteres colapsan en el mismo
+    simbolo y BIRD rechaza el config con "Symbol already defined"
     """
-    raw = f"{short_name}_{peer_ip}_v{af}"
-    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", raw)
-    return sanitized[:PEER_SLUG_MAX_LEN]
+    tail = _sanitize_symbol(f"_{peer_ip}_v{af}")
+    head = _sanitize_symbol(short_name)
+    budget = max(PEER_SLUG_MAX_LEN - len(tail), 0)
+    return (head[:budget] + tail)[:PEER_SLUG_MAX_LEN]
+
+
+def _deduplicate_slugs(groups: list[list[Any]]) -> list[list[Any]]:
+    """Unicidad de simbolos sobre TODO el config, no por familia
+
+    BIRD tiene un unico namespace de simbolos por daemon. Antes v4 y v6 corrian
+    en daemons separados y podian repetir nombres sin problema; ahora comparten
+    archivo. Desambiguar dentro de build_peers, que se llama una vez por familia,
+    deja pasar las colisiones cruzadas
+    """
+    seen: set[str] = set()
+    out: list[list[Any]] = []
+    for group in groups:
+        new_group = []
+        for ctx in group:
+            slug = ctx.slug
+            base = slug
+            counter = 2
+            while slug in seen:
+                suffix = f"_{counter}"
+                slug = base[: PEER_SLUG_MAX_LEN - len(suffix)] + suffix
+                counter += 1
+            seen.add(slug)
+            new_group.append(ctx if slug == ctx.slug else replace(ctx, slug=slug))
+        out.append(new_group)
+    return out
 ```
 
-- [ ] **Step 4: Actualizar el desambiguador de colisiones en `build_peers`**
+Agregar `from dataclasses import replace` y `from typing import Any` a los imports
+del modulo.
 
-El bloque que agrega sufijo numerico en colision usa el limite viejo. Cambiarlo a:
+- [ ] **Step 4: Sacar la desambiguacion por familia de `build_peers`**
+
+Borrar el bloque que agrega sufijo numerico y el set `seen_names` de `build_peers`.
+La unicidad ya no es responsabilidad del builder: se resuelve una sola vez en
+`generate_config` sobre las cuatro listas juntas, con `_deduplicate_slugs`. Dentro
+del loop queda solo:
 
 ```python
         slug = _build_peer_slug(member.short_name, peer_ip_str, af)
-        base = slug
-        counter = 2
-        while slug in seen_slugs:
-            suffix = f"_{counter}"
-            slug = base[: PEER_SLUG_MAX_LEN - len(suffix)] + suffix
-            counter += 1
-        seen_slugs.add(slug)
 ```
 
 - [ ] **Step 5: Correr los tests y verificar que pasan**
@@ -743,8 +813,9 @@ async def test_peer_context_defaults_origin_to_member_asn(db_session, ixp):
 
     peers = await build_peers(db_session, rs.id, af=4)
 
+    # los campos del contexto son tuplas: comparar contra una lista da False
     assert len(peers) == 1
-    assert peers[0].origin_asns == [61455]
+    assert peers[0].origin_asns == (61455,)
     assert peers[0].prefixes is None
 
 
@@ -767,8 +838,8 @@ async def test_peer_context_uses_prefix_filter(db_session, ixp):
 
     peers = await build_peers(db_session, rs.id, af=4)
 
-    assert peers[0].origin_asns == [273973, 64512]
-    assert peers[0].prefixes == ["45.170.100.0/24", "45.238.179.0/24"]
+    assert peers[0].origin_asns == (273973, 64512)
+    assert peers[0].prefixes == ("45.170.100.0/24", "45.238.179.0/24")
 
 
 async def test_peer_context_prefix_filter_is_per_af(db_session, ixp):
@@ -791,7 +862,7 @@ async def test_peer_context_prefix_filter_is_per_af(db_session, ixp):
     peers_v6 = await build_peers(db_session, rs.id, af=6)
 
     assert peers_v4[0].prefixes is None
-    assert peers_v6[0].prefixes == ["2001:db8:aa::/48"]
+    assert peers_v6[0].prefixes == ("2001:db8:aa::/48",)
 
 
 async def test_all_peer_ips_covers_every_connection_of_the_member(db_session, ixp):
@@ -1069,8 +1140,19 @@ async def _prefix_filters(
 `build_peers` tiene que traer tambien `TrunkVLAN.vlan_id` y `Trunk.member_id` en el
 `select`, y despues del loop de filas:
 
+El `select` pasa a tener **exactamente cuatro columnas**, en este orden:
+
 ```python
-    member_ids = {member.id for _s, member, _ip in rows}
+    stmt = (
+        select(BGPSession, Member, ip_subq.c.address, TrunkVLAN.vlan_id)
+        ...
+    )
+```
+
+y todo lo que consume `rows` desempaqueta esas cuatro:
+
+```python
+    member_ids = {member.id for _s, member, _ip, _vlan in rows}
     ips_by_member_vlan = await _member_vlan_ips(session, route_server_id, af)
     filters_by_member = await _prefix_filters(session, member_ids, af)
 
@@ -1087,7 +1169,12 @@ async def _prefix_filters(
 
         pf = filters_by_member.get(member.id)
         origin_asns = tuple(pf.origin_asns) if pf and pf.origin_asns else (member.asn,)
-        prefixes = tuple(pf.prefixes) if pf and pf.prefixes else None
+        # NULL y lista vacia NO son lo mismo: NULL desactiva el filtro, [] no
+        # autoriza ningun prefijo. Colapsarlos con un `if pf.prefixes` hace que
+        # una lista vacia amplie lo permitido en vez de restringirlo
+        prefixes = (
+            tuple(pf.prefixes) if pf is not None and pf.prefixes is not None else None
+        )
         all_ips = ips_by_member_vlan.get((member.id, vlan_id), [str(peer_ip)])
 
         peers.append(
@@ -1107,9 +1194,15 @@ async def _prefix_filters(
         )
 ```
 
-Nota defensiva: `origin_asns` cae al ASN del miembro tanto si no hay fila como si
-la fila tiene la lista vacia. Una lista vacia rendereada como `int set allas = [];`
-haria que BIRD marque **todas** las rutas del miembro como filtradas por origen.
+Las dos listas se tratan distinto **a proposito** y la asimetria importa:
+
+- `origin_asns` cae al ASN del miembro tanto si no hay fila como si la lista esta
+  vacia. Es el lado restrictivo: una lista vacia rendereada como `allas = [];`
+  marcaria todas las rutas del miembro como filtradas por origen
+- `prefixes` distingue NULL de `[]`. NULL desactiva el filtro; `[]` se renderea
+  como `allnet = [ ];` y, como `net ~ []` nunca matchea, marca todo como filtrado
+  por prefijo. Colapsarlos seria fail-open: el operador que vacia la lista
+  esperando cerrar el filtro terminaria abriendolo del todo
 
 - [ ] **Step 7: Correr todos los tests del generador**
 
@@ -1580,6 +1673,18 @@ def test_bird_community_rejects_garbage():
     for bad in ("64166", "a:b", "64166:9999:1", "", "-1:5"):
         with pytest.raises(ValueError):
             bird_community(bad)
+
+
+def test_bird_community_rejects_four_byte_asn():
+    """Una community estandar son 16:16 bits, un ASN de 4 bytes no entra y BIRD
+    rechaza el config entero con "value out of bounds in pair constructor"
+    """
+    import pytest
+
+    from ixforge.services.template_filters import bird_community
+
+    with pytest.raises(ValueError):
+        bird_community("273973:9999")
 ```
 
 - [ ] **Step 4: Correr los tests y verificar que fallan**
@@ -1605,8 +1710,14 @@ def bird_community(value: str) -> str:
         asn, val = int(parts[0]), int(parts[1])
     except ValueError as exc:
         raise ValueError(f"community con partes no numericas: {value!r}") from exc
-    if not (0 <= asn <= 4294967295) or not (0 <= val <= 65535):
-        raise ValueError(f"community fuera de rango: {value!r}")
+    # una community estandar es de 32 bits partidos en 16:16, asi que NINGUNO
+    # de los dos componentes puede pasar de 65535. Permitir un ASN de 4 bytes
+    # aca produce un config que BIRD rechaza con "Can't operate with value out
+    # of bounds in pair constructor"
+    if not (0 <= asn <= 65535) or not (0 <= val <= 65535):
+        raise ValueError(
+            f"community fuera de rango, cada componente admite hasta 65535: {value!r}"
+        )
     return f"{asn}, {val}"
 ```
 
@@ -1721,9 +1832,13 @@ define IXP_LC_INFO_IRRDB_FILTERED_STRICT = ( routeserverasn, 1001, 1001 );
 define IXP_LC_INFO_IRRDB_PREFIX_EMPTY    = ( routeserverasn, 1001, 1002 );
 
 define IXP_LC_INFO_SAME_AS_NEXT_HOP = ( routeserverasn, 1001, 1200 );
+
+# forma large del tipo de miembro, para IXPs con ASN de 4 bytes que no entra
+# en una community estandar
+define IXP_LC_INFO_MEMBER_TYPE_BASE = ( routeserverasn, 1002, 0 );
 ```
 
-`IXP_LC_INFO_RPKI_INVALID` es un agregado nuestro al esquema: sin el, el modo
+`IXP_LC_INFO_RPKI_INVALID` e `IXP_LC_INFO_MEMBER_TYPE_BASE` son agregados nuestros al esquema: sin el, el modo
 `info_only` no tiene con que marcar una ruta invalida.
 
 `filters/bogons.j2`, `is_protected: False`: reemplaza el contenido actual por las
@@ -1841,19 +1956,28 @@ function ixp_community_filter(int peerasn)
         return false;
 
     # 2. no anunciar a nadie, con excepciones
+{% if route_server.asn <= 65535 %}
     bool deny_all_std = (0, routeserverasn) ~ bgp_community;
+{% else %}
+    # el ASN del IXP no entra en una community estandar: solo quedan las large
+    bool deny_all_std = false;
+{% endif %}
     bool deny_all_lrg = (routeserverasn, 0, 0) ~ bgp_large_community;
 
     if deny_all_std || deny_all_lrg then {
         # excepcion: anunciar a todos
+{% if route_server.asn <= 65535 %}
         if (routeserverasn, routeserverasn) ~ bgp_community then
             return true;
+{% endif %}
         if (routeserverasn, 1, 0) ~ bgp_large_community then
             return true;
 
         # excepcion: anunciar a este peer
+{% if route_server.asn <= 65535 %}
         if (peerasn <= 65535) && (routeserverasn, peerasn) ~ bgp_community then
             return true;
+{% endif %}
         if (routeserverasn, 1, peerasn) ~ bgp_large_community then
             return true;
 
@@ -1864,6 +1988,14 @@ function ixp_community_filter(int peerasn)
     return true;
 }
 ```
+
+Las formas de community **estandar** van condicionadas al ASN del IXP. Una
+community estandar son 32 bits partidos 16:16, asi que un IXP con ASN de 4 bytes
+no puede expresarlas y BIRD rechaza el config entero en la preevaluacion del
+filtro con `Can't operate with value out of bounds in pair constructor`. Las
+formas large equivalentes estan al lado y cubren el mismo caso, asi que para esos
+IXPs el control de anuncio sigue funcionando, solo que exclusivamente por large
+communities.
 
 `filters/to_master.j2`, `is_protected: False`:
 
@@ -2091,10 +2223,19 @@ template bgp tb_rsclient_v{{ af }} {
 
 {% if af == 4 %}
     ipv4 {
+{% if route_server.rpki_enabled %}
+        # sin import table, cuando cambian o expiran las ROAs BIRD no puede
+        # reevaluar el filtro de import sobre las rutas ya recibidas sin pedirle
+        # un route refresh al peer
+        import table on;
+{% endif %}
         export all;
     };
 {% else %}
     ipv6 {
+{% if route_server.rpki_enabled %}
+        import table on;
+{% endif %}
         export all;
     };
 {% endif %}
@@ -2102,6 +2243,10 @@ template bgp tb_rsclient_v{{ af }} {
     rs client;
 }
 ```
+
+`import table` cuesta memoria: guarda las rutas tal como llegaron, antes de
+filtrar. Por eso solo se activa con RPKI encendido, que es el unico caso donde el
+resultado del filtro depende de datos que cambian solos.
 
 - [ ] **Step 4: Agregar `protocols/bgp_peer.j2`**
 
@@ -2114,7 +2259,7 @@ ipv6 table t_{{ peer.slug }};
 {% endif %}
 
 filter f_import_{{ peer.slug }}
-{% if peer.prefixes %}
+{% if peer.prefixes is not none %}
 prefix set allnet;
 {% endif %}
 ip set allips;
@@ -2190,7 +2335,7 @@ int set allas;
     bgp_large_community.add( IXP_LC_INFO_RPKI_NOT_CHECKED );
 {% endif %}
 
-{% if peer.prefixes %}
+{% if peer.prefixes is not none %}
     allnet = [ {{ peer.prefixes | join(', ') }} ];
 
     if ! (net ~ allnet) then {
@@ -2207,7 +2352,13 @@ int set allas;
     honor_graceful_shutdown();
 
 {% if peer.member_type_community %}
+{% if route_server.asn <= 65535 %}
     bgp_community.add( (routeserverasn, {{ peer.member_type_community }}) );
+{% else %}
+    # el ASN del IXP no entra en una community estandar (16 bits), se usa la
+    # forma large equivalente
+    bgp_large_community.add( (routeserverasn, 1002, {{ peer.member_type_community }}) );
+{% endif %}
 {% endif %}
 
     accept;
@@ -2289,7 +2440,10 @@ async def test_rpki_disabled_marks_not_checked(db_session, ixp):
 
     assert "protocol rpki" not in cv.content
     assert "roa_check" not in cv.content
-    assert "IXP_LC_INFO_RPKI_NOT_CHECKED" in cv.content
+    assert "import table on;" not in cv.content
+
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "IXP_LC_INFO_RPKI_NOT_CHECKED" in import_block
 
 
 async def test_rpki_info_only_checks_without_filtering(db_session, ixp):
@@ -2306,8 +2460,13 @@ async def test_rpki_info_only_checks_without_filtering(db_session, ixp):
     assert "roa4 table roa_v4;" in cv.content
     assert 'remote "10.0.0.1" port 3323;' in cv.content
     assert "roa_check(roa_v4, net, bgp_path.last)" in cv.content
-    assert "IXP_LC_INFO_RPKI_INVALID" in cv.content
-    assert "IXP_LC_FILTERED_RPKI_INVALID" not in cv.content
+
+    # el assert tiene que mirar DENTRO del filtro de import: las communities
+    # estan todas declaradas en el bloque global de defines, asi que buscarlas
+    # en cv.content entero pasa o falla sin relacion con lo que se filtra
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "IXP_LC_INFO_RPKI_INVALID" in import_block
+    assert "IXP_LC_FILTERED_RPKI_INVALID" not in import_block
 
 
 async def test_rpki_reject_invalid_adds_filter_community(db_session, ixp):
@@ -2323,7 +2482,8 @@ async def test_rpki_reject_invalid_adds_filter_community(db_session, ixp):
     await db_session.flush()
     cv = await generate_config(db_session, rs.id, ixp.id)
 
-    assert "IXP_LC_FILTERED_RPKI_INVALID" in cv.content
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "IXP_LC_FILTERED_RPKI_INVALID" in import_block
 
 
 async def test_rs_peer_upstream_block(db_session, ixp):
@@ -3046,10 +3206,28 @@ ciegas seria peor que no bajar.
 
 - [ ] **Step 2: Probar la migracion sobre una copia de dev**
 
+**La variable es `IXFORGE_DATABASE_URL`, no `DATABASE_URL`.** `Settings` usa
+`env_prefix="IXFORGE_"`, asi que un `DATABASE_URL=...` se ignora en silencio y
+Alembic cae al default de `config.py`. Esta migracion **borra todas las filas de
+`route_server_templates`**: apuntada a la base equivocada, se lleva puestos los
+templates de un IXP en produccion.
+
+Por eso el primer comando no es la migracion, es verificar contra que base se va a
+correr:
+
+```bash
+export IXFORGE_DATABASE_URL=postgresql+asyncpg://ixforge:ixforge@localhost:5432/ixforge_migtest
+
+# confirmar que Settings resolvio LA base de prueba antes de tocar nada
+uv run python -c "from ixforge.config import get_settings; print(get_settings().database_url)"
+```
+Expected: imprime la URL de `ixforge_migtest`. Si imprime cualquier otra cosa,
+**parar**: la variable no esta llegando y la migracion iria a la base equivocada.
+
 ```bash
 pg_dump -h <dev> -U ixforge ixforge > /tmp/dev-antes.sql
 createdb ixforge_migtest && psql ixforge_migtest < /tmp/dev-antes.sql
-DATABASE_URL=postgresql+asyncpg://.../ixforge_migtest uv run alembic upgrade head
+uv run alembic upgrade head
 psql ixforge_migtest -c "SELECT ixp_id, filename FROM route_server_templates ORDER BY 1,2"
 ```
 Expected: cada IXP con exactamente el set nuevo, ningun `bird_v4.conf.j2` ni
@@ -3107,10 +3285,18 @@ git commit -m "feat: migracion de IXPs existentes al set euro-ix y documentacion
 
 - **El orden importa hasta la Task 10.** Las Tasks 11 a 13 se pueden hacer en
   cualquier orden entre ellas
-- **`bird -p` es el arbitro.** Los templates de este plan estan escritos contra
-  BIRD 2.14 y 2.18 leyendo un config real en produccion, pero no fueron ejecutados.
-  Si BIRD rechaza algo, la salida del helper trae archivo, linea y columna, y el
-  config numerado. Ajustar el template y seguir, no adivinar
+- **Los templates ya pasaron `bird -p`.** Se extrajeron de este plan, se renderearon
+  con contextos que respetan los dataclasses de aca y se validaron contra BIRD
+  **2.0.12** en docker, en siete escenarios: dual stack sin RPKI, dual con RPKI en
+  los dos modos mas upstream, solo v4, nombres de 200 caracteres en las dos
+  familias, IXP con ASN de 4 bytes, lista de prefijos vacia, e `import table`. Los
+  siete aceptados. Lo que **no** esta validado es que 2.14 y 2.18 se comporten
+  igual que 2.0.12, asi que el helper de la Task 7 sigue siendo obligatorio: la
+  imagen tiene que construirse contra la version que se va a desplegar
+- **Lo unico sin verificar es el comportamiento en runtime de RPKI.** Que BIRD
+  reevalue las rutas ya importadas cuando cambian o expiran las ROAs depende de
+  `import table on`, que el template emite y que parsea, pero probarlo de verdad
+  necesita un RTR vivo cambiando ROAs. Eso se verifica en el deployment, no aca
 - **No agregar features de paso.** Blackholing (RFC 7999), resolver IRR y looking
   glass estan explicitamente fuera de alcance y tienen su razon escrita en el spec
 - **Al terminar**, el corte de PatagoniaIX depende de esto: el spec de deployment
