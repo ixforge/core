@@ -25,7 +25,11 @@ from ixforge.models.route_server import RouteServer
 from ixforge.models.route_server_peer import RouteServerPeer
 from ixforge.models.rpki_server import RPKIServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
-from ixforge.services.communities import member_type_community
+from ixforge.services.communities import (
+    BLOQUE_TIPOS,
+    member_type_community,
+    peer_type_community,
+)
 from ixforge.services.rs_templates import get_all_templates
 from ixforge.services.template_env import build_template_env
 
@@ -66,6 +70,7 @@ class RSPeerContext:
     local_asn: int
     passive: bool
     peer_type: str
+    peer_type_community: int | None
     mark_community: str | None
     max_prefixes: int | None
     af: int
@@ -98,9 +103,10 @@ class RouteServerContext:
     rpki_enabled: bool
     rpki_policy: str
     rpki_servers: tuple[RPKIServerContext, ...]
-    # marcas de upstream que el export NO borra: existen para que el miembro
-    # las vea. Solo entran las del ASN del IXP, las otras (rsasn, *) ni las toca
-    communities_conservadas: tuple[int, ...]
+    # intervalos de (rsasn, *) que el export NO borra, porque son publicos: el
+    # bloque de tipos mas las marcas que el operador haya configurado. Solo
+    # entran las marcas del ASN del IXP, las otras ni caen en (rsasn, *)
+    communities_conservadas: tuple[tuple[int, int], ...]
 
 
 @dataclass(frozen=True)
@@ -324,6 +330,7 @@ async def build_rs_peers(
                 local_asn=peer.local_asn if peer.local_asn is not None else ixp_asn,
                 passive=peer.passive,
                 peer_type=peer.peer_type.value,
+                peer_type_community=peer_type_community(peer.peer_type),
                 mark_community=peer.mark_community,
                 max_prefixes=peer.max_prefixes,
                 af=af,
@@ -410,12 +417,12 @@ async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int)
         RouteServerPeer.mark_community.is_not(None),
     )
     marcas_result = await session.execute(marcas_stmt)
-    conservadas: set[int] = set()
+    conservadas: set[tuple[int, int]] = {BLOQUE_TIPOS}
     for marca in marcas_result.scalars():
         asn_marca, _, valor = str(marca).partition(":")
         # una marca de otro ASN no cae dentro de (rsasn, *), no hay que exceptuarla
         if asn_marca.isdigit() and int(asn_marca) == ixp_asn and valor.isdigit():
-            conservadas.add(int(valor))
+            conservadas.add((int(valor), int(valor)))
 
     return RouteServerContext(
         name=rs.name,
@@ -477,6 +484,7 @@ async def generate_config(
         rs_peers_v4=v4_rs_peers,
         rs_peers_v6=v6_rs_peers,
         generated_at=generated_at_str,
+        bloque_tipos=BLOQUE_TIPOS,
         config_hash="",
     )
     config_hash = hashlib.sha256(combined.encode()).hexdigest()

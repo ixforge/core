@@ -381,6 +381,13 @@ prefix set allnet;
 ip set allips;
 int set allas;
 {
+{% if route_server.asn <= 65535 %}
+    # lo que el route server tiene derecho a poner es justo lo que no puede
+    # aceptar de un miembro: si viene de afuera esta falsificado y le dejaria
+    # hacerse pasar por upstream ante los demas
+    bgp_community.delete( [{{ route_server.communities_conservadas | intervalos_como_set }}] );
+
+{% endif %}
 {% if af == 4 %}
     if ( net ~ [ 0.0.0.0/0{25,32} ] ) then {
 {% else %}
@@ -555,6 +562,9 @@ protocol bgp pb_{{ peer.slug }} {
         import limit {{ peer.max_prefixes }} action restart;
 {% endif %}
         import filter {
+{% if peer.peer_type_community and route_server.asn <= 65535 %}
+            bgp_community.add( (routeserverasn, {{ peer.peer_type_community }}) );
+{% endif %}
 {% if peer.mark_community %}
             bgp_community.add( ({{ peer.mark_community | bird_community }}) );
 {% endif %}
@@ -590,11 +600,9 @@ protocol pipe pp_{{ peer.slug }} {
 {% endif %}
     peer table t_{{ peer.slug }};
     import filter f_export_to_master;
-{% if peer.mark_community %}
-    export where !(bgp_community ~ [({{ peer.mark_community | bird_community }})]);
-{% else %}
+    # sin filtro anti-bucle a proposito: BIRD no reinyecta por un pipe lo que
+    # entro por ese mismo pipe, verificado contra 2.18
     export all;
-{% endif %}
 }
 """,
     },

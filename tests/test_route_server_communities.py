@@ -60,3 +60,47 @@ def test_no_hay_valores_repetidos():
     valores = [v for v in MEMBER_TYPE_COMMUNITIES.values() if v is not None]
 
     assert len(valores) == len(set(valores))
+
+
+def test_tipo_de_peer_no_miembro_tiene_community():
+    """Un upstream o un colector tambien se clasifican, con el mismo esquema"""
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.communities import peer_type_community
+
+    assert peer_type_community(RouteServerPeerType.upstream) == 65280
+    assert peer_type_community(RouteServerPeerType.collector) == 65290
+    # special no significa nada en particular, como otro en los miembros
+    assert peer_type_community(RouteServerPeerType.special) is None
+    assert peer_type_community(None) is None
+
+
+def test_los_tipos_de_peer_no_chocan_con_los_de_miembro():
+    from ixforge.services.communities import (
+        MEMBER_TYPE_COMMUNITIES,
+        PEER_TYPE_COMMUNITIES,
+    )
+
+    miembros = {v for v in MEMBER_TYPE_COMMUNITIES.values() if v is not None}
+    peers = {v for v in PEER_TYPE_COMMUNITIES.values() if v is not None}
+    assert not (miembros & peers)
+
+
+def test_todos_los_tipos_caen_en_el_bloque_publico():
+    """El export conserva el bloque entero, asi que todo tipo tiene que vivir ahi"""
+    from ixforge.services.communities import (
+        BLOQUE_TIPOS,
+        MEMBER_TYPE_COMMUNITIES,
+        PEER_TYPE_COMMUNITIES,
+    )
+
+    lo, hi = BLOQUE_TIPOS
+    todos = [
+        v
+        for v in list(MEMBER_TYPE_COMMUNITIES.values()) + list(PEER_TYPE_COMMUNITIES.values())
+        if v is not None
+    ]
+    assert todos
+    for v in todos:
+        assert lo <= v <= hi, v
+    # y el bloque sigue dentro de los ASN privados, que es lo que evita la colision
+    assert lo >= 64512 and hi <= 65534
