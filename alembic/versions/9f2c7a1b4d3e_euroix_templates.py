@@ -176,6 +176,7 @@ define MARTIANS_V6 = [
     0000::/8+,
     0200::/7+,              # OSI NSAP-mapped, deprecado por rfc4048
     3ffe::/16+,             # 6bone
+    3fff::/20+,             # rfc9637 documentacion
     2001:db8::/32+,         # rfc3849 documentacion
     2002:e000::/20+,        # 6to4 invalido (multicast)
     2002:7f00::/24+,        # 6to4 invalido (loopback)
