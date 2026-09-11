@@ -111,6 +111,74 @@ class SecurityHeadersMiddleware:
         await self.app(scope, receive, send_with_headers)
 
 
+class CommitBeforeResponse:
+    """Pure ASGI middleware que commitea la sesion antes del primer byte.
+
+    Sin esto, el commit vive en el codigo posterior al yield de la dependencia
+    de sesion, que FastAPI ejecuta DESPUES de mandar la respuesta. Eso tiene dos
+    consecuencias, las dos medidas contra un deployment real:
+
+    1. La API responde 201 antes de saber si el dato se guardo. Si el commit
+       falla, el cliente ya recibio confirmacion de algo que no existe
+    2. La peticion siguiente no ve lo recien creado. Crear un route server y
+       pedirle una API key acto seguido fallaba con 404 en 4 de cada 6 intentos
+
+    Si el commit falla, se descarta la respuesta original y se manda un 500 con
+    el formato de error del proyecto: el cliente tiene que enterarse
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        estado = scope.setdefault("state", {})
+        fallo_commit = False
+        decidido = False
+
+        async def send_con_commit(message: Message) -> None:
+            nonlocal fallo_commit, decidido
+
+            if message["type"] == "http.response.start" and not decidido:
+                decidido = True
+                session = estado.get("db_session")
+                if session is not None and message["status"] < 400:
+                    try:
+                        await session.commit()
+                    except Exception:
+                        await session.rollback()
+                        structlog.get_logger().error(
+                            "commit.failed", path=scope.get("path"), exc_info=True
+                        )
+                        fallo_commit = True
+                        await send({
+                            "type": "http.response.start",
+                            "status": 500,
+                            "headers": [(b"content-type", b"application/json")],
+                        })
+                        return
+
+            if fallo_commit:
+                if message["type"] == "http.response.body" and not message.get(
+                    "more_body", False
+                ):
+                    await send({
+                        "type": "http.response.body",
+                        "body": (
+                            b'{"error":{"code":"INTERNAL_ERROR",'
+                            b'"message":"No se pudo guardar el cambio","details":{}}}'
+                        ),
+                    })
+                return
+
+            await send(message)
+
+        await self.app(scope, receive, send_con_commit)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings = get_settings()
@@ -171,6 +239,9 @@ def create_app(*, enable_rate_limit: bool = True) -> FastAPI:
     app.add_middleware(RequestIDMiddleware)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    # Va ultimo en el add, o sea PRIMERO en la cadena: tiene que envolver a
+    # todo lo demas para commitear antes de que cualquier byte salga
+    app.add_middleware(CommitBeforeResponse)
 
     # Exception handlers
     @app.exception_handler(RequestValidationError)

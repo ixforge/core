@@ -54,11 +54,14 @@ async def dispose_engine() -> None:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
+    """Sesion por request. El commit lo hace CommitBeforeResponse, no aca.
+
+    Commitear despues del yield significa hacerlo cuando la respuesta ya salio
+    """
     session_factory = get_session_factory()
     async with session_factory() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
