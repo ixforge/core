@@ -142,6 +142,75 @@ filtro de prefijos; la lista vacia se renderea como `allnet = [ ];` y, como
   rechaza el config entero con `value out of bounds in pair constructor`
 - `ipaddr`, `prefixlist`
 
+## Communities informativas y colision de namespace
+
+La community de tipo de miembro usa valores en el rango **65xxx**, dentro de los
+ASN privados (64512-65534). No es estetico: el control de anuncio usa
+`(routeserverasn, peer-as)` para "anunciar a este peer", asi que si el tipo de
+miembro usara valores bajos, esos numeros serian ASN de 16 bits reales y los dos
+espacios de nombres colisionarian.
+
+La colision es explotable y va en la direccion peligrosa. El route server agrega
+la community de tipo en el import, y despues `ixp_community_filter` la lee como
+una excepcion de anuncio:
+
+| | |
+|---|---|
+| Un miembro CDN pide "no anunciar a nadie" | `(0, rsasn)` |
+| El route server le agrega su tipo | `(rsasn, 250)` con el esquema viejo |
+| Al decidir si anunciar a AS250 | encuentra `(rsasn, 250)` y lo lee como "anunciar a AS250" |
+| Resultado | la ruta se anuncia contra la voluntad del miembro |
+
+En el rango privado no hay peers reales en un IXP, asi que los namespaces quedan
+separados por construccion. Hay un test que verifica que todos los valores caigan
+ahi.
+
+| `MemberType` | Community |
+|---|---|
+| `ixp` | `(rsasn, 65210)` |
+| `isp` | `(rsasn, 65220)` |
+| `academico` | `(rsasn, 65230)` |
+| `gobierno` | `(rsasn, 65240)` |
+| `cdn` | `(rsasn, 65250)` |
+| `corporativo` | `(rsasn, 65260)` |
+| `infraestructura_critica` | `(rsasn, 65270)` |
+| `otro`, NULL | ninguna |
+
+Esa community es de uso interno y del looking glass: el filtro de export la borra
+antes de mandarle la ruta al miembro.
+
+## El filtro de export borra las dos formas de community
+
+`f_export_<peer>` borra las large `(rsasn, *, *)` **y** las estandar
+`(rsasn, *)`. Dejar pasar las estandar filtra menos de lo que parece: las de
+control de anuncio y la marca de upstream llegarian al miembro.
+
+Las estandar solo se emiten si el ASN del IXP entra en 16 bits, por la misma
+razon que el resto.
+
+## Prefijos de documentacion y filtros de prefijos
+
+`MARTIANS_V6` incluye `2001:db8::/32` (RFC 3849) y `3fff::/20` (RFC 9637), que son
+los dos rangos de documentacion IPv6. Eso tiene una consecuencia al escribir
+tests o fixtures: **el chequeo de martians corre ANTES del filtro de prefijos**,
+asi que una whitelist con un prefijo de documentacion nunca se evalua, porque la
+ruta ya murio. Un test que use `2001:db8:aa::/48` en `allnet` parece probar el
+filtrado por prefijo y no prueba nada.
+
+Hay un test que verifica que ningun prefijo de whitelist matchee un martian,
+respetando la semantica de prefix set de BIRD: sin sufijo es coincidencia exacta,
+`+` es el y mas especificos, `-` al reves.
+
+## Compatibilidad entre versiones de BIRD 2.x
+
+El validador de los tests y el BIRD de produccion pueden divergir **en las dos
+direcciones**. Medido: BIRD 2.18 acepta `function f() -> bool` y ademas infiere
+el tipo si no se declara; BIRD 2.0.12 **rechaza** esa sintaxis. Por eso los
+templates no declaran tipo de retorno, aunque 2.18 emita un mensaje informativo.
+
+Construir la imagen del validador con la version que corre en los route servers
+no es opcional.
+
 ## IXPs con ASN de 4 bytes
 
 Un IXP con ASN mayor a 65535 no puede expresar communities estandar. Los templates
