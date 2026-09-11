@@ -3,6 +3,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-deb.debian.org}
     command: ["run"]
     ports:
       - "${IXFORGE_PORT:-8000}:8000"
@@ -25,6 +28,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-deb.debian.org}
     command: ["worker"]
     env_file:
       - .env
@@ -45,6 +51,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-deb.debian.org}
     command: ["ui"]
     environment:
       IXFORGE_CORE_URL: http://core:8000

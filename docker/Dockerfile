@@ -17,7 +17,20 @@ RUN npm run build
 
 FROM python:3.12-slim AS base
 
-RUN printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/99-retries \
+# Mirrors de Debian configurables, por defecto los oficiales. Son dos porque el
+# archivo principal y el de seguridad se sincronizan por separado: un mirror
+# local puede tener uno y no el otro.
+#
+# Existen porque deb.debian.org y security.debian.org se degradan cada tanto
+# (medido: 1 de cada 3 descargas con timeout) y eso hace fallar el build entero
+ARG DEBIAN_MIRROR=deb.debian.org
+ARG DEBIAN_SECURITY_MIRROR=deb.debian.org
+
+RUN sed -i \
+      -e "s|URIs: http://deb.debian.org/debian$|URIs: http://${DEBIAN_MIRROR}/debian|" \
+      -e "s|URIs: http://deb.debian.org/debian-security$|URIs: http://${DEBIAN_SECURITY_MIRROR}/debian-security|" \
+      /etc/apt/sources.list.d/debian.sources \
+    && printf 'Acquire::Retries "10";\n' > /etc/apt/apt.conf.d/99-retries \
     && apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
