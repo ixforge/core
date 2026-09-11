@@ -145,6 +145,13 @@ class TestIXFExport:
         asns = [m["asnum"] for m in members_in_export]
         assert 64700 in asns, "Active member ASN 64700 should appear in export"
 
+        # El schema euro-ix dice "Speed of the interface or LAG in Mb, i.e.
+        # 10G = 10000", que es la misma unidad en la que el modelo guarda speed.
+        # Multiplicar por un millon publicaba puertos de 10 Pbit/s
+        conexion = next(m for m in members_in_export if m["asnum"] == 64700)
+        velocidades = [i["if_speed"] for c in conexion["connection_list"] for i in c["if_list"]]
+        assert velocidades == [10000], f"if_speed va en Mb, no en bps: {velocidades}"
+
     async def test_export_excludes_non_active_members(
         self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
     ):

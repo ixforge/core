@@ -279,7 +279,9 @@ def _build_connection_entry(
         if conn.switch_id is not None:
             if_entry: dict[str, Any] = {
                 "switch_id": str(conn.switch_id),
-                "if_speed": conn.speed * 1_000_000,
+                # El schema euro-ix pide Mb, no bps: "Speed of the interface
+                # or LAG in Mb, i.e. 10G = 10000". conn.speed ya esta en Mbps
+                "if_speed": conn.speed,
                 "if_type": "LAN",
             }
             if_list.append(if_entry)
