@@ -488,7 +488,10 @@ filter f_export_{{ peer.slug }}
 {
     bgp_large_community.delete( [( routeserverasn, *, * )] );
 {% if route_server.asn <= 65535 %}
-    bgp_community.delete( [( routeserverasn, * )] );
+{% set borrado = route_server.communities_conservadas | rangos_a_borrar %}
+{% if borrado %}
+    bgp_community.delete( [{{ borrado }}] );
+{% endif %}
 {% endif %}
     accept;
 }

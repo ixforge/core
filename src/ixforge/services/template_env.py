@@ -12,6 +12,7 @@ from ixforge.services.template_filters import (
     bird_str,
     ipaddr,
     prefixlist,
+    rangos_a_borrar,
 )
 
 
@@ -34,4 +35,5 @@ async def build_template_env(
     env.filters["bird_str"] = bird_str
     env.filters["prefixlist"] = prefixlist
     env.filters["bird_community"] = bird_community
+    env.filters["rangos_a_borrar"] = rangos_a_borrar
     return env
