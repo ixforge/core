@@ -89,8 +89,21 @@ async def test_migraciones_concurrentes_no_se_pisan(base_vacia):
         ).scalar_one()
     await engine.dispose()
 
-    assert version == "9f2c7a1b4d3e"
+    assert version == _cabeza_de_alembic()
     assert tablas > 25
+
+
+def _cabeza_de_alembic() -> str:
+    """La cabeza se lee, no se escribe a mano: hardcodearla rompe el test con
+    cada migracion nueva y no aporta nada, lo que se verifica es que las tres
+    corridas concurrentes terminen en la misma version, sea cual sea
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config(str(REPO / "alembic.ini"))
+    cfg.set_main_option("script_location", str(REPO / "alembic"))
+    return ScriptDirectory.from_config(cfg).get_current_head()
 
 
 def _correr_entrypoint(*args: str) -> str:

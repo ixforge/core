@@ -1829,18 +1829,33 @@ async def _build_golden_ixp(db_session: AsyncSession, ixp: IXP) -> RouteServer:
     )
     await _add_second_connection(db_session, ixp, rs, cdn, ipv4="192.0.2.18")
 
-    # upstream que no es miembro
-    db_session.add(
-        RouteServerPeer(
-            ixp_id=ixp.id,
-            route_server_id=rs.id,
-            name="PIT Chile v4",
-            peer_ip="192.0.2.5",
-            peer_asn=64166,
-            local_asn=64166,
-            peer_type=RouteServerPeerType.upstream,
-            mark_community="64166:9999",
-        )
+    # upstream que no es miembro, en las dos familias: el golden existe para
+    # cazar divergencias entre v4 y v6, que es donde ya se colaron antes
+    db_session.add_all(
+        [
+            RouteServerPeer(
+                ixp_id=ixp.id,
+                route_server_id=rs.id,
+                name="PIT Chile v4",
+                peer_ip="192.0.2.5",
+                peer_asn=64166,
+                local_asn=64166,
+                peer_type=RouteServerPeerType.upstream,
+                mark_community="64166:9999",
+                max_prefixes=250000,
+            ),
+            RouteServerPeer(
+                ixp_id=ixp.id,
+                route_server_id=rs.id,
+                name="PIT Chile v6",
+                peer_ip="2001:db8::5",
+                peer_asn=64166,
+                local_asn=64166,
+                peer_type=RouteServerPeerType.upstream,
+                mark_community="64166:9999",
+                max_prefixes=250000,
+            ),
+        ]
     )
 
     await db_session.flush()
@@ -1961,3 +1976,99 @@ async def test_prefix_whitelist_is_not_shadowed_by_bogons(db_session, ixp):
     # y el orden en el config tiene que ser ese
     bloque = cv.content.split(f"filter f_import_{peer.slug}")[1].split("filter f_export_")[0]
     assert bloque.index("avoid_martians6()") < bloque.index("allnet =")
+
+
+async def _setup_rs_peer(db_session, ixp, rs, **overrides):
+    """Peer que no pertenece a un miembro, tipo la sesion con PIT Chile"""
+    from ixforge.enums import RouteServerPeerType
+
+    datos = {
+        "ixp_id": ixp.id,
+        "route_server_id": rs.id,
+        "name": "PIT",
+        "peer_ip": "192.0.2.5",
+        "peer_asn": 64166,
+        "local_asn": 64166,
+        "peer_type": RouteServerPeerType.upstream,
+    }
+    datos.update(overrides)
+    peer = RouteServerPeer(**datos)
+    db_session.add(peer)
+    await db_session.flush()
+    return peer
+
+
+async def test_rs_peer_sin_rpki_no_valida(db_session, ixp):
+    """Con RPKI apagado el bloque del peer no cambia"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_rs_peer(db_session, ixp, rs)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
+    assert "roa_check" not in bloque
+    assert "IXP_LC_INFO_RPKI_NOT_CHECKED" in bloque
+
+
+async def test_rs_peer_con_rpki_valida_y_etiqueta(db_session, ixp):
+    """El upstream es de donde viene la mayoria de las rutas, tiene que validarse"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
+    await _setup_rs_peer(db_session, ixp, rs)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
+    assert "roa_check(roa_v4, net, bgp_path.last)" in bloque
+    assert "IXP_LC_INFO_RPKI_VALID" in bloque
+    assert "IXP_LC_INFO_RPKI_INVALID" in bloque
+    # en info_only se etiqueta pero no se marca para descarte
+    assert "IXP_LC_FILTERED_RPKI_INVALID" not in bloque
+
+
+async def test_rs_peer_reject_invalid_marca_para_descarte(db_session, ixp):
+    from ixforge.enums import RPKIPolicy
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    rs.rpki_policy = RPKIPolicy.reject_invalid
+    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
+    await _setup_rs_peer(db_session, ixp, rs)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
+    assert "IXP_LC_FILTERED_RPKI_INVALID" in bloque
+
+
+async def test_rs_peer_pipe_descarta_en_el_mismo_lugar_que_los_miembros(db_session, ixp):
+    """Marcar no sirve de nada si el pipe del peer sigue haciendo import all"""
+    from ixforge.enums import RPKIPolicy
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    rs.rpki_policy = RPKIPolicy.reject_invalid
+    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
+    await _setup_rs_peer(db_session, ixp, rs)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    pipe = cv.content.split("protocol pipe pp_PIT")[1].split("}")[0]
+    assert "import filter f_export_to_master;" in pipe
+    assert "import all;" not in pipe
+    # y el unico reject sigue siendo uno solo
+    assert cv.content.count("then reject;") == 1
+
+
+async def test_rs_peer_respeta_el_max_prefixes(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_rs_peer(db_session, ixp, rs, max_prefixes=250000)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
+    assert "import limit 250000 action restart;" in bloque

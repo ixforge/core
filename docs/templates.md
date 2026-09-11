@@ -179,6 +179,25 @@ ahi.
 Esa community es de uso interno y del looking glass: el filtro de export la borra
 antes de mandarle la ruta al miembro.
 
+## RPKI tambien en los peers que no son miembros
+
+`protocols/rs_peer.j2` valida igual que el bloque de un miembro: etiqueta
+`IXP_LC_INFO_RPKI_VALID` / `_INVALID` / `_UNKNOWN`, y con `rpki_policy =
+reject_invalid` agrega ademas `IXP_LC_FILTERED_RPKI_INVALID`. Para que esa marca
+sirva, el pipe del peer importa con `f_export_to_master` en vez de `import all`,
+o sea que descarta en el mismo unico lugar que los miembros.
+
+Esto importa mas de lo que parece. En un IXP con un upstream, la enorme mayoria
+de las rutas que el route server redistribuye entran por ahi, no por los
+miembros: validar solo a los miembros deja sin mirar casi todo lo que se
+reparte. En PatagoniaIX eran 123.341 rutas del upstream contra 8 de los cinco
+miembros.
+
+Lo que el bloque del peer NO hace es el resto de los chequeos euro-ix: ni
+bogons, ni first-AS, ni next hop, ni filtro de prefijos. Un upstream anuncia
+legitimamente rutas de terceros con AS paths largos, asi que esos chequeos no
+aplican. Si necesitas acotarlo, es con `max_prefixes`.
+
 ## El filtro de export borra las dos formas de community
 
 `f_export_<peer>` borra las large `(rsasn, *, *)` **y** las estandar

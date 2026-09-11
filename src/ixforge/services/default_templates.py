@@ -555,6 +555,22 @@ protocol bgp pb_{{ peer.slug }} {
 {% if peer.mark_community %}
             bgp_community.add( ({{ peer.mark_community | bird_community }}) );
 {% endif %}
+{% if route_server.rpki_enabled %}
+            if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_VALID ) then {
+                bgp_large_community.add( IXP_LC_INFO_RPKI_VALID );
+            } else {
+                if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_INVALID ) then {
+                    bgp_large_community.add( IXP_LC_INFO_RPKI_INVALID );
+{% if route_server.rpki_policy == 'reject_invalid' %}
+                    bgp_large_community.add( IXP_LC_FILTERED_RPKI_INVALID );
+{% endif %}
+                } else {
+                    bgp_large_community.add( IXP_LC_INFO_RPKI_UNKNOWN );
+                }
+            }
+{% else %}
+            bgp_large_community.add( IXP_LC_INFO_RPKI_NOT_CHECKED );
+{% endif %}
             accept;
         };
         export all;
@@ -570,7 +586,7 @@ protocol pipe pp_{{ peer.slug }} {
     table master6;
 {% endif %}
     peer table t_{{ peer.slug }};
-    import all;
+    import filter f_export_to_master;
 {% if peer.mark_community %}
     export where !(bgp_community ~ [({{ peer.mark_community | bird_community }})]);
 {% else %}
