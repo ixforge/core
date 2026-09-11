@@ -30,18 +30,14 @@ class MemberPrefixFilterWrite(BaseModel):
                 raise ValueError(f"ASN fuera de rango: {asn}")
         return v
 
-    @field_validator("prefixes")
-    @classmethod
-    def validate_prefixes_not_empty(cls, v: list[str] | None) -> list[str] | None:
-        # Una lista vacia es valida en el modelo (no autoriza ningun prefijo)
-        # pero casi nunca es lo que el operador quiso: para desactivar el
-        # filtro hay que mandar null explicito
-        if v is not None and not v:
-            raise ValueError(
-                "la lista de prefijos vacia no autoriza ningun prefijo; "
-                "para desactivar el filtro manda null"
-            )
-        return v
+    # La lista vacia se acepta y significa "no autorizar ningun prefijo". Se
+    # renderea como allnet = [ ] y, como net ~ [] nunca matchea, marca todo como
+    # filtrado por prefijo.
+    #
+    # Una version anterior la rechazaba, con el argumento de que por API casi
+    # nunca es lo que se quiso. Es un caso de uso real: un colector de rutas que
+    # recibe y no anuncia debe tener lista blanca vacia, no ausente. Para
+    # desactivar el filtro se manda null, que es distinto y sigue funcionando
 
 
 class MemberPrefixFilterRead(BaseModel):
