@@ -1178,7 +1178,7 @@ async def test_peer_context_carries_member_type_community(db_session, ixp):
 
     peers = await build_peers(db_session, rs.id, af=4)
 
-    assert peers[0].member_type_community == 270
+    assert peers[0].member_type_community == 65270
 
 
 async def test_generated_config_names_every_protocol(db_session, ixp):
@@ -1569,7 +1569,7 @@ async def test_member_type_renders_standard_community(db_session, ixp):
     )
     cv = await generate_config(db_session, rs.id, ixp.id)
 
-    assert "bgp_community.add( (routeserverasn, 250) );" in cv.content
+    assert "bgp_community.add( (routeserverasn, 65250) );" in cv.content
 
 
 @requires_bird
