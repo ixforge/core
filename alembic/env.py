@@ -4,7 +4,7 @@ import asyncio
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
@@ -69,6 +69,12 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+# Clave del lock que serializa migraciones concurrentes. Los servicios de un
+# mismo deploy (core, worker, portal) arrancan a la vez desde la misma imagen y
+# correrian alembic en paralelo sobre la misma base
+MIGRATION_LOCK_KEY = 0x1F0_6E_10
+
+
 def do_run_migrations(connection):  # type: ignore[no-untyped-def]
     context.configure(
         connection=connection,
@@ -89,7 +95,26 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
     async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+        # El lock va antes de run_sync, no adentro: alembic lee alembic_version
+        # y planifica que migraciones aplicar dentro de do_run_migrations, asi
+        # que tomarlo mas tarde serializa la ejecucion pero no la planificacion.
+        # Dos arranques concurrentes leerian "base vacia" los dos y el segundo
+        # reaplicaria todo sobre una base ya migrada
+        #
+        # Es advisory_lock de sesion, no xact: tiene que sobrevivir a las
+        # transacciones que alembic abre y cierra por cada migracion
+        await connection.execute(
+            text("SELECT pg_advisory_lock(:clave)"), {"clave": MIGRATION_LOCK_KEY}
+        )
+        await connection.commit()
+        try:
+            await connection.run_sync(do_run_migrations)
+        finally:
+            await connection.execute(
+                text("SELECT pg_advisory_unlock(:clave)"),
+                {"clave": MIGRATION_LOCK_KEY},
+            )
+            await connection.commit()
     await connectable.dispose()
 
 
