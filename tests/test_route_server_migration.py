@@ -61,3 +61,21 @@ def test_snapshot_no_trae_los_templates_huerfanos(snapshot):
 
     assert "protocols/static.j2" not in nombres
     assert "filters/communities.j2" not in nombres
+
+
+def test_snapshot_esta_al_dia_con_los_templates(snapshot):
+    """El snapshot tiene que ser byte a byte lo que genera el codigo.
+
+    Los tests de propiedad de arriba no alcanzan: durante el desarrollo de esta
+    rama el snapshot quedo viejo DOS veces, y las dos pasaron esos tests. La
+    primera le faltaba el strip de communities estandar, la segunda 3fff::/20 en
+    la lista de martians. Una propiedad solo caza lo que a alguien se le ocurrio
+    verificar; la igualdad caza todo.
+
+    **Cuando esta migracion se publique, este test se borra y el snapshot queda
+    congelado.** A partir de ahi, cambiar un template es una migracion nueva, no
+    editar esta. Mientras la rama no este mergeada, los dos tienen que coincidir
+    """
+    from ixforge.services.default_templates import DEFAULT_TEMPLATES
+
+    assert snapshot == DEFAULT_TEMPLATES
