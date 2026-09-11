@@ -490,10 +490,16 @@ int set allas;
     accept;
 }
 
-# el export strippea nuestras propias communities de filtrado y looking glass
+# el export strippea nuestras propias communities de filtrado y looking glass.
+# Las dos formas: dejar pasar las estandar (routeserverasn, *) filtra menos de
+# lo que el operador cree, porque las de control de anuncio y las de marca de
+# upstream llegarian al miembro
 filter f_export_{{ peer.slug }}
 {
     bgp_large_community.delete( [( routeserverasn, *, * )] );
+{% if route_server.asn <= 65535 %}
+    bgp_community.delete( [( routeserverasn, * )] );
+{% endif %}
     accept;
 }
 
@@ -582,7 +588,8 @@ protocol pipe pp_{{ peer.slug }} {
 {% endif %}
 }
 """,
-    },]
+    },
+]
 
 
 def upgrade() -> None:
