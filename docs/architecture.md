@@ -169,6 +169,49 @@ The polling flow:
 3. **Status report** (`POST .../agent/status`): agent pushes BGP session operational states
 4. **Heartbeat** (`POST .../agent/heartbeat`): agent reports health, server checks config sync and version
 
+### Commit antes de responder
+
+El commit de la sesion NO vive en el codigo posterior al `yield` de la
+dependencia: FastAPI ejecuta eso **despues de entregar la respuesta al cliente**.
+Lo hace `CommitBeforeResponse` (`main.py`), un middleware ASGI puro que
+intercepta el envio y commitea antes de reenviar el `http.response.start`.
+
+Las dos consecuencias de hacerlo al reves, medidas contra un deployment real:
+
+1. La API confirmaba antes de saber. Devolvia `201` y recien despues intentaba
+   guardar; si el commit fallaba, el cliente ya tenia confirmacion de algo que no
+   existia, sin forma de enterarse
+2. Crear y usar acto seguido fallaba. Crear un route server y pedirle su API key
+   daba `404` en **4 de cada 6** intentos, porque la fila no estaba visible para
+   la peticion siguiente
+
+Si el commit falla, el middleware descarta la respuesta original y manda un 500
+con el formato de error del proyecto.
+
+Es ASGI puro y no `BaseHTTPMiddleware`, como el resto de los middlewares del
+proyecto: ese no es seguro con asyncpg.
+
+**Punto ciego de los tests:** la suite usa una sesion transaccional con rollback,
+donde el commit nunca ocurre de verdad. Todo lo que dependa de *cuando* commitea
+es invisible ahi. Los tests de `test_commit_antes_de_responder.py` verifican el
+orden con una sesion falsa, no intentan ganarle a la carrera.
+
+### Migraciones al arrancar
+
+El entrypoint del contenedor aplica migraciones antes de arrancar el comando.
+`IXFORGE_AUTO_MIGRATE=false` lo desactiva.
+
+El portal **no** migra: es una UI que habla con la API por HTTP y no tiene, ni
+debe tener, credenciales de base de datos.
+
+Los servicios que si migran (`run` y `worker`) arrancan a la vez desde la misma
+imagen, asi que `alembic/env.py` toma un `pg_advisory_lock` **antes** de
+`run_sync`. La ubicacion importa: alembic lee `alembic_version` y planifica que
+aplicar dentro de `do_run_migrations`, asi que tomarlo mas tarde serializa la
+ejecucion pero no la planificacion, y el segundo reaplica todo sobre una base ya
+migrada. Es lock de sesion y no de transaccion porque tiene que sobrevivir a las
+transacciones que alembic abre por cada migracion.
+
 ### Background Tasks
 
 Procrastinate uses PostgreSQL as the task queue (no Redis needed). Two queues:

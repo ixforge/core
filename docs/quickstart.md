@@ -105,6 +105,37 @@ Services:
 | `worker` | Procrastinate background tasks | - |
 | `postgres` | PostgreSQL 17 | internal |
 
+### Mirrors de Debian en el build
+
+`deb.debian.org` y `security.debian.org` se degradan cada tanto: medido, 1 de
+cada 3 descargas terminaba en timeout, desde dos redes distintas, y eso hace
+fallar el build entero. Dos build args permiten apuntar a un mirror propio, con
+los oficiales por defecto:
+
+```bash
+docker compose build \
+  --build-arg DEBIAN_MIRROR=mi-mirror.example.net \
+  --build-arg DEBIAN_SECURITY_MIRROR=mi-mirror.example.net
+```
+
+Son dos porque el archivo principal y el de seguridad se sincronizan por
+separado y un mirror local puede tener uno sin el otro.
+
+Los assets (CSS de Tailwind, bundles de JS) se construyen en un stage con la
+imagen oficial de node, no con `npm` de Debian: ese arrastra `node-gyp` ->
+`libnode-dev` -> `libssl-dev`, que exige un `libssl3t64` mas viejo que el de
+`python:3.12-slim`, y apt rechaza el downgrade.
+
+### Migraciones automaticas
+
+El entrypoint aplica migraciones al arrancar. Un deployment nuevo no necesita un
+paso manual. `IXFORGE_AUTO_MIGRATE=false` lo desactiva para quien prefiera
+controlar cuando se migra.
+
+Ojo con el healthcheck: chequea que la conexion a la base abra, **no** que el
+esquema exista. Con la base vacia reporta `healthy` mientras la API responde 500
+en cada request.
+
 ## Running Tests
 
 ```bash

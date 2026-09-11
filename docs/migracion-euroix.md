@@ -20,6 +20,12 @@ Y para un IXP que venia con los templates viejos esto es un cambio de
 - **Gana el patron euro-ix completo**: tabla y pipe por peer, chequeo de first AS,
   proteccion de next hop, ASNs transit-free, filtrado por ASN de origen
 - **Pierde `protocol kernel`.** Un route server no instala rutas en el kernel
+- **Las communities de tipo de miembro pasan al rango 65xxx.** Si el IXP venia
+  emitiendo valores bajos (`2xx`), hay una colision explotable con el control de
+  anuncio que se corrige aca. Ver `docs/templates.md`. **Si un looking glass
+  interpreta esas communities por su valor, hay que actualizarlo**
+- **El filtro de export pasa a borrar tambien las communities estandar del IXP.**
+  Los miembros dejan de recibir la de tipo de miembro, que es de uso interno
 - **Desaparecen `protocols/static.j2` y `filters/communities.j2`.** Eran templates
   huerfanos: se instalaban en la base pero no los incluia nadie, asi que la
   community de blackhole `(65535, 666)` no tenia ningun efecto. El borrado es
