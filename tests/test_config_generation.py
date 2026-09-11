@@ -1841,7 +1841,7 @@ async def _build_golden_ixp(db_session: AsyncSession, ixp: IXP) -> RouteServer:
                 peer_asn=64166,
                 local_asn=64166,
                 peer_type=RouteServerPeerType.upstream,
-                mark_community="64166:9999",
+                mark_community="65000:9999",
                 max_prefixes=250000,
             ),
             RouteServerPeer(
@@ -1852,7 +1852,7 @@ async def _build_golden_ixp(db_session: AsyncSession, ixp: IXP) -> RouteServer:
                 peer_asn=64166,
                 local_asn=64166,
                 peer_type=RouteServerPeerType.upstream,
-                mark_community="64166:9999",
+                mark_community="65000:9999",
                 max_prefixes=250000,
             ),
         ]
@@ -2086,3 +2086,78 @@ async def test_el_config_lleva_su_propio_hash_en_la_cabecera(db_session, ixp):
     cv = await generate_config(db_session, rs.id, ixp.id)
 
     assert f"# Config hash: {cv.config_hash}" in cv.content
+
+
+def test_rangos_del_borrado_conservan_las_marcas():
+    """La funcion que decide que se borra de (rsasn, *) y que se conserva"""
+    from ixforge.services.template_filters import rangos_a_borrar
+
+    # sin nada que conservar, se borra el rango entero
+    assert rangos_a_borrar(()) == "( routeserverasn, * )"
+    # una marca al medio parte el rango en dos
+    assert rangos_a_borrar((9999,)) == (
+        "( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )"
+    )
+    # dos marcas dan tres tramos, y salen ordenadas aunque entren al reves
+    assert rangos_a_borrar((300, 100)) == (
+        "( routeserverasn, 0..99 ), ( routeserverasn, 101..299 ), "
+        "( routeserverasn, 301..65535 )"
+    )
+    # en los bordes no se emite un rango vacio ni invertido
+    assert rangos_a_borrar((0,)) == "( routeserverasn, 1..65535 )"
+    assert rangos_a_borrar((65535,)) == "( routeserverasn, 0..65534 )"
+    # marcas pegadas no dejan un tramo invertido en el medio
+    assert rangos_a_borrar((10, 11)) == (
+        "( routeserverasn, 0..9 ), ( routeserverasn, 12..65535 )"
+    )
+    # conservarlo todo no deja nada que borrar
+    assert rangos_a_borrar(tuple(range(0, 65536))) == ""
+
+
+async def test_export_conserva_la_marca_de_upstream(db_session, ixp):
+    """La marca existe para que el miembro la vea y arme politica con ella.
+
+    Apoapsis usa 64166:9999 para no pasarle al cache de Microsoft las rutas que
+    vienen por transito. Borrarla en el export le rompe esa politica
+    """
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_rs_peer(db_session, ixp, rs, mark_community="65000:9999")
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    borrados = [
+        linea.strip()
+        for linea in cv.content.splitlines()
+        if "bgp_community.delete" in linea
+    ]
+    assert borrados, "el export tiene que borrar algo"
+    assert all(
+        "( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )" in linea
+        for linea in borrados
+    ), borrados
+    assert "bgp_community.delete( [( routeserverasn, * )] );" not in cv.content
+
+
+async def test_export_borra_todo_si_no_hay_marcas(db_session, ixp):
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "bgp_community.delete( [( routeserverasn, * )] );" in cv.content
+
+
+async def test_solo_se_conservan_las_marcas_del_asn_del_ixp(db_session, ixp):
+    """Una marca con otro ASN ya no la toca (rsasn, *), no hay que exceptuarla"""
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_rs_peer(db_session, ixp, rs, mark_community="64500:1")
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert "bgp_community.delete( [( routeserverasn, * )] );" in cv.content
+    assert ".." not in cv.content.split("filter f_export_")[-1]

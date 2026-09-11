@@ -66,3 +66,26 @@ def bird_community(value: str) -> str:
             f"community fuera de rango, cada componente admite hasta 65535: {value!r}"
         )
     return f"{asn}, {val}"
+
+
+def rangos_a_borrar(conservadas: tuple[int, ...]) -> str:
+    """Set de communities (rsasn, *) a borrar en el export, salteando las marcas
+
+    Se expresa como complemento en rangos y no como un delete seguido de un
+    re-add condicional. Un re-add necesita saber cual marca estaba presente
+    DESPUES de haberlas borrado todas, que sin variables locales obliga a
+    anidar una rama por combinacion. El complemento es una sola sentencia
+    declarativa, crece lineal con la cantidad de marcas y no depende de
+    sintaxis que varie entre menores de BIRD 2.x
+    """
+    if not conservadas:
+        return "( routeserverasn, * )"
+    tramos: list[str] = []
+    inicio = 0
+    for valor in sorted(set(conservadas)):
+        if inicio <= valor - 1:
+            tramos.append(f"( routeserverasn, {inicio}..{valor - 1} )")
+        inicio = valor + 1
+    if inicio <= 65535:
+        tramos.append(f"( routeserverasn, {inicio}..65535 )")
+    return ", ".join(tramos)

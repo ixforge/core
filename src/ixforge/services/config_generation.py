@@ -98,6 +98,9 @@ class RouteServerContext:
     rpki_enabled: bool
     rpki_policy: str
     rpki_servers: tuple[RPKIServerContext, ...]
+    # marcas de upstream que el export NO borra: existen para que el miembro
+    # las vea. Solo entran las del ASN del IXP, las otras (rsasn, *) ni las toca
+    communities_conservadas: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -402,6 +405,18 @@ async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int)
         for srv in rpki_result.scalars()
     )
 
+    marcas_stmt = select(RouteServerPeer.mark_community).where(
+        RouteServerPeer.route_server_id == rs.id,
+        RouteServerPeer.mark_community.is_not(None),
+    )
+    marcas_result = await session.execute(marcas_stmt)
+    conservadas: set[int] = set()
+    for marca in marcas_result.scalars():
+        asn_marca, _, valor = str(marca).partition(":")
+        # una marca de otro ASN no cae dentro de (rsasn, *), no hay que exceptuarla
+        if asn_marca.isdigit() and int(asn_marca) == ixp_asn and valor.isdigit():
+            conservadas.add(int(valor))
+
     return RouteServerContext(
         name=rs.name,
         ip_v4=rs.ip_v4,
@@ -412,6 +427,7 @@ async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int)
         rpki_enabled=rs.rpki_enabled,
         rpki_policy=rs.rpki_policy.value,
         rpki_servers=tuple(_deduplicate_slugs([list(rpki_servers)])[0]),
+        communities_conservadas=tuple(sorted(conservadas)),
     )
 
 

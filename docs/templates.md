@@ -198,11 +198,32 @@ bogons, ni first-AS, ni next hop, ni filtro de prefijos. Un upstream anuncia
 legitimamente rutas de terceros con AS paths largos, asi que esos chequeos no
 aplican. Si necesitas acotarlo, es con `max_prefixes`.
 
-## El filtro de export borra las dos formas de community
+## El filtro de export borra las dos formas de community, salvo las marcas
 
 `f_export_<peer>` borra las large `(rsasn, *, *)` **y** las estandar
 `(rsasn, *)`. Dejar pasar las estandar filtra menos de lo que parece: las de
-control de anuncio y la marca de upstream llegarian al miembro.
+control de anuncio llegarian al miembro.
+
+La excepcion son las `mark_community` configuradas en los peers que no son
+miembros. Esa marca existe para que el miembro la vea y arme politica con ella,
+asi que borrarla rompe al miembro. Pasa de verdad: en PatagoniaIX, Apoapsis usa
+la marca del upstream para no reenviarle el transito a su cache de Microsoft, y
+123.441 rutas dependian de eso.
+
+El borrado se expresa entonces como el **complemento en rangos** de las marcas:
+
+```
+bgp_community.delete( [( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )] );
+```
+
+Es una sola sentencia declarativa en vez de un borrado seguido de un re-add
+condicional. El re-add necesita saber cual marca estaba presente *despues* de
+haberlas borrado todas, lo que sin variables locales obliga a anidar una rama
+por combinacion de marcas. El complemento crece lineal y no depende de sintaxis
+que varie entre menores de BIRD 2.x.
+
+Solo se exceptuan las marcas cuyo primer componente es el ASN del IXP: una marca
+de otro ASN no cae dentro de `(rsasn, *)` y no hay nada que exceptuar.
 
 Las estandar solo se emiten si el ASN del IXP entra en 16 bits, por la misma
 razon que el resto.
