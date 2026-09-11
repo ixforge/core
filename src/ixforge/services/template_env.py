@@ -10,6 +10,7 @@ from ixforge.services.rs_templates import get_all_templates
 from ixforge.services.template_filters import (
     bird_community,
     bird_str,
+    intervalos_como_set,
     ipaddr,
     prefixlist,
     rangos_a_borrar,
@@ -36,4 +37,5 @@ async def build_template_env(
     env.filters["prefixlist"] = prefixlist
     env.filters["bird_community"] = bird_community
     env.filters["rangos_a_borrar"] = rangos_a_borrar
+    env.filters["intervalos_como_set"] = intervalos_como_set
     return env

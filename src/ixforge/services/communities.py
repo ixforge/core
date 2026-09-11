@@ -17,7 +17,7 @@ nombres quedan separados por construccion. Es ademas lo que la referencia
 tecnica publica de PatagoniaIX ya documenta
 """
 
-from ixforge.enums import MemberType
+from ixforge.enums import MemberType, RouteServerPeerType
 
 MEMBER_TYPE_COMMUNITIES: dict[MemberType, int | None] = {
     MemberType.ixp: 65210,
@@ -31,6 +31,20 @@ MEMBER_TYPE_COMMUNITIES: dict[MemberType, int | None] = {
 }
 
 
+PEER_TYPE_COMMUNITIES: dict[RouteServerPeerType, int | None] = {
+    RouteServerPeerType.upstream: 65280,
+    RouteServerPeerType.collector: 65290,
+    # special no dice nada en particular, igual que otro en los miembros
+    RouteServerPeerType.special: None,
+}
+
+# Rango que el filtro de export NO borra. Todo lo que clasifica al origen de una
+# ruta vive aca y es publico a proposito: el miembro tiene que poder distinguir
+# transito de peering sin conocer numeros inventados por el operador. Lo que si
+# se borra es el control de anuncio, que es interno
+BLOQUE_TIPOS = (65200, 65299)
+
+
 def member_type_community(member_type: MemberType | None) -> int | None:
     """Devuelve el valor de la community informativa de tipo de miembro
 
@@ -39,3 +53,15 @@ def member_type_community(member_type: MemberType | None) -> int | None:
     if member_type is None:
         return None
     return MEMBER_TYPE_COMMUNITIES.get(member_type)
+
+
+def peer_type_community(peer_type: RouteServerPeerType | None) -> int | None:
+    """Community informativa de tipo para un peer que no es miembro
+
+    Comparte el esquema con los miembros: el que recibe la ruta clasifica su
+    origen mirando un solo bloque, sin importar si vino de un miembro o de un
+    upstream
+    """
+    if peer_type is None:
+        return None
+    return PEER_TYPE_COMMUNITIES.get(peer_type)

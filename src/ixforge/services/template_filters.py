@@ -68,24 +68,48 @@ def bird_community(value: str) -> str:
     return f"{asn}, {val}"
 
 
-def rangos_a_borrar(conservadas: tuple[int, ...]) -> str:
-    """Set de communities (rsasn, *) a borrar en el export, salteando las marcas
+def rangos_a_borrar(conservados: tuple[tuple[int, int], ...]) -> str:
+    """Set de communities (rsasn, *) a borrar en el export, salteando intervalos
 
-    Se expresa como complemento en rangos y no como un delete seguido de un
-    re-add condicional. Un re-add necesita saber cual marca estaba presente
-    DESPUES de haberlas borrado todas, que sin variables locales obliga a
-    anidar una rama por combinacion. El complemento es una sola sentencia
-    declarativa, crece lineal con la cantidad de marcas y no depende de
-    sintaxis que varie entre menores de BIRD 2.x
+    Se expresa como complemento y no como un delete seguido de un re-add
+    condicional. Un re-add necesita saber que estaba presente DESPUES de haber
+    borrado todo, que sin variables locales obliga a anidar una rama por
+    combinacion. El complemento es una sola sentencia declarativa, crece lineal
+    y no depende de sintaxis que varie entre menores de BIRD 2.x
     """
-    if not conservadas:
+    if not conservados:
         return "( routeserverasn, * )"
+    # normalizar: ordenar y fundir los que se tocan o solapan, o el complemento
+    # deja tramos invertidos que BIRD rechaza
+    fundidos: list[list[int]] = []
+    for lo, hi in sorted(conservados):
+        if fundidos and lo <= fundidos[-1][1] + 1:
+            fundidos[-1][1] = max(fundidos[-1][1], hi)
+        else:
+            fundidos.append([lo, hi])
+
     tramos: list[str] = []
     inicio = 0
-    for valor in sorted(set(conservadas)):
-        if inicio <= valor - 1:
-            tramos.append(f"( routeserverasn, {inicio}..{valor - 1} )")
-        inicio = valor + 1
+    for lo, hi in fundidos:
+        if inicio <= lo - 1:
+            tramos.append(f"( routeserverasn, {inicio}..{lo - 1} )")
+        inicio = hi + 1
     if inicio <= 65535:
         tramos.append(f"( routeserverasn, {inicio}..65535 )")
     return ", ".join(tramos)
+
+
+def intervalos_como_set(conservados: tuple[tuple[int, int], ...]) -> str:
+    """Los intervalos publicos como set BIRD, para borrarlos al importar
+
+    Es el mismo conjunto que el export conserva. Lo que el route server tiene
+    derecho a poner es exactamente lo que no puede aceptar de un peer: si viene
+    de afuera esta falsificado
+    """
+    partes = []
+    for lo, hi in sorted(set(conservados)):
+        partes.append(
+            f"( routeserverasn, {lo} )" if lo == hi
+            else f"( routeserverasn, {lo}..{hi} )"
+        )
+    return ", ".join(partes)

@@ -1690,7 +1690,10 @@ async def test_rs_peer_upstream_block(db_session, ixp):
     assert "local as 64166;" in cv.content
     assert "neighbor 192.0.2.5 as 64166;" in cv.content
     assert "bgp_community.add( (64166, 9999) );" in cv.content
-    assert "export where !(bgp_community ~ [(64166, 9999)]);" in cv.content
+    # el tipo del peer va con el mismo esquema que el de los miembros
+    assert "bgp_community.add( (routeserverasn, 65280) );" in cv.content
+    # el pipe no lleva anti-bucle: BIRD ya no reinyecta por el mismo pipe
+    assert "export where !(bgp_community" not in cv.content
     # un peer no-miembro no es cliente del route server
     assert f"pb_{slug} from tb_rsclient" not in cv.content
 
@@ -1897,7 +1900,8 @@ def test_golden_config_parses():
 
 async def test_export_filter_strips_both_community_forms(db_session, ixp):
     """Dejar pasar las estandar (routeserverasn, *) filtra menos de lo que
-    parece: las de control de anuncio y la marca de upstream llegarian al miembro
+    parece: las de control de anuncio llegarian al miembro. Lo unico que se
+    conserva es el bloque publico de tipos
     """
     from ixforge.services.config_generation import build_peers, generate_config
 
@@ -1908,7 +1912,8 @@ async def test_export_filter_strips_both_community_forms(db_session, ixp):
     slug = (await build_peers(db_session, rs.id, af=4))[0].slug
     export_block = cv.content.split(f"filter f_export_{slug}")[1].split("}")[0]
     assert "bgp_large_community.delete( [( routeserverasn, *, * )] );" in export_block
-    assert "bgp_community.delete( [( routeserverasn, * )] );" in export_block
+    assert "( routeserverasn, 0..65199 )" in export_block
+    assert "( routeserverasn, 65300..65535 )" in export_block
 
 
 async def test_prefix_whitelist_is_not_shadowed_by_bogons(db_session, ixp):
@@ -2088,76 +2093,105 @@ async def test_el_config_lleva_su_propio_hash_en_la_cabecera(db_session, ixp):
     assert f"# Config hash: {cv.config_hash}" in cv.content
 
 
-def test_rangos_del_borrado_conservan_las_marcas():
+def test_rangos_del_borrado_conservan_los_intervalos():
     """La funcion que decide que se borra de (rsasn, *) y que se conserva"""
     from ixforge.services.template_filters import rangos_a_borrar
 
     # sin nada que conservar, se borra el rango entero
     assert rangos_a_borrar(()) == "( routeserverasn, * )"
-    # una marca al medio parte el rango en dos
-    assert rangos_a_borrar((9999,)) == (
+    # un intervalo de un solo valor parte el rango en dos
+    assert rangos_a_borrar(((9999, 9999),)) == (
         "( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )"
     )
-    # dos marcas dan tres tramos, y salen ordenadas aunque entren al reves
-    assert rangos_a_borrar((300, 100)) == (
-        "( routeserverasn, 0..99 ), ( routeserverasn, 101..299 ), "
-        "( routeserverasn, 301..65535 )"
+    # un bloque ancho, que es el caso de los tipos
+    assert rangos_a_borrar(((65200, 65299),)) == (
+        "( routeserverasn, 0..65199 ), ( routeserverasn, 65300..65535 )"
     )
-    # en los bordes no se emite un rango vacio ni invertido
-    assert rangos_a_borrar((0,)) == "( routeserverasn, 1..65535 )"
-    assert rangos_a_borrar((65535,)) == "( routeserverasn, 0..65534 )"
-    # marcas pegadas no dejan un tramo invertido en el medio
-    assert rangos_a_borrar((10, 11)) == (
+    # varios intervalos, desordenados y solapados, se normalizan
+    assert rangos_a_borrar(((300, 400), (100, 100), (350, 500))) == (
+        "( routeserverasn, 0..99 ), ( routeserverasn, 101..299 ), "
+        "( routeserverasn, 501..65535 )"
+    )
+    # pegados se funden en vez de dejar un tramo invertido
+    assert rangos_a_borrar(((10, 10), (11, 11))) == (
         "( routeserverasn, 0..9 ), ( routeserverasn, 12..65535 )"
     )
+    # en los bordes no se emite un tramo vacio
+    assert rangos_a_borrar(((0, 0),)) == "( routeserverasn, 1..65535 )"
+    assert rangos_a_borrar(((65535, 65535),)) == "( routeserverasn, 0..65534 )"
     # conservarlo todo no deja nada que borrar
-    assert rangos_a_borrar(tuple(range(0, 65536))) == ""
+    assert rangos_a_borrar(((0, 65535),)) == ""
 
 
-async def test_export_conserva_la_marca_de_upstream(db_session, ixp):
-    """La marca existe para que el miembro la vea y arme politica con ella.
+async def test_rs_peer_agrega_su_community_de_tipo(db_session, ixp):
+    """Un upstream se clasifica con el mismo esquema que un miembro"""
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.config_generation import generate_config
 
-    Apoapsis usa 64166:9999 para no pasarle al cache de Microsoft las rutas que
-    vienen por transito. Borrarla en el export le rompe esa politica
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_rs_peer(db_session, ixp, rs, peer_type=RouteServerPeerType.upstream)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
+    assert "bgp_community.add( (routeserverasn, 65280) );" in bloque
+
+
+async def test_rs_peer_special_no_agrega_tipo(db_session, ixp):
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_rs_peer(db_session, ixp, rs, peer_type=RouteServerPeerType.special)
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
+    assert "routeserverasn, 652" not in bloque
+
+
+async def test_el_pipe_no_necesita_marca_para_el_anti_bucle(db_session, ixp):
+    """BIRD no reinyecta por un pipe lo que entro por ese mismo pipe, verificado
+    contra bird 2.18: con export all y cero filtros la tabla del peer tiene su
+    propia ruta una sola vez. La marca no estaba haciendo anti-bucle
     """
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
     await _setup_rs_peer(db_session, ixp, rs, mark_community="65000:9999")
-    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
     cv = await generate_config(db_session, rs.id, ixp.id)
 
-    borrados = [
-        linea.strip()
-        for linea in cv.content.splitlines()
-        if "bgp_community.delete" in linea
-    ]
-    assert borrados, "el export tiene que borrar algo"
-    assert all(
-        "( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )" in linea
-        for linea in borrados
-    ), borrados
-    assert "bgp_community.delete( [( routeserverasn, * )] );" not in cv.content
+    pipe = cv.content.split("protocol pipe pp_PIT")[1].split("}")[0]
+    assert "export all;" in pipe
+    assert "9999" not in pipe
 
 
-async def test_export_borra_todo_si_no_hay_marcas(db_session, ixp):
+async def test_export_conserva_el_bloque_de_tipos(db_session, ixp):
+    """El tipo es publico: el miembro clasifica el origen de cada ruta con el"""
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
     await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
     cv = await generate_config(db_session, rs.id, ixp.id)
 
-    assert "bgp_community.delete( [( routeserverasn, * )] );" in cv.content
+    # el import tambien borra, asi que hay que mirar solo los bloques de export
+    exports = [b.split("}")[0] for b in cv.content.split("filter f_export_")[1:]]
+    assert exports
+    con_borrado = [b for b in exports if "bgp_community.delete" in b]
+    assert con_borrado, exports
+    for bloque in con_borrado:
+        assert "( routeserverasn, 0..65199 )" in bloque
+        assert "( routeserverasn, 65300..65535 )" in bloque
 
 
-async def test_solo_se_conservan_las_marcas_del_asn_del_ixp(db_session, ixp):
-    """Una marca con otro ASN ya no la toca (rsasn, *), no hay que exceptuarla"""
+async def test_import_de_miembro_borra_el_bloque_de_tipos(db_session, ixp):
+    """El tipo lo pone el route server. Si viene del miembro esta falsificado y
+    le dejaria hacerse pasar por upstream ante los demas
+    """
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
-    await _setup_rs_peer(db_session, ixp, rs, mark_community="64500:1")
     await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
     cv = await generate_config(db_session, rs.id, ixp.id)
 
-    assert "bgp_community.delete( [( routeserverasn, * )] );" in cv.content
-    assert ".." not in cv.content.split("filter f_export_")[-1]
+    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
+    assert "bgp_community.delete( [( routeserverasn, 65200..65299 )] );" in import_block
+    assert import_block.index("bgp_community.delete") < import_block.index("avoid_martians")

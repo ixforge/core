@@ -198,35 +198,71 @@ bogons, ni first-AS, ni next hop, ni filtro de prefijos. Un upstream anuncia
 legitimamente rutas de terceros con AS paths largos, asi que esos chequeos no
 aplican. Si necesitas acotarlo, es con `max_prefixes`.
 
-## El filtro de export borra las dos formas de community, salvo las marcas
+## Communities de tipo: un solo esquema, publico
 
-`f_export_<peer>` borra las large `(rsasn, *, *)` **y** las estandar
-`(rsasn, *)`. Dejar pasar las estandar filtra menos de lo que parece: las de
-control de anuncio llegarian al miembro.
+Todo lo que clasifica el origen de una ruta vive en el bloque `65200..65299` y
+es **publico a proposito**. El miembro tiene que poder distinguir transito de
+peering sin conocer numeros que invento el operador de cada IXP.
 
-La excepcion son las `mark_community` configuradas en los peers que no son
-miembros. Esa marca existe para que el miembro la vea y arme politica con ella,
-asi que borrarla rompe al miembro. Pasa de verdad: en PatagoniaIX, Apoapsis usa
-la marca del upstream para no reenviarle el transito a su cache de Microsoft, y
-123.441 rutas dependian de eso.
+| origen | community |
+|---|---|
+| miembro `ixp` | `(rsasn, 65210)` |
+| miembro `isp` | `(rsasn, 65220)` |
+| miembro `academico` | `(rsasn, 65230)` |
+| miembro `gobierno` | `(rsasn, 65240)` |
+| miembro `cdn` | `(rsasn, 65250)` |
+| miembro `corporativo` | `(rsasn, 65260)` |
+| miembro `infraestructura_critica` | `(rsasn, 65270)` |
+| peer `upstream` | `(rsasn, 65280)` |
+| peer `collector` | `(rsasn, 65290)` |
+| miembro `otro`, peer `special` | ninguna |
 
-El borrado se expresa entonces como el **complemento en rangos** de las marcas:
+El bloque entero cae dentro de los ASN privados, que es lo que lo separa del
+control de anuncio `(rsasn, peer-as)`.
+
+## El export conserva el bloque publico y borra el resto
+
+`f_export_<peer>` borra las large `(rsasn, *, *)` y, de las estandar, todo
+`(rsasn, *)` **menos** el bloque de tipos y las `mark_community` configuradas.
+Lo que se sigue borrando es el control de anuncio, que es interno.
+
+El borrado se expresa como el **complemento en rangos** de lo que se conserva:
 
 ```
-bgp_community.delete( [( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )] );
+bgp_community.delete( [( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65199 ), ( routeserverasn, 65300..65535 )] );
 ```
 
 Es una sola sentencia declarativa en vez de un borrado seguido de un re-add
-condicional. El re-add necesita saber cual marca estaba presente *despues* de
-haberlas borrado todas, lo que sin variables locales obliga a anidar una rama
-por combinacion de marcas. El complemento crece lineal y no depende de sintaxis
-que varie entre menores de BIRD 2.x.
+condicional. El re-add necesita saber que estaba presente *despues* de haber
+borrado todo, lo que sin variables locales obliga a anidar una rama por
+combinacion. El complemento crece lineal y no depende de sintaxis que varie
+entre menores de BIRD 2.x.
 
-Solo se exceptuan las marcas cuyo primer componente es el ASN del IXP: una marca
-de otro ASN no cae dentro de `(rsasn, *)` y no hay nada que exceptuar.
+## El import borra exactamente lo que el export conserva
 
-Las estandar solo se emiten si el ASN del IXP entra en 16 bits, por la misma
-razon que el resto.
+Simetrico y por la misma razon: lo que el route server tiene derecho a poner es
+justo lo que no puede aceptar de un peer. Sin esto un miembro manda
+`(rsasn, 65280)` en sus propias rutas y se hace pasar por el upstream ante los
+demas miembros.
+
+```
+bgp_community.delete( [( routeserverasn, 9999 ), ( routeserverasn, 65200..65299 )] );
+```
+
+Va como primera sentencia del filtro de import, antes de cualquier chequeo.
+
+## El pipe no lleva filtro anti-bucle
+
+BIRD no reinyecta por un pipe lo que entro por ese mismo pipe. Verificado contra
+2.18 con dos tablas, dos protocolos y `export all` sin ningun filtro: la tabla
+de cada uno termina con su propia ruta una sola vez.
+
+Eso importa porque invita a un error: pintar la ruta con una community en el
+import para reconocerla despues en el pipe. No hace falta, no escala (con dos
+upstreams necesitas una marca por peer) y tiene un costo real: esa marca interna
+se le escapa al miembro y termina siendo su interfaz de facto. En PatagoniaIX
+paso exactamente eso, y 123.410 rutas dependian de un numero que nunca fue
+parte de ningun contrato.
 
 ## Prefijos de documentacion y filtros de prefijos
 
