@@ -53,11 +53,14 @@ COPY alembic.ini .
 # los assets ya vienen construidos del stage de node
 COPY --from=assets /build/src/ixforge/ui/static/ src/ixforge/ui/static/
 
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+
 RUN chown -R ixforge:ixforge /app
 USER ixforge
 
 EXPOSE 8000
 EXPOSE 8001
 
-ENTRYPOINT ["uv", "run", "ixforge"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["run"]
