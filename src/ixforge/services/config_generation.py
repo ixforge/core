@@ -465,6 +465,13 @@ async def generate_config(
     )
     config_hash = hashlib.sha256(combined.encode()).hexdigest()
 
+    # El hash se calcula sobre el render con el campo vacio y despues se rellena.
+    # Sin esto la cabecera queda en blanco en todos los route servers y no hay
+    # forma de mirar un bird.conf y saber de que version salio. El agent nunca
+    # recalcula el hash sobre el contenido, se lo cree a la API, asi que
+    # rellenarlo no rompe el reporte de config aplicada
+    combined = combined.replace("# Config hash: ", f"# Config hash: {config_hash}", 1)
+
     template_snapshot = await get_all_templates(session, ixp_id)
 
     config_version = ConfigVersion(
