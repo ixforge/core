@@ -21,9 +21,17 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 _READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession]:
-    """Yield an async database session. Re-exports get_db from database module."""
+async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession]:
+    """Yield an async database session y dejarla accesible para el commit.
+
+    El commit NO ocurre aca. El codigo posterior al yield de una dependencia de
+    FastAPI corre DESPUES de mandar la respuesta al cliente, asi que commitear
+    ahi significa responder 201 antes de saber si el dato se guardo, y que la
+    peticion siguiente no vea lo recien creado. Lo hace CommitBeforeResponse,
+    que intercepta el envio y commitea antes del primer byte
+    """
     async for session in get_db():
+        request.scope.setdefault("state", {})["db_session"] = session
         yield session
 
 
