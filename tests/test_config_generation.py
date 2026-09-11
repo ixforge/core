@@ -1794,11 +1794,12 @@ async def _build_golden_ixp(db_session: AsyncSession, ixp: IXP) -> RouteServer:
                 member_id=isp.id,
                 af=6,
                 origin_asns=[273973],
-                # 3fff::/20 es el prefijo de documentacion de RFC 9637 y NO es
-                # martian. 2001:db8::/32 si lo es: usarlo aca hacia que la ruta
-                # muriera en avoid_martians6 antes de llegar al filtro de
-                # prefijos, o sea el test no probaba lo que decia probar
-                prefixes=["3fff:aa::/48"],
+                # Tiene que ser espacio ruteable, no de documentacion: TODO
+                # prefijo de documentacion es martian por definicion, asi que
+                # 2001:db8::/32 (rfc3849) y 3fff::/20 (rfc9637) mueren en
+                # avoid_martians6 antes de llegar al filtro de prefijos, y el
+                # test no probaria lo que dice probar
+                prefixes=["2400:aa::/48"],
             ),
         ]
     )
@@ -1893,3 +1894,70 @@ async def test_export_filter_strips_both_community_forms(db_session, ixp):
     export_block = cv.content.split(f"filter f_export_{slug}")[1].split("}")[0]
     assert "bgp_large_community.delete( [( routeserverasn, *, * )] );" in export_block
     assert "bgp_community.delete( [( routeserverasn, * )] );" in export_block
+
+
+async def test_prefix_whitelist_is_not_shadowed_by_bogons(db_session, ixp):
+    """El chequeo de martians corre ANTES del filtro de prefijos, asi que un
+    allnet dentro de un martian nunca se evalua: la ruta ya murio
+
+    Este test existe porque el golden tuvo dos veces un prefijo v6 de
+    documentacion en la whitelist, y las dos veces parecia probar el filtrado
+    por prefijo sin probarlo
+    """
+    import ipaddress
+
+    from ixforge.services.config_generation import build_peers, generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    member = await _setup_member_peer(
+        db_session, ixp, rs, asn=273973, ipv4="192.0.2.11", ipv6="2001:db8::11"
+    )
+    db_session.add(
+        MemberPrefixFilter(
+            ixp_id=ixp.id, member_id=member.id, af=6, prefixes=["2400:aa::/48"]
+        )
+    )
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    martians = re.search(r"define MARTIANS_V6 = \[(.*?)\];", cv.content, re.S).group(1)
+    # se parsea por linea, no por coma: hay comentarios que contienen comas
+    entradas = []
+    for linea in martians.splitlines():
+        token = linea.split("#")[0].strip().rstrip(",").strip()
+        if token:
+            entradas.append(token)
+    assert len(entradas) > 10, entradas
+
+    def matchea(ruta: str, patron: str) -> bool:
+        """Semantica de prefix set de BIRD
+
+        Sin sufijo es coincidencia exacta, no contencion: ::/0 solo matchea la
+        ruta default. Tratarlo como contencion hace que todo parezca martian
+        """
+        red = ipaddress.ip_network(ruta)
+        m = re.fullmatch(r"([0-9a-fA-F:.]+/\d+)(\+|-|\{(\d+),(\d+)\})?", patron)
+        assert m, patron
+        base = ipaddress.ip_network(m.group(1))
+        if red.version != base.version:
+            return False
+        if m.group(2) == "+":
+            return red.subnet_of(base)
+        if m.group(2) == "-":
+            return base.subnet_of(red)
+        if m.group(3):
+            emparentados = red.subnet_of(base) or base.subnet_of(red)
+            return emparentados and int(m.group(3)) <= red.prefixlen <= int(m.group(4))
+        return red == base
+
+    peer = next(p for p in await build_peers(db_session, rs.id, af=6) if p.prefixes)
+    for permitido in peer.prefixes:
+        for entrada in entradas:
+            assert not matchea(permitido, entrada), (
+                f"{permitido} matchea el martian {entrada}: "
+                "el filtro de prefijos nunca se evalua para esa ruta"
+            )
+
+    # y el orden en el config tiene que ser ese
+    bloque = cv.content.split(f"filter f_import_{peer.slug}")[1].split("filter f_export_")[0]
+    assert bloque.index("avoid_martians6()") < bloque.index("allnet =")
