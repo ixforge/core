@@ -14,11 +14,19 @@
 # cuando se migra.
 set -e
 
-if [ "${IXFORGE_AUTO_MIGRATE:-true}" = "true" ]; then
+# El portal no migra: es una UI que habla con la API por HTTP y no tiene, ni
+# debe tener, credenciales de base de datos. Darselas para que pueda migrar
+# seria ampliar su superficie por comodidad
+case "$1" in
+    ui) migrar=no ;;
+    *)  migrar="${IXFORGE_AUTO_MIGRATE:-true}" ;;
+esac
+
+if [ "$migrar" = "true" ]; then
     echo "entrypoint: aplicando migraciones (IXFORGE_AUTO_MIGRATE=true)"
     uv run ixforge upgrade
 else
-    echo "entrypoint: migraciones salteadas (IXFORGE_AUTO_MIGRATE=false)"
+    echo "entrypoint: sin migrar (comando '$1')"
 fi
 
 exec uv run ixforge "$@"

@@ -91,3 +91,63 @@ async def test_migraciones_concurrentes_no_se_pisan(base_vacia):
 
     assert version == "9f2c7a1b4d3e"
     assert tablas > 25
+
+
+def _correr_entrypoint(*args: str) -> str:
+    """Corre el entrypoint con los comandos reales reemplazados por echo
+
+    Reemplaza las DOS invocaciones, la del upgrade y la del exec: si solo se
+    cambia el exec, el test aplica migraciones de verdad contra la base que
+    haya configurada
+    """
+    guion = (REPO / "docker" / "entrypoint.sh").read_text(encoding="utf-8")
+    guion = guion.replace("uv run ixforge upgrade", "echo MIGRA")
+    guion = guion.replace("exec uv run ixforge", "echo ARRANCA")
+
+    return subprocess.run(
+        ["sh", "-s", *args],
+        input=guion,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "IXFORGE_AUTO_MIGRATE": "true"},
+        check=False,
+    ).stdout
+
+
+def test_entrypoint_migra_para_la_api_y_el_worker():
+    for comando in ("run", "worker"):
+        salida = _correr_entrypoint(comando)
+        assert "MIGRA" in salida, comando
+        assert f"ARRANCA {comando}" in salida
+
+
+def test_entrypoint_no_migra_para_la_ui():
+    """El portal habla con la API por HTTP y no tiene credenciales de base.
+
+    Hacerlo migrar lo obligaria a tenerlas, que es ampliar su superficie por
+    comodidad. Ademas rompe: el compose no le pasa IXFORGE_DATABASE_URL y el
+    contenedor muere intentando conectarse a localhost:5432
+    """
+    salida = _correr_entrypoint("ui")
+
+    assert "MIGRA" not in salida
+    assert "sin migrar" in salida
+    assert "ARRANCA ui" in salida
+
+
+def test_entrypoint_respeta_el_opt_out():
+    guion = (REPO / "docker" / "entrypoint.sh").read_text(encoding="utf-8")
+    guion = guion.replace("uv run ixforge upgrade", "echo MIGRA")
+    guion = guion.replace("exec uv run ixforge", "echo ARRANCA")
+
+    salida = subprocess.run(
+        ["sh", "-s", "run"],
+        input=guion,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "IXFORGE_AUTO_MIGRATE": "false"},
+        check=False,
+    ).stdout
+
+    assert "MIGRA" not in salida
+    assert "ARRANCA run" in salida
