@@ -1,8 +1,25 @@
+# Los assets (CSS de Tailwind y bundles de JS) se construyen en un stage aparte
+# con la imagen oficial de node. Instalar nodejs y npm de Debian al lado de
+# python:3.12-slim ya no funciona: npm depende de node-gyp -> libnode-dev ->
+# libssl-dev, que exige un libssl3t64 mas viejo que el de la imagen base, y apt
+# rechaza el downgrade. Ademas nodejs no hace falta en runtime
+FROM node:22-slim AS assets
+
+WORKDIR /build
+COPY package.json package-lock.json tailwind.config.js ./
+RUN npm ci
+
+# tailwind escanea los templates para saber que clases conservar
+COPY src/ixforge/ui/templates/ src/ixforge/ui/templates/
+COPY src/ixforge/ui/static/ src/ixforge/ui/static/
+RUN npm run build
+
+
 FROM python:3.12-slim AS base
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/99-retries \
+    && apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
-    nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 1000 ixforge && \
@@ -20,9 +37,8 @@ COPY src/ src/
 COPY alembic/ alembic/
 COPY alembic.ini .
 
-COPY package.json tailwind.config.js ./
-COPY src/ixforge/ui/static/css/input.css src/ixforge/ui/static/css/input.css
-RUN npm install && npm run build && rm -rf node_modules
+# los assets ya vienen construidos del stage de node
+COPY --from=assets /build/src/ixforge/ui/static/ src/ixforge/ui/static/
 
 RUN chown -R ixforge:ixforge /app
 USER ixforge
