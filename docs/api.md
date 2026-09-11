@@ -267,9 +267,9 @@ generador: cada componente admite hasta 65535, porque una community estandar son
 `af` es `4` o `6`. Un miembro **sin fila** se comporta como "solo su propio ASN,
 sin filtro de prefijos", que es el default seguro.
 
-`prefixes` en `null` desactiva el filtro de prefijos. La lista **vacia** se
-rechaza con 422: en el modelo significa "no autorizar ningun prefijo", pero por
-API casi nunca es lo que se quiso, asi que hay que mandar `null` explicito.
+`prefixes` en `null` desactiva el filtro de prefijos. La lista **vacia** es
+distinta y se acepta: significa "no autorizar ningun prefijo". Es el caso de un
+colector de rutas, que recibe y no anuncia: lista blanca vacia, no ausente.
 
 ### RPKI Servers (admin only)
 

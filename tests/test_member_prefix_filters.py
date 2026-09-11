@@ -79,21 +79,21 @@ async def test_prefix_filter_rejects_bad_asn(
     assert resp.status_code == 422
 
 
-async def test_prefix_filter_rejects_empty_prefix_list(
+async def test_prefix_filter_acepta_lista_vacia(
     client: AsyncClient, auth_headers: dict, member: Member
 ):
-    """Vaciar la lista no autoriza nada, que casi nunca es lo que se quiso:
-    para desactivar el filtro hay que mandar null explicito
+    """Lista vacia significa "no autorizar ningun prefijo", y es un caso real:
+    un colector de rutas que recibe y no anuncia debe tener lista blanca vacia,
+    no ausente. Es distinto de null, que desactiva el filtro
     """
     resp = await client.put(
         f"/api/v1/members/{member.id}/prefix-filters/4",
         headers=auth_headers,
-        json={"prefixes": []},
+        json={"prefixes": [], "origin_asns": [273973]},
     )
 
-    assert resp.status_code == 422
-    # los errores de pydantic viajan en details, no en message
-    assert "null" in str(resp.json()["error"]["details"]).lower()
+    assert resp.status_code in (200, 201), resp.text
+    assert resp.json()["prefixes"] == []
 
 
 async def test_prefix_filter_null_disables_the_filter(
