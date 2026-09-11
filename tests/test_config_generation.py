@@ -2072,3 +2072,17 @@ async def test_rs_peer_respeta_el_max_prefixes(db_session, ixp):
 
     bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
     assert "import limit 250000 action restart;" in bloque
+
+
+async def test_el_config_lleva_su_propio_hash_en_la_cabecera(db_session, ixp):
+    """Sin esto no se puede mirar un bird.conf en un route server y saber que
+    version es. El hash se define sobre el render con el campo vacio, asi que
+    rellenarlo despues no es circular
+    """
+    from ixforge.services.config_generation import generate_config
+
+    rs = await _setup_route_server(db_session, ixp)
+    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert f"# Config hash: {cv.config_hash}" in cv.content
