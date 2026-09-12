@@ -45,7 +45,7 @@ async def listar_eventos(
     """Que prefijos aparecieron, desaparecieron o cambiaron de camino"""
     await _verificar_miembro(db, ixp_id, member_id)
     filas = await svc.eventos(db, ixp_id, member_id, prefix, limit)
-    return {"items": [EventoDePrefijoRead.model_validate(f) for f in filas]}
+    return {"items": [EventoDePrefijoRead(**f) for f in filas]}
 
 
 async def _verificar_miembro(db: DBSession, ixp_id: uuid.UUID, member_id: uuid.UUID) -> Member:
