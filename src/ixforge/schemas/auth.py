@@ -73,6 +73,7 @@ MANAGEMENT_RESOURCES = frozenset({
     "contacts",
     "custom-fields",
     "rs-templates",
+    "metrics",
 })
 
 # Scopes de servicio (internos) mas los granulares <recurso>:read / <recurso>:write
