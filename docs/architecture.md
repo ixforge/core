@@ -170,6 +170,12 @@ The polling flow:
    states and, per session, how many prefixes it imported and exported. Both counts are
    optional: a session that is not established has no count, and absent is not zero.
    The count is stored on every report, including reports where the state did not change
+
+   The counts are also published on `/metrics` as `ixforge_bgp_session_prefixes_imported`
+   and `..._exported`, labelled by route server, peer ASN and address family. A session
+   that reports no count has its series removed rather than set to zero, so the graph
+   shows a gap instead of a stale value. Scrape `/metrics` to keep history: the column
+   only holds the latest value
 4. **Heartbeat** (`POST .../agent/heartbeat`): agent reports health, server checks config sync and version
 
 ### Commit antes de responder
