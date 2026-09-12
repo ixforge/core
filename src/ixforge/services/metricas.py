@@ -203,3 +203,54 @@ async def series_icmp(
             ],
         })
     return series, True
+
+
+# Solo las interfaces que mapean a una conexion de miembro. El switch reporta
+# ademas el Eth-Trunk que envuelve a cada puerto fisico, asi que sumar todo
+# contaria a cada miembro dos veces
+SELECTOR_MIEMBROS = 'member_id!=""'
+
+
+async def series_agregadas(rango: str) -> tuple[list[Any], list[Any], bool]:
+    """Trafico total del IXP, entrada y salida"""
+    if rango not in RANGOS:
+        return [], [], True
+    ventana, paso = RANGOS[rango]
+
+    salidas = []
+    for metrica in ("ixforge_interface_traffic_in_bps", "ixforge_interface_traffic_out_bps"):
+        consulta = f'sum({metrica}{{{SELECTOR_MIEMBROS}}})'
+        try:
+            crudo = await consultar_vm_rango(consulta, ventana, paso)
+        except Exception as e:
+            logger.warning("victoriametrics no responde", error=str(e))
+            return [], [], False
+
+        puntos = []
+        for serie in crudo.get("data", {}).get("result", []):
+            for t, v in serie.get("values", []):
+                puntos.append({"timestamp": int(t), "value": float(v)})
+        salidas.append(puntos)
+
+    return salidas[0], salidas[1], True
+
+
+async def pico_agregado(rango: str) -> tuple[float | None, float | None, bool]:
+    """Pico de trafico en la ventana, entrada y salida"""
+    if rango not in RANGOS:
+        return None, None, True
+    ventana, _ = RANGOS[rango]
+
+    picos: list[float | None] = []
+    for metrica in ("ixforge_interface_traffic_in_bps", "ixforge_interface_traffic_out_bps"):
+        consulta = f'max_over_time(sum({metrica}{{{SELECTOR_MIEMBROS}}})[{ventana}:])'
+        try:
+            crudo = await consultar_vm(consulta)
+        except Exception as e:
+            logger.warning("victoriametrics no responde", error=str(e))
+            return None, None, False
+
+        resultado = crudo.get("data", {}).get("result", [])
+        picos.append(float(resultado[0]["value"][1]) if resultado else None)
+
+    return picos[0], picos[1], True

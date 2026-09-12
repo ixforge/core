@@ -196,3 +196,85 @@ class TestMetricasIcmp:
         assert resp.status_code == 200
         assert resp.json()["series"] == []
         assert resp.json()["disponible"] is False
+
+
+class TestMetricasAgregadas:
+    async def test_suma_solo_las_interfaces_de_miembros(self, client, auth_headers, ixp):
+        """El switch reporta el puerto fisico y el Eth-Trunk que lo envuelve. Sumar
+        todo cuenta cada miembro dos veces
+        """
+        capturado = {}
+
+        async def falsa(consulta, rango, paso):
+            capturado["consulta"] = consulta
+            return {"status": "success", "data": {"result": []}}
+
+        with patch("ixforge.services.metricas.consultar_vm_rango", new=falsa):
+            resp = await client.get(
+                "/api/v1/metrics/aggregate/series?range=24h", headers=auth_headers
+            )
+
+        assert resp.status_code == 200
+        assert 'member_id!=""' in capturado["consulta"]
+        assert capturado["consulta"].startswith("sum(")
+
+    async def test_devuelve_entrada_y_salida(self, client, auth_headers, ixp):
+        def matriz(valor: str) -> dict:
+            return {"status": "success", "data": {"resultType": "matrix", "result": [
+                {"metric": {}, "values": [[1757000000, valor]]}
+            ]}}
+
+        llamadas = []
+
+        async def falsa(consulta, rango, paso):
+            llamadas.append(consulta)
+            return matriz("1000" if "in_bps" in consulta else "2000")
+
+        with patch("ixforge.services.metricas.consultar_vm_rango", new=falsa):
+            resp = await client.get(
+                "/api/v1/metrics/aggregate/series?range=1h", headers=auth_headers
+            )
+
+        cuerpo = resp.json()
+        assert cuerpo["entrada"][0]["value"] == 1000.0
+        assert cuerpo["salida"][0]["value"] == 2000.0
+        assert len(llamadas) == 2
+
+    async def test_pico_de_trafico(self, client, auth_headers, ixp):
+        vm = {"status": "success", "data": {"resultType": "vector", "result": [
+            {"metric": {}, "value": [1757000000, "9500000"]}
+        ]}}
+        with patch("ixforge.services.metricas.consultar_vm", new=AsyncMock(return_value=vm)):
+            resp = await client.get(
+                "/api/v1/metrics/aggregate/peak?range=24h", headers=auth_headers
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["entrada"] == 9500000.0
+        assert resp.json()["salida"] == 9500000.0
+
+    async def test_el_pico_usa_max_over_time(self, client, auth_headers, ixp):
+        capturado = {}
+
+        async def falsa(consulta):
+            capturado.setdefault("consultas", []).append(consulta)
+            return {"status": "success", "data": {"result": []}}
+
+        with patch("ixforge.services.metricas.consultar_vm", new=falsa):
+            await client.get("/api/v1/metrics/aggregate/peak?range=7d", headers=auth_headers)
+
+        assert all("max_over_time" in c for c in capturado["consultas"])
+        assert all("[7d:]" in c for c in capturado["consultas"])
+
+    async def test_si_victoriametrics_no_responde_devuelve_vacio(
+        self, client, auth_headers, ixp
+    ):
+        with patch(
+            "ixforge.services.metricas.consultar_vm_rango",
+            new=AsyncMock(side_effect=TimeoutError("sin respuesta")),
+        ):
+            resp = await client.get("/api/v1/metrics/aggregate/series", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.json()["disponible"] is False
+        assert resp.json()["entrada"] == []
