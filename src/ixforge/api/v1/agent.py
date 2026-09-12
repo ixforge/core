@@ -518,16 +518,17 @@ async def report_agent_prefixes(
                 )
             ).scalars()
         }
-        reportados = {p.prefix: p.as_path for p in reporte.prefixes}
+        reportados = {p.prefix: p for p in reporte.prefixes}
 
-        for prefix, as_path in reportados.items():
+        for prefix, reportado in reportados.items():
             fila = guardados.get(prefix)
             if fila is None:
                 db.add(BGPSessionPrefix(
                     ixp_id=rs.ixp_id,
                     bgp_session_id=session.id,
                     prefix=prefix,
-                    as_path=as_path,
+                    as_path=reportado.as_path,
+                    communities=reportado.communities,
                     first_seen_at=ahora,
                     last_seen_at=ahora,
                 ))
@@ -536,25 +537,29 @@ async def report_agent_prefixes(
                     bgp_session_id=session.id,
                     prefix=prefix,
                     event_type=PrefixEventType.announced,
-                    as_path=as_path,
+                    as_path=reportado.as_path,
+                    communities=reportado.communities,
                     occurred_at=ahora,
                 ))
                 prefixes_added += 1
                 continue
 
-            # El prefijo sigue: solo deja rastro si cambio el camino. Sin esto
-            # el historial seria una fila de "sigue ahi" cada cinco minutos
-            if fila.as_path != as_path:
+            # El prefijo sigue: solo deja rastro si cambio algo. Sin esto el
+            # historial seria una fila de "sigue ahi" cada cinco minutos
+            if fila.as_path != reportado.as_path or fila.communities != reportado.communities:
                 db.add(BGPPrefixEvent(
                     ixp_id=rs.ixp_id,
                     bgp_session_id=session.id,
                     prefix=prefix,
                     event_type=PrefixEventType.updated,
-                    as_path=as_path,
+                    as_path=reportado.as_path,
                     previous_as_path=fila.as_path,
+                    communities=reportado.communities,
+                    previous_communities=fila.communities,
                     occurred_at=ahora,
                 ))
-                fila.as_path = as_path
+                fila.as_path = reportado.as_path
+                fila.communities = reportado.communities
             fila.last_seen_at = ahora
 
         for prefix, fila in guardados.items():
@@ -566,6 +571,7 @@ async def report_agent_prefixes(
                 prefix=prefix,
                 event_type=PrefixEventType.withdrawn,
                 as_path=fila.as_path,
+                communities=fila.communities,
                 occurred_at=ahora,
             ))
             await db.delete(fila)

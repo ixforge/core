@@ -61,6 +61,7 @@ async def prefijos(
             vistos[fila.prefix] = {
                 "prefix": fila.prefix,
                 "as_path": fila.as_path,
+                "communities": fila.communities,
                 "first_seen_at": fila.first_seen_at,
                 "last_seen_at": fila.last_seen_at,
             }
@@ -70,6 +71,7 @@ async def prefijos(
         if fila.last_seen_at > actual["last_seen_at"]:
             actual["last_seen_at"] = fila.last_seen_at
             actual["as_path"] = fila.as_path
+            actual["communities"] = fila.communities
         if fila.first_seen_at < actual["first_seen_at"]:
             actual["first_seen_at"] = fila.first_seen_at
 

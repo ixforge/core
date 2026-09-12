@@ -332,7 +332,7 @@ Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN r
 |--------|------|-------------|
 | GET | `/route-servers/{id}/agent/config` | Poll latest config (hash + content) |
 | POST | `/route-servers/{id}/agent/status` | Report BGP session states and per-session prefix counts (`prefixes_imported` / `prefixes_exported`, both optional: absent is not zero) |
-| POST | `/route-servers/{id}/agent/prefixes` | Report which prefixes each peer advertises (prefix + AS path). Stored as a mirror of the last report; what disappears becomes a withdraw event |
+| POST | `/route-servers/{id}/agent/prefixes` | Report which prefixes each peer advertises (prefix, AS path and communities). Stored as a mirror of the last report; what disappears becomes a withdraw event |
 | POST | `/route-servers/{id}/agent/heartbeat` | Agent heartbeat |
 | POST | `/route-servers/{id}/agent/config/applied` | Confirm config applied |
 | POST | `/route-servers/{id}/agent/config/failed` | Report a config that failed to apply (`{"config_hash", "error"}`) |

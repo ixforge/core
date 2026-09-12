@@ -1115,3 +1115,47 @@ class TestReporteDePrefijos:
         ])
 
         assert resp.status_code == 422
+
+    async def test_guarda_las_communities_y_su_cambio(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """Es donde el miembro ve si su prefijo validó por RPKI y como quedo
+        clasificado, asi que un cambio ahi tiene que quedar registrado
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        sesion = await self._sesion(db_session, ixp, rs, 64606, "192.0.2.57", 325)
+
+        await self._reportar(client, rs, raw_key, "192.0.2.57", [
+            {"prefix": "45.238.179.0/24", "as_path": [64606],
+             "communities": ["64166:65012", "64166:65120"]},
+        ])
+        await self._reportar(client, rs, raw_key, "192.0.2.57", [
+            {"prefix": "45.238.179.0/24", "as_path": [64606],
+             "communities": ["64166:65023", "64166:65120"]},
+        ])
+
+        fila = (await db_session.execute(
+            select(BGPSessionPrefix).where(BGPSessionPrefix.bgp_session_id == sesion.id)
+        )).scalar_one()
+        assert fila.communities == ["64166:65023", "64166:65120"]
+
+        cambio = (await db_session.execute(
+            select(BGPPrefixEvent).where(
+                BGPPrefixEvent.bgp_session_id == sesion.id,
+                BGPPrefixEvent.event_type == PrefixEventType.updated,
+            )
+        )).scalar_one()
+        assert cambio.previous_communities == ["64166:65012", "64166:65120"]
+
+    async def test_rechaza_una_community_que_no_es_numerica(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+
+        resp = await self._reportar(client, rs, raw_key, "192.0.2.58", [
+            {"prefix": "45.238.179.0/24", "as_path": [], "communities": ["drop table"]},
+        ])
+
+        assert resp.status_code == 422

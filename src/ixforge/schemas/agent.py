@@ -39,6 +39,22 @@ class ReportedPrefix(BaseModel):
 
     prefix: str = Field(min_length=1, max_length=43)
     as_path: list[int] = Field(default_factory=list, max_length=256)
+    communities: list[str] = Field(default_factory=list, max_length=256)
+
+    @field_validator("communities")
+    @classmethod
+    def validar_communities(cls, v: list[str]) -> list[str]:
+        """Solo numeros separados por dos puntos, que es lo que BIRD emite
+
+        Entra a la base y sale al sitio, asi que no se acepta texto libre
+        """
+        for c in v:
+            partes = c.split(":")
+            if len(partes) not in (2, 3) or not all(
+                p.isdigit() and int(p) <= 4294967295 for p in partes
+            ):
+                raise ValueError(f"Community invalida: {c}")
+        return v
 
     @field_validator("prefix")
     @classmethod
