@@ -20,6 +20,7 @@ from ixforge.api.v1.member_prefix_filters import member_prefix_filters_router
 from ixforge.api.v1.members import members_router
 from ixforge.api.v1.metricas_interfaz import metricas_router
 from ixforge.api.v1.monitoring import monitoring_router
+from ixforge.api.v1.prefijos_bgp import prefijos_bgp_router
 from ixforge.api.v1.route_server_peers import route_server_peers_router
 from ixforge.api.v1.route_server_vlans import rs_vlans_router
 from ixforge.api.v1.route_servers import route_servers_router
@@ -44,6 +45,7 @@ v1_router.include_router(config_router)
 v1_router.include_router(ixf_router)
 v1_router.include_router(members_router)
 v1_router.include_router(member_prefix_filters_router)
+v1_router.include_router(prefijos_bgp_router)
 v1_router.include_router(logo_router)
 v1_router.include_router(metricas_router)
 v1_router.include_router(contacts_router)

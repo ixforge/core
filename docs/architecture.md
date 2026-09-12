@@ -176,7 +176,11 @@ The polling flow:
    that reports no count has its series removed rather than set to zero, so the graph
    shows a gap instead of a stale value. Scrape `/metrics` to keep history: the column
    only holds the latest value
-4. **Heartbeat** (`POST .../agent/heartbeat`): agent reports health, server checks config sync and version
+4. **Prefix report** (`POST .../agent/prefixes`): every 10 cycles, the agent lists the
+   prefixes each peer advertises, with their AS path. The Core mirrors the report and
+   turns the difference against the previous one into announce, withdraw and update
+   events. Sessions above 1000 prefixes are counted but not listed
+5. **Heartbeat** (`POST .../agent/heartbeat`): agent reports health, server checks config sync and version
 
 ### Commit antes de responder
 

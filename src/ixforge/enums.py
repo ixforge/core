@@ -155,6 +155,15 @@ class RouteServerPeerType(StrEnum):
     special = "special"
 
 
+class PrefixEventType(StrEnum):
+    """Que le paso a un prefijo entre un reporte del agente y el siguiente"""
+
+    announced = "announced"
+    withdrawn = "withdrawn"
+    # El prefijo sigue ahi pero con otro camino
+    updated = "updated"
+
+
 # -- Filtrado de prefijos --
 
 

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.api.deps import DBSession
 from ixforge.database import tenant_context as _tenant_context
-from ixforge.enums import BGPOperState
+from ixforge.enums import BGPOperState, PrefixEventType
 from ixforge.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from ixforge.metrics import (
     bgp_session_prefixes_exported,
@@ -19,6 +19,7 @@ from ixforge.metrics import (
     bgp_sessions_active,
 )
 from ixforge.models.api_key import APIKey
+from ixforge.models.bgp_prefix import BGPPrefixEvent, BGPSessionPrefix
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.ip import IPAssignment, IPPool
@@ -31,6 +32,8 @@ from ixforge.schemas.agent import (
     AgentConfigResponse,
     AgentHeartbeat,
     AgentHeartbeatResponse,
+    AgentPrefixReport,
+    AgentPrefixReportResponse,
     AgentStatusReport,
     AgentStatusResponse,
 )
@@ -132,6 +135,41 @@ async def get_agent_config(
     )
 
 
+async def _sesiones_por_peer(
+    db: AsyncSession,
+    route_server_id: uuid.UUID,
+) -> dict[tuple[str, int], BGPSession]:
+    """Las sesiones de un route server, indexadas por la IP del peer y familia
+
+    El agente identifica una sesion por la IP del vecino, que no es una columna:
+    sale de la IP asignada al trunk_vlan en el pool de esa familia. El DISTINCT
+    ON evita duplicados cuando un trunk_vlan tiene varias IPs de la misma familia
+    """
+    ip_subq = (
+        select(
+            IPAssignment.trunk_vlan_id,
+            IPAssignment.address,
+            IPPool.af,
+        )
+        .join(IPPool, IPAssignment.pool_id == IPPool.id)
+        .distinct(IPAssignment.trunk_vlan_id, IPPool.af)
+        .order_by(IPAssignment.trunk_vlan_id, IPPool.af, IPAssignment.address)
+        .subquery()
+    )
+
+    stmt = (
+        select(BGPSession, ip_subq.c.address)
+        .join(
+            ip_subq,
+            (BGPSession.trunk_vlan_id == ip_subq.c.trunk_vlan_id)
+            & (BGPSession.af == ip_subq.c.af),
+        )
+        .where(BGPSession.route_server_id == route_server_id)
+    )
+    result = await db.execute(stmt)
+    return {(str(addr), s.af): s for s, addr in result.all()}
+
+
 def _publicar_conteo(
     *,
     route_server_id: uuid.UUID,
@@ -184,33 +222,7 @@ async def report_agent_status(
     if rs is None:
         raise NotFoundError("RouteServer", str(route_server_id))
 
-    # Load all BGP sessions for this RS with their peer IPs resolved via subquery
-    # Use DISTINCT ON to avoid duplicates when a trunk_vlan has multiple IPs of the same AF
-    ip_subq = (
-        select(
-            IPAssignment.trunk_vlan_id,
-            IPAssignment.address,
-            IPPool.af,
-        )
-        .join(IPPool, IPAssignment.pool_id == IPPool.id)
-        .distinct(IPAssignment.trunk_vlan_id, IPPool.af)
-        .order_by(IPAssignment.trunk_vlan_id, IPPool.af, IPAssignment.address)
-        .subquery()
-    )
-
-    stmt = (
-        select(BGPSession, ip_subq.c.address)
-        .join(
-            ip_subq,
-            (BGPSession.trunk_vlan_id == ip_subq.c.trunk_vlan_id)
-            & (BGPSession.af == ip_subq.c.af),
-        )
-        .where(BGPSession.route_server_id == route_server_id)
-    )
-    result = await db.execute(stmt)
-    sessions_by_peer: dict[tuple[str, int], BGPSession] = {
-        (str(addr), s.af): s for s, addr in result.all()
-    }
+    sessions_by_peer = await _sesiones_por_peer(db, route_server_id)
 
     # Pre-load ASN mapping for event data
     stmt_asn = (
@@ -458,3 +470,111 @@ async def report_agent_config_failed(
     config.apply_error_at = datetime.now(UTC)
 
     await db.flush()
+
+
+@agent_router.post(
+    "/{route_server_id}/agent/prefixes",
+    response_model=AgentPrefixReportResponse,
+)
+async def report_agent_prefixes(
+    route_server_id: uuid.UUID,
+    body: AgentPrefixReport,
+    db: DBSession,
+    _agent_key: AgentKey,
+) -> AgentPrefixReportResponse:
+    """El agente reporta que prefijos anuncia cada peer.
+
+    Lo guardado es un espejo del ultimo reporte, no un acumulado: lo que el peer
+    retiro se borra. El historial de que cambio vive en bgp_prefix_events, que
+    se llena comparando este reporte con el anterior.
+
+    Requires an API key with the ``agent:route_server`` scope linked
+    to this route server.
+    """
+    rs = await db.get(RouteServer, route_server_id)
+    if rs is None:
+        raise NotFoundError("RouteServer", str(route_server_id))
+
+    sessions_by_peer = await _sesiones_por_peer(db, route_server_id)
+
+    sessions_updated = 0
+    prefixes_added = 0
+    prefixes_removed = 0
+    ahora = datetime.now(UTC)
+
+    for reporte in body.sessions:
+        session = sessions_by_peer.get((reporte.peer_ip, reporte.af))
+        if session is None:
+            continue
+        sessions_updated += 1
+
+        guardados = {
+            fila.prefix: fila
+            for fila in (
+                await db.execute(
+                    select(BGPSessionPrefix).where(
+                        BGPSessionPrefix.bgp_session_id == session.id
+                    )
+                )
+            ).scalars()
+        }
+        reportados = {p.prefix: p.as_path for p in reporte.prefixes}
+
+        for prefix, as_path in reportados.items():
+            fila = guardados.get(prefix)
+            if fila is None:
+                db.add(BGPSessionPrefix(
+                    ixp_id=rs.ixp_id,
+                    bgp_session_id=session.id,
+                    prefix=prefix,
+                    as_path=as_path,
+                    first_seen_at=ahora,
+                    last_seen_at=ahora,
+                ))
+                db.add(BGPPrefixEvent(
+                    ixp_id=rs.ixp_id,
+                    bgp_session_id=session.id,
+                    prefix=prefix,
+                    event_type=PrefixEventType.announced,
+                    as_path=as_path,
+                    occurred_at=ahora,
+                ))
+                prefixes_added += 1
+                continue
+
+            # El prefijo sigue: solo deja rastro si cambio el camino. Sin esto
+            # el historial seria una fila de "sigue ahi" cada cinco minutos
+            if fila.as_path != as_path:
+                db.add(BGPPrefixEvent(
+                    ixp_id=rs.ixp_id,
+                    bgp_session_id=session.id,
+                    prefix=prefix,
+                    event_type=PrefixEventType.updated,
+                    as_path=as_path,
+                    previous_as_path=fila.as_path,
+                    occurred_at=ahora,
+                ))
+                fila.as_path = as_path
+            fila.last_seen_at = ahora
+
+        for prefix, fila in guardados.items():
+            if prefix in reportados:
+                continue
+            db.add(BGPPrefixEvent(
+                ixp_id=rs.ixp_id,
+                bgp_session_id=session.id,
+                prefix=prefix,
+                event_type=PrefixEventType.withdrawn,
+                as_path=fila.as_path,
+                occurred_at=ahora,
+            ))
+            await db.delete(fila)
+            prefixes_removed += 1
+
+    await db.flush()
+
+    return AgentPrefixReportResponse(
+        sessions_updated=sessions_updated,
+        prefixes_added=prefixes_added,
+        prefixes_removed=prefixes_removed,
+    )
