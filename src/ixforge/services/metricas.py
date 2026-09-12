@@ -26,6 +26,14 @@ RANGOS: dict[str, tuple[str, str]] = {
     "7d": ("7d", "3600s"),
 }
 
+# Las ICMP se miden por IP de miembro, no por puerto
+METRICAS_ICMP: dict[str, str] = {
+    "rtt": "ixforge_icmp_rtt_seconds",
+    "rtt_min": "ixforge_icmp_rtt_min_seconds",
+    "rtt_max": "ixforge_icmp_rtt_max_seconds",
+    "packet_loss": "ixforge_icmp_packet_loss_ratio",
+}
+
 METRICAS = (
     "ixforge_interface_traffic_in_bps",
     "ixforge_interface_traffic_out_bps",
@@ -152,6 +160,43 @@ async def series_de_interfaces(
             "connection_id": etiquetas.get("port_id") or None,
             "member_id": etiquetas.get("member_id") or None,
             "ifname": etiquetas.get("ifname") or None,
+            "points": [
+                {"timestamp": int(t), "value": float(v)}
+                for t, v in serie.get("values", [])
+            ],
+        })
+    return series, True
+
+
+async def series_icmp(
+    rango: str,
+    metrica: str,
+    member_id: uuid.UUID | None = None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Latencia y perdida de paquetes por IP de miembro"""
+    if rango not in RANGOS or metrica not in METRICAS_ICMP:
+        return [], True
+    ventana, paso = RANGOS[rango]
+
+    partes = [f'__name__="{METRICAS_ICMP[metrica]}"']
+    if member_id is not None:
+        partes.append(f'member_id="{member_id}"')
+    consulta = "{" + ",".join(partes) + "}"
+
+    try:
+        crudo = await consultar_vm_rango(consulta, ventana, paso)
+    except Exception as e:
+        logger.warning("victoriametrics no responde", error=str(e))
+        return [], False
+
+    series = []
+    for serie in crudo.get("data", {}).get("result", []):
+        etiquetas = serie.get("metric", {})
+        version = etiquetas.get("ip_version")
+        series.append({
+            "member_id": etiquetas.get("member_id") or None,
+            "ip": etiquetas.get("ip") or None,
+            "ip_version": int(version) if version else None,
             "points": [
                 {"timestamp": int(t), "value": float(v)}
                 for t, v in serie.get("values", [])

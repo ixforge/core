@@ -137,3 +137,62 @@ def test_metrics_es_un_recurso_con_scope_propio():
 
     assert "metrics" in MANAGEMENT_RESOURCES
     assert "metrics:read" in VALID_API_KEY_SCOPES
+
+
+class TestMetricasIcmp:
+    async def test_serie_de_latencia_por_miembro(self, client, auth_headers, ixp):
+        mid = str(uuid.uuid4())
+        vm = {
+            "status": "success",
+            "data": {"resultType": "matrix", "result": [{
+                "metric": {"__name__": "ixforge_icmp_rtt_seconds", "member_id": mid,
+                           "ip": "45.170.101.11", "ip_version": "4"},
+                "values": [[1757000000, "0.0012"], [1757000060, "0.0015"]],
+            }]},
+        }
+        with patch("ixforge.services.metricas.consultar_vm_rango", new=AsyncMock(return_value=vm)):
+            resp = await client.get(
+                f"/api/v1/metrics/icmp/series?member_id={mid}&range=24h&metric=rtt",
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 200
+        serie = resp.json()["series"][0]
+        assert serie["member_id"] == mid
+        assert serie["ip"] == "45.170.101.11"
+        assert serie["ip_version"] == 4
+        assert serie["points"][0]["value"] == 0.0012
+
+    async def test_serie_de_packet_loss(self, client, auth_headers, ixp):
+        capturado = {}
+
+        async def falsa(consulta, rango, paso):
+            capturado["consulta"] = consulta
+            return {"status": "success", "data": {"result": []}}
+
+        with patch("ixforge.services.metricas.consultar_vm_rango", new=falsa):
+            resp = await client.get(
+                "/api/v1/metrics/icmp/series?metric=packet_loss", headers=auth_headers
+            )
+
+        assert resp.status_code == 200
+        assert "ixforge_icmp_packet_loss_ratio" in capturado["consulta"]
+
+    async def test_rechaza_una_metrica_icmp_inventada(self, client, auth_headers, ixp):
+        resp = await client.get(
+            "/api/v1/metrics/icmp/series?metric=rtt\"}+or+up{", headers=auth_headers
+        )
+        assert resp.status_code == 422
+
+    async def test_si_victoriametrics_no_responde_devuelve_vacio(
+        self, client, auth_headers, ixp
+    ):
+        with patch(
+            "ixforge.services.metricas.consultar_vm_rango",
+            new=AsyncMock(side_effect=TimeoutError("sin respuesta")),
+        ):
+            resp = await client.get("/api/v1/metrics/icmp/series", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.json()["series"] == []
+        assert resp.json()["disponible"] is False

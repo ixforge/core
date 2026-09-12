@@ -12,10 +12,10 @@ from fastapi import APIRouter, Query
 from ixforge.api.deps import CurrentUser
 from ixforge.services import metricas
 
-metricas_router = APIRouter(prefix="/metrics/interfaces", tags=["metrics"])
+metricas_router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 
-@metricas_router.get("")
+@metricas_router.get("/interfaces")
 async def estado_de_interfaces(
     _user: CurrentUser,
     connection_id: uuid.UUID | None = Query(default=None),
@@ -26,7 +26,7 @@ async def estado_de_interfaces(
     return {"items": items, "disponible": disponible}
 
 
-@metricas_router.get("/series")
+@metricas_router.get("/interfaces/series")
 async def series_de_interfaces(
     _user: CurrentUser,
     connection_id: uuid.UUID | None = Query(default=None),
@@ -47,4 +47,18 @@ async def series_de_interfaces(
     series, disponible = await metricas.series_de_interfaces(
         range, connection_id, member_id, metric
     )
+    return {"series": series, "disponible": disponible}
+
+
+@metricas_router.get("/icmp/series")
+async def series_icmp(
+    _user: CurrentUser,
+    member_id: uuid.UUID | None = Query(default=None),
+    range: Annotated[Literal["1h", "6h", "24h", "7d"], Query()] = "1h",
+    metric: Annotated[
+        Literal["rtt", "rtt_min", "rtt_max", "packet_loss"], Query()
+    ] = "rtt",
+) -> dict[str, Any]:
+    """Latencia y perdida de paquetes por IP de miembro"""
+    series, disponible = await metricas.series_icmp(range, metric, member_id)
     return {"series": series, "disponible": disponible}
