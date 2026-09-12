@@ -20,10 +20,6 @@
     {% else %}<span class="badge badge-gray">{{ s.oper_state or "-" }}</span>{% endif %}
   </td>
   <td class="py-3">
-    {% if s.af == 4 %}<span class="badge badge-blue">IPv4</span>
-    {% else %}<span class="badge badge-green">IPv6</span>{% endif %}
-  </td>
-  <td class="py-3">
     <a href="/admin/bgp-sessions/{{ s.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
   </td>
 </tr>
