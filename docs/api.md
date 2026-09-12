@@ -331,10 +331,34 @@ Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN r
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/route-servers/{id}/agent/config` | Poll latest config (hash + content) |
-| POST | `/route-servers/{id}/agent/status` | Report BGP session states |
+| POST | `/route-servers/{id}/agent/status` | Report BGP session states and per-session prefix counts (`prefixes_imported` / `prefixes_exported`, both optional: absent is not zero) |
 | POST | `/route-servers/{id}/agent/heartbeat` | Agent heartbeat |
 | POST | `/route-servers/{id}/agent/config/applied` | Confirm config applied |
 | POST | `/route-servers/{id}/agent/config/failed` | Report a config that failed to apply (`{"config_hash", "error"}`) |
+
+### Metrics (`metrics:read`)
+
+VictoriaMetrics listens only on the Core's localhost, so this router is the only
+way in for an external consumer, the public website included. Every response
+carries `disponible`: `false` means VictoriaMetrics did not answer, which is not
+the same as having no data.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/metrics/interfaces` | Current values per connection: traffic, packets, errors, oper status. Filters: `connection_id`, `member_id` |
+| GET | `/metrics/interfaces/series` | Time series of one interface metric. `range`, `metric`, `connection_id`, `member_id` |
+| GET | `/metrics/icmp/series` | Latency and packet loss per member IP. `range`, `metric`, `member_id` |
+| GET | `/metrics/aggregate/series` | Total IXP traffic in and out over time. `range` |
+| GET | `/metrics/aggregate/peak` | Peak IXP traffic in the window. `range` |
+| GET | `/metrics/prefixes/series` | Prefixes the member advertises, per address family, over time. `member_id` (required), `range` |
+
+`range` is one of `1h`, `6h`, `24h`, `7d`; the step is derived from it. Metric
+names are closed enumerations rather than free text, because the value ends up
+inside a PromQL query.
+
+`/metrics/prefixes/series` takes the maximum across route servers, not the sum:
+both receive the same prefixes from the same peer. It reads the gauges scraped
+from `/metrics`, so it needs that scrape configured to return anything.
 
 ### Events
 

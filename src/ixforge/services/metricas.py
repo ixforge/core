@@ -205,6 +205,49 @@ async def series_icmp(
     return series, True
 
 
+
+async def series_de_prefijos(
+    rango: str,
+    peer_asn: int,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Prefijos que el miembro anuncia a los route servers, por familia
+
+    Se toma el maximo entre route servers y no la suma: los dos reciben los
+    mismos prefijos del mismo peer, asi que sumarlos duplicaria el conteo. El
+    maximo ademas sobrevive a que uno de los dos tenga la sesion caida, que es
+    cuando esa serie desaparece
+
+    El ASN entra en la consulta, asi que llega tipado como int desde el router:
+    un str aca seria inyeccion en PromQL
+    """
+    if rango not in RANGOS:
+        return [], True
+    ventana, paso = RANGOS[rango]
+
+    consulta = (
+        "max by (af) (ixforge_bgp_session_prefixes_imported"
+        f'{{peer_asn="{int(peer_asn)}"}})'
+    )
+
+    try:
+        crudo = await consultar_vm_rango(consulta, ventana, paso)
+    except Exception as e:
+        logger.warning("victoriametrics no responde", error=str(e))
+        return [], False
+
+    series = []
+    for serie in crudo.get("data", {}).get("result", []):
+        af = serie.get("metric", {}).get("af")
+        series.append({
+            "af": int(af) if af else None,
+            "points": [
+                {"timestamp": int(t), "value": float(v)}
+                for t, v in serie.get("values", [])
+            ],
+        })
+    return series, True
+
+
 # Solo las interfaces que mapean a una conexion de miembro. El switch reporta
 # ademas el Eth-Trunk que envuelve a cada puerto fisico, asi que sumar todo
 # contaria a cada miembro dos veces
