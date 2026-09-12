@@ -47,6 +47,11 @@ class Settings(BaseSettings):
 
     # UI
     core_url: str = "http://localhost:8000"
+
+    # VictoriaMetrics. El collector escribe ahi y escucha solo en localhost del
+    # Core, asi que ningun consumidor externo la alcanza: el Core la expone
+    victoriametrics_url: str = "http://localhost:8428"
+    victoriametrics_timeout: int = 10
     ui_port: int = 8001
 
     # Modules
