@@ -204,6 +204,7 @@ def create_ui_app() -> Starlette:
         # Connections
         Route("/admin/connections", connections.connection_list),
         Route("/admin/connections/new", connections.connection_new, methods=["GET", "POST"]),
+        Route("/admin/connections/{connection_id}/edit", connections.connection_edit, methods=["GET", "POST"]),
         Route("/admin/connections/{connection_id}/transition", connections.connection_transition, methods=["POST"]),
         # Events
         Route("/admin/events", events.event_list),
