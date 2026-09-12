@@ -26,5 +26,9 @@
     {% elif c.state == "decommissioned" %}<span class="badge badge-gray">Decomisionado</span>
     {% else %}<span class="badge badge-gray">{{ c.state }}</span>{% endif %}
   </td>
+  <td class="py-3 text-sm text-right">
+    <a href="/admin/connections/{{ c.id }}/edit"
+       class="text-indigo-600 dark:text-indigo-400 hover:underline">Editar</a>
+  </td>
 </tr>
 {% endfor %}

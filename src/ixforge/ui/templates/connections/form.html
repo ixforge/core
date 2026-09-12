@@ -20,11 +20,14 @@
   </div>
   {% endif %}
 
-  <form method="post" action="/admin/connections/new" x-data="connectionForm()">
+  <form method="post"
+        action="{% if editando %}/admin/connections/{{ connection.id }}/edit{% else %}/admin/connections/new{% endif %}"
+        x-data="connectionForm()">
     {# Miembro #}
     <div class="mb-4">
       <label for="member_id" class="block text-sm font-medium mb-1">Miembro</label>
       <select id="member_id" name="member_id" required class="input-field w-full"
+              {% if editando %}disabled{% endif %}
               x-model="selectedMember" @change="filterTrunks()">
         <option value="" disabled>— Seleccionar miembro —</option>
         {% for m in members %}
@@ -37,6 +40,7 @@
     <div class="mb-4">
       <label for="trunk_id" class="block text-sm font-medium mb-1">Trunk</label>
       <select id="trunk_id" name="trunk_id" required class="input-field w-full"
+              {% if editando %}disabled{% endif %}
               x-model="selectedTrunk" :disabled="!selectedMember">
         <option value="" disabled selected>— Seleccionar trunk —</option>
         <template x-for="t in filteredTrunks" :key="t.id">
@@ -44,6 +48,9 @@
         </template>
       </select>
       <p class="text-xs text-gray-500 mt-1" x-show="!selectedMember">Selecciona un miembro primero</p>
+      {% if editando %}
+      <p class="text-xs text-gray-500 mt-1">Para mover la conexion de miembro hay que rehacerla</p>
+      {% endif %}
     </div>
 
     {# Switch #}
@@ -107,7 +114,7 @@
 
     {# Botones #}
     <div class="flex gap-3">
-      <button type="submit" class="btn-primary">Crear</button>
+      <button type="submit" class="btn-primary">{% if editando %}Guardar{% else %}Crear{% endif %}</button>
       <a href="/admin/connections" class="btn-secondary">Cancelar</a>
     </div>
   </form>
@@ -117,7 +124,8 @@
 function connectionForm() {
   const trunks = {{ trunks_json | safe }};
   return {
-    selectedMember: '{{ connection.member_id if connection and connection.member_id else preselect_member_id }}',
+    selectedMember: '{{ connection.member_id if connection and connection.member_id else preselect_member_id }}' ||
+      (trunks.find(t => t.id === '{{ connection.trunk_id if connection else "" }}') || {}).member_id || '',
     selectedTrunk: '{{ connection.trunk_id if connection and connection.trunk_id else preselect_trunk_id }}',
     allTrunks: trunks,
     filteredTrunks: [],

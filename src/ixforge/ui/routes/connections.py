@@ -141,6 +141,58 @@ async def connection_new(request: Request) -> Response:
 
 
 @require_auth
+async def connection_edit(request: Request) -> Response:
+    """Edita una conexion existente.
+
+    El trunk no se puede cambiar: moverla de trunk es moverla de miembro, que no
+    es una edicion. La API tampoco lo permite, ConnectionUpdate no lleva trunk_id
+    """
+    token = require_token(request)
+    api: APIClient = request.app.state.api
+    connection_id = request.path_params["connection_id"]
+
+    members, trunks, switches = await _load_form_data(api, token)
+
+    def formulario(connection: dict[str, Any], errors: Any) -> Response:
+        return render(request, "connections/form.html", {
+            "connection": connection,
+            "members": members,
+            "trunks": trunks,
+            "trunks_json": _trunks_json(trunks),
+            "switches": switches,
+            "preselect_trunk_id": "",
+            "preselect_member_id": "",
+            "errors": errors,
+            "editando": True,
+            "page_title": "Editar Conexion",
+        })
+
+    if request.method == "GET":
+        connection = await api.get(f"/api/v1/connections/{connection_id}", token)
+        return formulario(connection, {})
+
+    form = await request.form()
+    payload: dict[str, Any] = {
+        "switch_id": str(form.get("switch_id", "")),
+        "name": str(form.get("puerto", "")),
+        "type": str(form.get("type", "physical")),
+        "speed": int(str(form.get("speed") or 0)),
+    }
+    notas = str(form.get("notes", "")).strip()
+    payload["notes"] = notas or None
+
+    try:
+        await api.patch(f"/api/v1/connections/{connection_id}", token, json=payload)
+    except APIError as e:
+        if e.status_code in (400, 409, 422):
+            return formulario({**payload, "id": connection_id}, e.detail)
+        raise
+
+    add_flash(request, "Conexion actualizada", "success")
+    return RedirectResponse("/admin/connections", status_code=302)
+
+
+@require_auth
 async def connection_transition(request: Request) -> Response:
     token = require_token(request)
     api: APIClient = request.app.state.api
