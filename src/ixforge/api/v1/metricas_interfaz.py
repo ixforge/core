@@ -8,8 +8,11 @@ import uuid
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
+from sqlalchemy import select
 
-from ixforge.api.deps import CurrentUser
+from ixforge.api.deps import CurrentUser, DBSession
+from ixforge.exceptions import NotFoundError
+from ixforge.models.member import Member
 from ixforge.services import metricas
 
 metricas_router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -82,3 +85,24 @@ async def pico_agregado(
     """Pico de trafico del IXP en la ventana"""
     entrada, salida, disponible = await metricas.pico_agregado(range)
     return {"entrada": entrada, "salida": salida, "disponible": disponible}
+
+
+@metricas_router.get("/prefixes/series")
+async def series_de_prefijos(
+    _user: CurrentUser,
+    db: DBSession,
+    member_id: uuid.UUID,
+    range: Annotated[Literal["1h", "6h", "24h", "7d"], Query()] = "24h",
+) -> dict[str, Any]:
+    """Prefijos que el miembro anuncia, por familia, en el tiempo
+
+    Entra el uuid del miembro y no el ASN, igual que el resto del router. El ASN
+    se resuelve aca porque es lo que etiqueta la metrica, y ademas obliga a que
+    el miembro exista: un ASN suelto en la URL consultaria cualquier cosa
+    """
+    asn = await db.scalar(select(Member.asn).where(Member.id == member_id))
+    if asn is None:
+        raise NotFoundError("Member", str(member_id))
+
+    series, disponible = await metricas.series_de_prefijos(range, asn)
+    return {"series": series, "disponible": disponible}

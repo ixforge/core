@@ -19,6 +19,25 @@ def _serie(metrica: str, valor: str, **etiquetas) -> dict:
     return {"metric": {"__name__": metrica, **etiquetas}, "value": [1757000000, valor]}
 
 
+async def _miembro_con_asn(db_session, ixp, asn: int) -> tuple[str, int]:
+    """Un miembro minimo, que es lo que el endpoint necesita para resolver el ASN"""
+    from ixforge.enums import MemberState, PeeringPolicy
+    from ixforge.models.member import Member
+
+    m = Member(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"Miembro {asn}",
+        short_name=str(asn)[:10],
+        asn=asn,
+        state=MemberState.active,
+        peering_policy=PeeringPolicy.open,
+    )
+    db_session.add(m)
+    await db_session.flush()
+    return str(m.id), asn
+
+
 class TestMetricasDeInterfaz:
     async def test_devuelve_el_estado_actual_por_conexion(
         self, client, auth_headers, db_session, ixp
@@ -278,3 +297,89 @@ class TestMetricasAgregadas:
         assert resp.status_code == 200
         assert resp.json()["disponible"] is False
         assert resp.json()["entrada"] == []
+
+
+class TestSeriesDePrefijos:
+    """Historia del conteo de prefijos, que la columna no guarda"""
+
+    async def test_toma_el_maximo_entre_route_servers(
+        self, client, auth_headers, db_session, ixp
+    ):
+        """Los dos route servers reciben los mismos prefijos del mismo peer.
+        Sumarlos duplicaria el conteo de cada miembro, igual que sumar el
+        Eth-Trunk con el puerto fisico que envuelve
+        """
+        capturado = {}
+
+        async def falsa(consulta, rango, paso):
+            capturado["consulta"] = consulta
+            return {"status": "success", "data": {"result": []}}
+
+        member_id, asn = await _miembro_con_asn(db_session, ixp, 64590)
+
+        with patch("ixforge.services.metricas.consultar_vm_rango", new=falsa):
+            resp = await client.get(
+                f"/api/v1/metrics/prefixes/series?member_id={member_id}",
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 200
+        assert "max by (af)" in capturado["consulta"]
+        assert f'peer_asn="{asn}"' in capturado["consulta"]
+
+    async def test_separa_las_series_por_familia(
+        self, client, auth_headers, db_session, ixp
+    ):
+        member_id, _ = await _miembro_con_asn(db_session, ixp, 64591)
+        vm = {
+            "status": "success",
+            "data": {
+                "result": [
+                    {"metric": {"af": "4"}, "values": [[1757000000, "1420"]]},
+                    {"metric": {"af": "6"}, "values": [[1757000000, "340"]]},
+                ]
+            },
+        }
+
+        with patch(
+            "ixforge.services.metricas.consultar_vm_rango",
+            new=AsyncMock(return_value=vm),
+        ):
+            resp = await client.get(
+                f"/api/v1/metrics/prefixes/series?member_id={member_id}",
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 200
+        cuerpo = resp.json()
+        assert cuerpo["disponible"] is True
+        porfamilia = {s["af"]: s["points"] for s in cuerpo["series"]}
+        assert porfamilia[4][0]["value"] == 1420
+        assert porfamilia[6][0]["value"] == 340
+
+    async def test_un_miembro_que_no_existe_da_404(self, client, auth_headers, ixp):
+        resp = await client.get(
+            f"/api/v1/metrics/prefixes/series?member_id={uuid.uuid4()}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+        # el codigo, no solo el status: un 404 tambien lo da una ruta que no
+        # existe, y ese test pasaria sin haber implementado nada
+        assert resp.json()["error"]["code"] == "NOT_FOUND"
+
+    async def test_si_victoriametrics_no_responde_devuelve_vacio(
+        self, client, auth_headers, db_session, ixp
+    ):
+        member_id, _ = await _miembro_con_asn(db_session, ixp, 64592)
+        with patch(
+            "ixforge.services.metricas.consultar_vm_rango",
+            new=AsyncMock(side_effect=TimeoutError("sin respuesta")),
+        ):
+            resp = await client.get(
+                f"/api/v1/metrics/prefixes/series?member_id={member_id}",
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["series"] == []
+        assert resp.json()["disponible"] is False
