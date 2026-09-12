@@ -128,3 +128,12 @@ class TestMetricasDeInterfaz:
             "/api/v1/metrics/interfaces/series?range=1h)+or+up", headers=auth_headers
         )
         assert resp.status_code == 422
+
+
+def test_metrics_es_un_recurso_con_scope_propio():
+    """El chequeo de scopes deriva el recurso del path, asi que sin metrics en
+    la lista el scope metrics:read no existe y la key no se puede otorgar"""
+    from ixforge.schemas.auth import MANAGEMENT_RESOURCES, VALID_API_KEY_SCOPES
+
+    assert "metrics" in MANAGEMENT_RESOURCES
+    assert "metrics:read" in VALID_API_KEY_SCOPES
