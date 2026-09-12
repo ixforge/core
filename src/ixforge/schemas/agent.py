@@ -21,6 +21,10 @@ class BGPSessionState(BaseModel):
     peer_ip: str
     oper_state: str = Field(pattern=r"^(up|down|unknown)$")
     af: int
+    # Ausentes cuando la sesion no esta establecida, y ausente no es cero. El
+    # tope es el maximo de un u32, que es lo que el agente puede mandar
+    prefixes_imported: int | None = Field(default=None, ge=0, le=4294967295)
+    prefixes_exported: int | None = Field(default=None, ge=0, le=4294967295)
 
 
 class AgentStatusReport(BaseModel):

@@ -26,6 +26,8 @@ class BGPSessionRead(BaseModel):
     oper_state: BGPOperState
     af: Literal[4, 6]
     max_prefixes: int | None
+    prefixes_imported: int | None
+    prefixes_exported: int | None
     created_at: datetime
     updated_at: datetime
 

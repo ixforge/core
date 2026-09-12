@@ -202,6 +202,17 @@ async def report_agent_status(
             not_found += 1
             continue
 
+        # El conteo se guarda SIEMPRE, antes de mirar el estado: el caso normal
+        # es una sesion que lleva dias arriba y cuyo unico dato que se mueve es
+        # este. Si se escribiera despues del corte por "estado sin cambios", el
+        # numero quedaria congelado en el primer reporte
+        #
+        # Se copia tal cual lo reportado, incluido el None: el conteo de una
+        # sesion caida no se conserva, porque un numero viejo mostrado como
+        # actual miente peor que un dato ausente
+        session.prefixes_imported = report.prefixes_imported
+        session.prefixes_exported = report.prefixes_exported
+
         old_state = session.oper_state
         new_state = BGPOperState(report.oper_state)
 

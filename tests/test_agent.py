@@ -71,6 +71,86 @@ async def _setup_agent_key(db: AsyncSession, rs: RouteServer) -> str:
     return _RAW_AGENT_KEY
 
 
+async def _setup_sesion_bgp(
+    db: AsyncSession,
+    ixp: IXP,
+    rs: RouteServer,
+    *,
+    asn: int,
+    address: str,
+    af: int = 4,
+    network: str = "192.0.2.0/24",
+    vid: int = 300,
+    oper_state: BGPOperState = BGPOperState.up,
+    prefixes_imported: int | None = None,
+    prefixes_exported: int | None = None,
+) -> BGPSession:
+    """Arma la cadena miembro -> trunk -> vlan -> ip -> sesion de una sola vez
+
+    El endpoint de status matchea por (peer_ip, af) resolviendo la IP del
+    trunk_vlan, asi que no hay atajo: la sesion sin la cadena completa no es
+    alcanzable
+    """
+    sufijo = uuid.uuid4().hex[:8]
+
+    member = Member(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"Net {sufijo}",
+        short_name=sufijo[:6].upper(),
+        asn=asn,
+        state=MemberState.active,
+        peering_policy=PeeringPolicy.open,
+    )
+    location = Location(
+        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-{sufijo}", city="Test", country="CL",
+    )
+    db.add_all([member, location])
+    await db.flush()
+
+    switch = Switch(id=uuid.uuid4(), ixp_id=ixp.id, name=f"sw-{sufijo}", location_id=location.id)
+    trunk = Trunk(
+        id=uuid.uuid4(), ixp_id=ixp.id, member_id=member.id,
+        name="ae0", state=TrunkState.active,
+    )
+    vlan = VLAN(
+        id=uuid.uuid4(), ixp_id=ixp.id, name=f"Peering {sufijo}",
+        vid=vid, type=VLANType.production,
+    )
+    db.add_all([switch, trunk, vlan])
+    await db.flush()
+
+    trunk_vlan = TrunkVLAN(id=uuid.uuid4(), ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan.id)
+    conn = Connection(
+        id=uuid.uuid4(), ixp_id=ixp.id, trunk_id=trunk.id, switch_id=switch.id,
+        name=f"eth-{sufijo}", type=ConnectionType.physical,
+        state=ConnectionState.active, speed=10000,
+    )
+    pool = IPPool(id=uuid.uuid4(), ixp_id=ixp.id, vlan_id=vlan.id, network=network, af=af)
+    db.add_all([trunk_vlan, conn, pool])
+    await db.flush()
+
+    db.add(IPAssignment(
+        id=uuid.uuid4(), ixp_id=ixp.id, pool_id=pool.id,
+        trunk_vlan_id=trunk_vlan.id, address=address,
+    ))
+    bgp = BGPSession(
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        route_server_id=rs.id,
+        trunk_vlan_id=trunk_vlan.id,
+        admin_state=BGPAdminState.up,
+        oper_state=oper_state,
+        af=af,
+        max_prefixes=100,
+        prefixes_imported=prefixes_imported,
+        prefixes_exported=prefixes_exported,
+    )
+    db.add(bgp)
+    await db.flush()
+    return bgp
+
+
 async def _setup_config_version(
     db: AsyncSession, rs: RouteServer, content: str = "# BIRD test config"
 ) -> ConfigVersion:
@@ -407,6 +487,176 @@ class TestAgentStatusReport:
         )
         assert resp.status_code == 200
         assert resp.json()["unchanged"] == 1
+
+
+class TestConteoDePrefijos:
+    """El agente reporta cuantas rutas importo y exporto cada sesion"""
+
+    async def test_el_conteo_se_guarda(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        bgp = await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=64570, address="192.0.2.30", vid=301,
+            oper_state=BGPOperState.down,
+        )
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={
+                "sessions": [
+                    {
+                        "peer_ip": "192.0.2.30",
+                        "oper_state": "up",
+                        "af": 4,
+                        "prefixes_imported": 1420,
+                        "prefixes_exported": 73,
+                    },
+                ]
+            },
+        )
+
+        assert resp.status_code == 200
+        await db_session.refresh(bgp)
+        assert bgp.prefixes_imported == 1420
+        assert bgp.prefixes_exported == 73
+
+    async def test_el_conteo_se_actualiza_aunque_el_estado_no_cambie(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        """El caso normal y el que se rompe solo: la sesion lleva dias arriba y
+        lo unico que se mueve es el conteo. Si el endpoint corta temprano por
+        'estado sin cambios' el numero se queda congelado para siempre
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        bgp = await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=64571, address="192.0.2.31", vid=302,
+            oper_state=BGPOperState.up, prefixes_imported=1000, prefixes_exported=50,
+        )
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={
+                "sessions": [
+                    {
+                        "peer_ip": "192.0.2.31",
+                        "oper_state": "up",
+                        "af": 4,
+                        "prefixes_imported": 1337,
+                        "prefixes_exported": 51,
+                    },
+                ]
+            },
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["unchanged"] == 1
+        await db_session.refresh(bgp)
+        assert bgp.prefixes_imported == 1337
+        assert bgp.prefixes_exported == 51
+
+    async def test_la_sesion_caida_deja_el_conteo_en_null(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        """Una sesion caida no tiene conteo, y el ultimo conocido es basura: si
+        se conserva, el sitio muestra 1420 prefijos de un peer que no esta
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        bgp = await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=64572, address="192.0.2.32", vid=303,
+            oper_state=BGPOperState.up, prefixes_imported=1420, prefixes_exported=73,
+        )
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={
+                "sessions": [
+                    {"peer_ip": "192.0.2.32", "oper_state": "down", "af": 4},
+                ]
+            },
+        )
+
+        assert resp.status_code == 200
+        await db_session.refresh(bgp)
+        assert bgp.prefixes_imported is None
+        assert bgp.prefixes_exported is None
+
+    async def test_el_conteo_negativo_se_rechaza(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={
+                "sessions": [
+                    {
+                        "peer_ip": "192.0.2.33",
+                        "oper_state": "up",
+                        "af": 4,
+                        "prefixes_imported": -1,
+                    },
+                ]
+            },
+        )
+
+        assert resp.status_code == 422
+
+    async def test_el_conteo_ausente_no_rompe_al_agente_viejo(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        """Durante el despliegue un route server corre el agente nuevo y el otro
+        el viejo, que no manda los campos. El reporte sin conteo sigue siendo valido
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        bgp = await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=64573, address="192.0.2.34", vid=304,
+            oper_state=BGPOperState.down,
+        )
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={
+                "sessions": [
+                    {"peer_ip": "192.0.2.34", "oper_state": "up", "af": 4},
+                ]
+            },
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["updated"] == 1
+        await db_session.refresh(bgp)
+        assert bgp.oper_state == BGPOperState.up
 
 
 # ---------------------------------------------------------------------------
