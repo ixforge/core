@@ -108,10 +108,6 @@ define IXP_LC_FILTERED_TRANSIT_FREE_ASN         = ( routeserverasn, 1101, 14 );
 define IXP_LC_FILTERED_TOO_MANY_COMMUNITIES     = ( routeserverasn, 1101, 15 );
 
 # Informativas
-define IXP_LC_INFO_RPKI_VALID       = ( routeserverasn, 1000, 1  );
-define IXP_LC_INFO_RPKI_UNKNOWN     = ( routeserverasn, 1000, 2  );
-define IXP_LC_INFO_RPKI_NOT_CHECKED = ( routeserverasn, 1000, 3  );
-define IXP_LC_INFO_RPKI_INVALID     = ( routeserverasn, 1000, 4  );
 
 define IXP_LC_INFO_IRRDB_VALID         = ( routeserverasn, 1001, 1  );
 define IXP_LC_INFO_IRRDB_NOT_CHECKED   = ( routeserverasn, 1001, 2  );
@@ -442,20 +438,17 @@ int set allas;
     }
 
 {% if route_server.rpki_enabled %}
+    # solo se etiquetan los dos estados que el miembro puede llegar a ver: una
+    # ruta invalida se descarta, asi que no hay a quien informarle
     if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_VALID ) then {
-        bgp_large_community.add( IXP_LC_INFO_RPKI_VALID );
+        bgp_community.add( (routeserverasn, {{ rpki_communities['valid'] }}) );
     } else {
         if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_INVALID ) then {
-            bgp_large_community.add( IXP_LC_INFO_RPKI_INVALID );
-{% if route_server.rpki_policy == 'reject_invalid' %}
             bgp_large_community.add( IXP_LC_FILTERED_RPKI_INVALID );
-{% endif %}
         } else {
-            bgp_large_community.add( IXP_LC_INFO_RPKI_UNKNOWN );
+            bgp_community.add( (routeserverasn, {{ rpki_communities['unknown'] }}) );
         }
     }
-{% else %}
-    bgp_large_community.add( IXP_LC_INFO_RPKI_NOT_CHECKED );
 {% endif %}
 
 {% if peer.prefixes is not none %}
@@ -570,19 +563,14 @@ protocol bgp pb_{{ peer.slug }} {
 {% endif %}
 {% if route_server.rpki_enabled %}
             if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_VALID ) then {
-                bgp_large_community.add( IXP_LC_INFO_RPKI_VALID );
+                bgp_community.add( (routeserverasn, {{ rpki_communities['valid'] }}) );
             } else {
                 if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_INVALID ) then {
-                    bgp_large_community.add( IXP_LC_INFO_RPKI_INVALID );
-{% if route_server.rpki_policy == 'reject_invalid' %}
                     bgp_large_community.add( IXP_LC_FILTERED_RPKI_INVALID );
-{% endif %}
                 } else {
-                    bgp_large_community.add( IXP_LC_INFO_RPKI_UNKNOWN );
+                    bgp_community.add( (routeserverasn, {{ rpki_communities['unknown'] }}) );
                 }
             }
-{% else %}
-            bgp_large_community.add( IXP_LC_INFO_RPKI_NOT_CHECKED );
 {% endif %}
             accept;
         };

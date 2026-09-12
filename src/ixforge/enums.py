@@ -15,7 +15,6 @@ __all__ = [
     "MemberType",
     "PeeringPolicy",
     "PrefixFilterSource",
-    "RPKIPolicy",
     "RPKITransport",
     "RouteServerPeerType",
     "TrunkState",
@@ -165,11 +164,6 @@ class PrefixFilterSource(StrEnum):
 
 
 # -- RPKI --
-
-
-class RPKIPolicy(StrEnum):
-    info_only = "info_only"
-    reject_invalid = "reject_invalid"
 
 
 class RPKITransport(StrEnum):

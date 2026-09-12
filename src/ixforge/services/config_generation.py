@@ -26,7 +26,8 @@ from ixforge.models.route_server_peer import RouteServerPeer
 from ixforge.models.rpki_server import RPKIServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.services.communities import (
-    BLOQUE_TIPOS,
+    BLOQUE_PUBLICO,
+    RPKI_COMMUNITIES,
     member_type_community,
     peer_type_community,
 )
@@ -101,7 +102,6 @@ class RouteServerContext:
     router_id: str
     passive_sessions: bool
     rpki_enabled: bool
-    rpki_policy: str
     rpki_servers: tuple[RPKIServerContext, ...]
     # intervalos de (rsasn, *) que el export NO borra, porque son publicos: el
     # bloque de tipos mas las marcas que el operador haya configurado. Solo
@@ -417,7 +417,7 @@ async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int)
         RouteServerPeer.mark_community.is_not(None),
     )
     marcas_result = await session.execute(marcas_stmt)
-    conservadas: set[tuple[int, int]] = {BLOQUE_TIPOS}
+    conservadas: set[tuple[int, int]] = {BLOQUE_PUBLICO}
     for marca in marcas_result.scalars():
         asn_marca, _, valor = str(marca).partition(":")
         # una marca de otro ASN no cae dentro de (rsasn, *), no hay que exceptuarla
@@ -432,7 +432,6 @@ async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int)
         router_id=router_id,
         passive_sessions=rs.passive_sessions,
         rpki_enabled=rs.rpki_enabled,
-        rpki_policy=rs.rpki_policy.value,
         rpki_servers=tuple(_deduplicate_slugs([list(rpki_servers)])[0]),
         communities_conservadas=tuple(sorted(conservadas)),
     )
@@ -484,7 +483,7 @@ async def generate_config(
         rs_peers_v4=v4_rs_peers,
         rs_peers_v6=v6_rs_peers,
         generated_at=generated_at_str,
-        bloque_tipos=BLOQUE_TIPOS,
+        rpki_communities=RPKI_COMMUNITIES,
         config_hash="",
     )
     config_hash = hashlib.sha256(combined.encode()).hexdigest()

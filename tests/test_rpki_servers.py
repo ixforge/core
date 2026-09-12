@@ -79,7 +79,6 @@ async def test_route_server_read_exposes_rpki_fields(
     body = resp.json()
     assert body["passive_sessions"] is True
     assert body["rpki_enabled"] is False
-    assert body["rpki_policy"] == "info_only"
 
 
 async def test_enabling_rpki_triggers_regeneration(
@@ -97,11 +96,10 @@ async def test_enabling_rpki_triggers_regeneration(
     resp = await client.patch(
         f"/api/v1/route-servers/{route_server.id}",
         headers=auth_headers,
-        json={"rpki_enabled": True, "rpki_policy": "reject_invalid"},
+        json={"rpki_enabled": True},
     )
 
     assert resp.status_code == 200
-    assert resp.json()["rpki_policy"] == "reject_invalid"
     assert calls == [(route_server.id, "route_server.updated")]
 
 
