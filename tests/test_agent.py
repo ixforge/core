@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from httpx import AsyncClient
 from prometheus_client import REGISTRY
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import (
@@ -15,10 +16,12 @@ from ixforge.enums import (
     ConnectionType,
     MemberState,
     PeeringPolicy,
+    PrefixEventType,
     TrunkState,
     VLANType,
 )
 from ixforge.models.api_key import APIKey
+from ixforge.models.bgp_prefix import BGPPrefixEvent, BGPSessionPrefix
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
@@ -946,3 +949,169 @@ class TestAgentConfigApplied:
             json={"config_hash": cv2.config_hash, "error": "boom"},
         )
         assert resp.status_code == 403
+
+
+class TestReporteDePrefijos:
+    """El agente lista que prefijos anuncia cada peer, no solo cuantos"""
+
+    async def _sesion(self, db_session, ixp, rs, asn, address, vid):
+        return await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=asn, address=address, vid=vid,
+            oper_state=BGPOperState.up, prefixes_imported=2,
+        )
+
+    async def _reportar(self, client, rs, raw_key, peer_ip, prefijos, af=4):
+        return await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/prefixes",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{"peer_ip": peer_ip, "af": af, "prefixes": prefijos}]},
+        )
+
+    async def test_guarda_los_prefijos_reportados(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        sesion = await self._sesion(db_session, ixp, rs, 64600, "192.0.2.50", 320)
+
+        resp = await self._reportar(client, rs, raw_key, "192.0.2.50", [
+            {"prefix": "45.238.179.0/24", "as_path": [64600]},
+            {"prefix": "45.170.100.0/24", "as_path": [64500, 64600]},
+        ])
+
+        assert resp.status_code == 200
+        assert resp.json()["prefixes_added"] == 2
+
+        filas = (await db_session.execute(
+            select(BGPSessionPrefix).where(BGPSessionPrefix.bgp_session_id == sesion.id)
+        )).scalars().all()
+        assert {f.prefix for f in filas} == {"45.238.179.0/24", "45.170.100.0/24"}
+        assert next(f.as_path for f in filas if f.prefix == "45.170.100.0/24") == [64500, 64600]
+
+    async def test_el_prefijo_nuevo_deja_un_evento_de_anuncio(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        sesion = await self._sesion(db_session, ixp, rs, 64601, "192.0.2.51", 321)
+
+        await self._reportar(client, rs, raw_key, "192.0.2.51", [
+            {"prefix": "45.238.179.0/24", "as_path": [64601]},
+        ])
+
+        eventos = (await db_session.execute(
+            select(BGPPrefixEvent).where(BGPPrefixEvent.bgp_session_id == sesion.id)
+        )).scalars().all()
+        assert len(eventos) == 1
+        assert eventos[0].event_type == PrefixEventType.announced
+        assert eventos[0].prefix == "45.238.179.0/24"
+
+    async def test_el_prefijo_que_desaparece_se_retira(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        sesion = await self._sesion(db_session, ixp, rs, 64602, "192.0.2.52", 322)
+
+        await self._reportar(client, rs, raw_key, "192.0.2.52", [
+            {"prefix": "45.238.179.0/24", "as_path": [64602]},
+            {"prefix": "45.170.100.0/24", "as_path": [64602]},
+        ])
+        resp = await self._reportar(client, rs, raw_key, "192.0.2.52", [
+            {"prefix": "45.238.179.0/24", "as_path": [64602]},
+        ])
+
+        assert resp.json()["prefixes_removed"] == 1
+        filas = (await db_session.execute(
+            select(BGPSessionPrefix).where(BGPSessionPrefix.bgp_session_id == sesion.id)
+        )).scalars().all()
+        assert {f.prefix for f in filas} == {"45.238.179.0/24"}
+
+        retiros = (await db_session.execute(
+            select(BGPPrefixEvent).where(
+                BGPPrefixEvent.bgp_session_id == sesion.id,
+                BGPPrefixEvent.event_type == PrefixEventType.withdrawn,
+            )
+        )).scalars().all()
+        assert [e.prefix for e in retiros] == ["45.170.100.0/24"]
+
+    async def test_el_as_path_que_cambia_deja_un_evento_de_actualizacion(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        sesion = await self._sesion(db_session, ixp, rs, 64603, "192.0.2.53", 323)
+
+        await self._reportar(client, rs, raw_key, "192.0.2.53", [
+            {"prefix": "45.238.179.0/24", "as_path": [64603]},
+        ])
+        await self._reportar(client, rs, raw_key, "192.0.2.53", [
+            {"prefix": "45.238.179.0/24", "as_path": [64500, 64603]},
+        ])
+
+        eventos = (await db_session.execute(
+            select(BGPPrefixEvent)
+            .where(BGPPrefixEvent.bgp_session_id == sesion.id)
+            .order_by(BGPPrefixEvent.occurred_at)
+        )).scalars().all()
+        assert [e.event_type for e in eventos] == [
+            PrefixEventType.announced, PrefixEventType.updated,
+        ]
+        assert eventos[1].as_path == [64500, 64603]
+
+    async def test_el_prefijo_sin_cambios_no_deja_evento(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """Si cada reporte dejara un evento, el historial seria una lista de
+        'sigue ahi' cada 5 minutos y no se veria ningun cambio real
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        sesion = await self._sesion(db_session, ixp, rs, 64604, "192.0.2.54", 324)
+
+        for _ in range(3):
+            await self._reportar(client, rs, raw_key, "192.0.2.54", [
+                {"prefix": "45.238.179.0/24", "as_path": [64604]},
+            ])
+
+        eventos = (await db_session.execute(
+            select(BGPPrefixEvent).where(BGPPrefixEvent.bgp_session_id == sesion.id)
+        )).scalars().all()
+        assert len(eventos) == 1
+
+    async def test_una_sesion_que_no_existe_no_rompe_el_reporte(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+
+        resp = await self._reportar(client, rs, raw_key, "10.99.99.99", [
+            {"prefix": "45.238.179.0/24", "as_path": [64605]},
+        ])
+
+        assert resp.status_code == 200
+        assert resp.json()["sessions_updated"] == 0
+
+    async def test_rechaza_un_prefijo_que_no_es_una_red(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+
+        resp = await self._reportar(client, rs, raw_key, "192.0.2.55", [
+            {"prefix": "no-es-un-prefijo", "as_path": []},
+        ])
+
+        assert resp.status_code == 422
+
+    async def test_rechaza_un_asn_fuera_de_rango_en_el_path(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+
+        resp = await self._reportar(client, rs, raw_key, "192.0.2.56", [
+            {"prefix": "45.238.179.0/24", "as_path": [4294967296]},
+        ])
+
+        assert resp.status_code == 422

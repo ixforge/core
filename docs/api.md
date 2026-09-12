@@ -332,9 +332,27 @@ Note: `peer_ip` and `peer_asn` are computed from IP assignments and member ASN r
 |--------|------|-------------|
 | GET | `/route-servers/{id}/agent/config` | Poll latest config (hash + content) |
 | POST | `/route-servers/{id}/agent/status` | Report BGP session states and per-session prefix counts (`prefixes_imported` / `prefixes_exported`, both optional: absent is not zero) |
+| POST | `/route-servers/{id}/agent/prefixes` | Report which prefixes each peer advertises (prefix + AS path). Stored as a mirror of the last report; what disappears becomes a withdraw event |
 | POST | `/route-servers/{id}/agent/heartbeat` | Agent heartbeat |
 | POST | `/route-servers/{id}/agent/config/applied` | Confirm config applied |
 | POST | `/route-servers/{id}/agent/config/failed` | Report a config that failed to apply (`{"config_hash", "error"}`) |
+
+### Member prefixes (`members:read`)
+
+What each member is advertising right now, and what changed. Written by the
+agent, one row per prefix per BGP session; read here per member, deduplicated
+across route servers because both receive the same prefixes from the same peer.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/members/{id}/prefixes` | Prefixes the member advertises now. Filters: `prefix` (starts-with), `limit` |
+| GET | `/members/{id}/prefix-events` | Announce, withdraw and AS path changes, newest first. Filters: `prefix`, `limit` |
+
+The agent lists a session's prefixes only up to 1000. Above that it reports the
+count and no list, which keeps transit peers (hundreds of thousands of routes)
+out without the agent needing to know who is a member.
+
+Prefix events are kept 30 days (`cleanup_old_prefix_events`, daily at 03:30).
 
 ### Metrics (`metrics:read`)
 

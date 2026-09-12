@@ -7,8 +7,10 @@ from datetime import UTC, datetime, timedelta
 
 import structlog
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.database import get_session_factory
+from ixforge.models.bgp_prefix import BGPPrefixEvent
 from ixforge.models.config import ConfigVersion
 from ixforge.models.event import Event
 from ixforge.tasks.setup import app
@@ -17,7 +19,46 @@ logger = structlog.get_logger()
 
 # Default retention settings
 DEFAULT_EVENT_RETENTION_DAYS = 90
+# Los eventos de prefijos son mas ruidosos que los de auditoria: cada vez que
+# un miembro toca su anuncio quedan filas. Se guardan menos tiempo porque lo
+# que sirve es el pasado reciente, no el historico completo
+DEFAULT_PREFIX_EVENT_RETENTION_DAYS = 30
 DEFAULT_CONFIG_VERSIONS_KEEP = 100
+
+
+async def _borrar_eventos_de_prefijos(session: AsyncSession, retention_days: int) -> int:
+    """Borra los eventos de prefijos mas viejos que la retencion
+
+    Separado de la tarea para poder probarlo con la sesion de los tests, que es
+    transaccional: la tarea abre la suya y hace commit, y eso en un test no se ve
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+    result = await session.execute(
+        delete(BGPPrefixEvent).where(BGPPrefixEvent.occurred_at < cutoff)
+    )
+    return int(result.rowcount)  # type: ignore[attr-defined]
+
+
+@app.periodic(cron="30 3 * * *")  # type: ignore[untyped-decorator]
+@app.task(name="cleanup_old_prefix_events", queue="maintenance")
+async def cleanup_old_prefix_events(
+    retention_days: int = DEFAULT_PREFIX_EVENT_RETENTION_DAYS,
+) -> dict[str, int]:
+    """Delete prefix announce/withdraw events older than the retention period."""
+    log = logger.bind(retention_days=retention_days)
+    log.info("cleanup_old_prefix_events.started")
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        try:
+            deleted_count = await _borrar_eventos_de_prefijos(session, retention_days)
+            await session.commit()
+            log.info("cleanup_old_prefix_events.completed", deleted_count=deleted_count)
+            return {"deleted_count": deleted_count}
+        except Exception:
+            await session.rollback()
+            log.exception("cleanup_old_prefix_events.failed")
+            raise
 
 
 @app.periodic(cron="0 3 * * *")  # type: ignore[untyped-decorator]

@@ -3,6 +3,7 @@
 from ixforge.models.api_key import APIKey
 from ixforge.models.asn_cache import ASNCache
 from ixforge.models.base import Base
+from ixforge.models.bgp_prefix import BGPPrefixEvent, BGPSessionPrefix
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
 from ixforge.models.connection import Connection
@@ -31,7 +32,9 @@ __all__ = [
     "VLAN",
     "APIKey",
     "ASNCache",
+    "BGPPrefixEvent",
     "BGPSession",
+    "BGPSessionPrefix",
     "Base",
     "ConfigVersion",
     "Connection",
