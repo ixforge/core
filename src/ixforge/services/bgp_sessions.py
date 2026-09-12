@@ -70,6 +70,8 @@ async def to_read(session: AsyncSession, bgp: BGPSession) -> dict[str, Any]:
         "oper_state": bgp.oper_state,
         "af": bgp.af,
         "max_prefixes": bgp.max_prefixes,
+        "prefixes_imported": bgp.prefixes_imported,
+        "prefixes_exported": bgp.prefixes_exported,
         "created_at": bgp.created_at,
         "updated_at": bgp.updated_at,
     }
@@ -142,6 +144,8 @@ async def _paginate_with_peers(
             "oper_state": row.oper_state,
             "af": row.af,
             "max_prefixes": row.max_prefixes,
+            "prefixes_imported": row.prefixes_imported,
+            "prefixes_exported": row.prefixes_exported,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
