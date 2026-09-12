@@ -38,6 +38,11 @@ class BGPSessionPrefix(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         ARRAY(Integer), nullable=False, default=list,
         comment="Vacio si la ruta no trae el atributo, que no es lo mismo que no anunciarla",
     )
+    # Estandar y grandes juntas como texto: "64166:65012" y "64166:1001:1". Es
+    # donde el miembro ve por que su prefijo quedo como quedo
+    communities: Mapped[list[str]] = mapped_column(
+        ARRAY(String(64)), nullable=False, default=list,
+    )
     first_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
     )
@@ -72,6 +77,11 @@ class BGPPrefixEvent(UUIDPrimaryKey, TenantMixin, Base):
     previous_as_path: Mapped[list[int] | None] = mapped_column(
         ARRAY(Integer), nullable=True,
         comment="Solo en updated: con que camino venia antes",
+    )
+    communities: Mapped[list[str]] = mapped_column(ARRAY(String(64)), nullable=False, default=list)
+    previous_communities: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String(64)), nullable=True,
+        comment="Solo en updated: con que communities venia antes",
     )
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), index=True,
