@@ -166,3 +166,10 @@ docker compose -f docker/docker-compose.testing.yml up -d
 ```
 
 No es necesario correr migraciones para testing: las tablas se crean automaticamente desde los modelos SQLAlchemy al inicio de la sesion de tests.
+
+Eso mismo abre una brecha: el schema de los tests sale de los modelos y el de
+produccion de las migraciones, asi que una migracion incompleta pasa toda la
+suite y revienta al desplegar. `tests/test_paridad_migraciones.py` la cierra:
+levanta una base aparte, le aplica las migraciones de cero y compara el
+resultado contra los modelos. Si agregas una migracion a mano, ese test es el
+que te dice si le falto algo.
