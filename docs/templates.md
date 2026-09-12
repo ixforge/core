@@ -198,6 +198,33 @@ bogons, ni first-AS, ni next hop, ni filtro de prefijos. Un upstream anuncia
 legitimamente rutas de terceros con AS paths largos, asi que esos chequeos no
 aplican. Si necesitas acotarlo, es con `max_prefixes`.
 
+## El control de anuncio tiene dos niveles
+
+`ixp_community_filter` decide, para cada par (ruta, peer), si la ruta se le
+anuncia. El modelo son dos niveles, no una lista plana de banderas:
+
+1. **Prohibiciones**, que valen solas y tienen prioridad: `(0, peer-as)` y su
+   forma large `(rsasn, 0, peer-as)` sacan a ese peer; `(0, rsasn)` y
+   `(rsasn, 0, 0)` activan el modo selectivo, o sea nadie salvo excepciones
+2. **Excepciones**, que solo se evaluan si el modo selectivo esta activo:
+   `(rsasn, peer-as)` y `(rsasn, 1, peer-as)` habilitan a ese peer
+
+Fuera del modo selectivo el default es anunciar, asi que **una community de
+habilitar sin una de prohibir no cambia nada**. Eso importa al documentar: si se
+listan como si fueran acciones sueltas, un miembro pone la de habilitar sola y
+espera un efecto que no ocurre.
+
+Las formas large existen para peers con ASN de 4 bytes, que no entran en una
+community estandar de 16:16.
+
+El cuarteto clasico incluye ademas `(rsasn, rsasn)`, "anunciar a todos". El
+filtro la entiende, pero con el default de anunciar no puede cambiar ningun
+resultado: ponerla junto a `(0, rsasn)` equivale a no poner ninguna de las dos.
+Solo seria necesaria en un route server cuyo default fuera denegar. Se mantiene
+implementada por compatibilidad con miembros que vengan de otros IXPs, y se
+omite de la documentacion de cara al miembro por la misma razon del parrafo
+anterior.
+
 ## El esquema de communities es el de PIT Chile
 
 No es el de euro-ix. Una community lleva el ASN adelante, asi que `61522:65120` y
