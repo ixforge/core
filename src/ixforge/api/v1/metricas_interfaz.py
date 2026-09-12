@@ -62,3 +62,23 @@ async def series_icmp(
     """Latencia y perdida de paquetes por IP de miembro"""
     series, disponible = await metricas.series_icmp(range, metric, member_id)
     return {"series": series, "disponible": disponible}
+
+
+@metricas_router.get("/aggregate/series")
+async def series_agregadas(
+    _user: CurrentUser,
+    range: Annotated[Literal["1h", "6h", "24h", "7d"], Query()] = "1h",
+) -> dict[str, Any]:
+    """Trafico total del IXP en el tiempo"""
+    entrada, salida, disponible = await metricas.series_agregadas(range)
+    return {"entrada": entrada, "salida": salida, "disponible": disponible}
+
+
+@metricas_router.get("/aggregate/peak")
+async def pico_agregado(
+    _user: CurrentUser,
+    range: Annotated[Literal["1h", "6h", "24h", "7d"], Query()] = "24h",
+) -> dict[str, Any]:
+    """Pico de trafico del IXP en la ventana"""
+    entrada, salida, disponible = await metricas.pico_agregado(range)
+    return {"entrada": entrada, "salida": salida, "disponible": disponible}
