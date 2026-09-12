@@ -23,5 +23,4 @@ class EventoDePrefijoRead(BaseModel):
     communities: list[str]
     previous_communities: list[str] | None
     occurred_at: datetime
-
-    model_config = {"from_attributes": True}
+    route_server: str

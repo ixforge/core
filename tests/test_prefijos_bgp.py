@@ -192,3 +192,23 @@ class TestRetencionDeEventos:
             select(BGPPrefixEvent).where(BGPPrefixEvent.bgp_session_id == sesion.id)
         )).scalars().all()
         assert [e.prefix for e in quedan] == ["45.170.100.0/24"]
+
+
+class TestOrigenDeLosEventos:
+    async def test_cada_evento_dice_de_que_route_server_vino(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP,
+        admin_user: User, auth_headers,
+    ):
+        """Los dos route servers ven el mismo anuncio, asi que el historial trae
+        el hecho dos veces. Sin decir de cual vino cada fila, se lee como un
+        duplicado sin sentido en vez de como lo que es
+        """
+        sesion = await _miembro_con_prefijos(db_session, ixp, asn=64720, address="192.0.2.80", vid=420)
+        member_id = await _member_id_de(db_session, sesion)
+
+        resp = await client.get(
+            f"/api/v1/members/{member_id}/prefix-events", headers=auth_headers
+        )
+
+        assert resp.status_code == 200
+        assert all(i["route_server"] for i in resp.json()["items"])

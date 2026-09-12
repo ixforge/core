@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.models.bgp_prefix import BGPPrefixEvent, BGPSessionPrefix
 from ixforge.models.bgp_session import BGPSession
+from ixforge.models.route_server import RouteServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 
 
@@ -84,10 +85,17 @@ async def eventos(
     member_id: uuid.UUID,
     prefix: str | None = None,
     limit: int = 100,
-) -> list[BGPPrefixEvent]:
-    """El historial de cambios, lo mas nuevo primero"""
+) -> list[dict[str, Any]]:
+    """El historial de cambios, lo mas nuevo primero
+
+    Cada fila dice de que route server vino. Los dos ven el mismo anuncio, asi
+    que el hecho aparece dos veces; sin el nombre se lee como un duplicado sin
+    sentido, y con el dice algo: si aparece en uno solo, ese es el dato
+    """
     stmt = (
-        select(BGPPrefixEvent)
+        select(BGPPrefixEvent, RouteServer.name)
+        .join(BGPSession, BGPSession.id == BGPPrefixEvent.bgp_session_id)
+        .join(RouteServer, RouteServer.id == BGPSession.route_server_id)
         .where(BGPPrefixEvent.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)))
         .order_by(desc(BGPPrefixEvent.occurred_at))
         .limit(limit)
@@ -95,4 +103,16 @@ async def eventos(
     if prefix:
         stmt = stmt.where(BGPPrefixEvent.prefix.like(f"{escapar_like(prefix)}%", escape="\\"))
 
-    return list((await db.execute(stmt)).scalars())
+    return [
+        {
+            "prefix": e.prefix,
+            "event_type": e.event_type,
+            "as_path": e.as_path,
+            "previous_as_path": e.previous_as_path,
+            "communities": e.communities,
+            "previous_communities": e.previous_communities,
+            "occurred_at": e.occurred_at,
+            "route_server": nombre,
+        }
+        for e, nombre in (await db.execute(stmt)).all()
+    ]
