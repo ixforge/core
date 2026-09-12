@@ -198,55 +198,77 @@ bogons, ni first-AS, ni next hop, ni filtro de prefijos. Un upstream anuncia
 legitimamente rutas de terceros con AS paths largos, asi que esos chequeos no
 aplican. Si necesitas acotarlo, es con `max_prefixes`.
 
-## Communities de tipo: un solo esquema, publico
+## El esquema de communities es el de PIT Chile
 
-Todo lo que clasifica el origen de una ruta vive en el bloque `65200..65299` y
-es **publico a proposito**. El miembro tiene que poder distinguir transito de
-peering sin conocer numeros que invento el operador de cada IXP.
+No es el de euro-ix. Una community lleva el ASN adelante, asi que `61522:65120` y
+`64166:65120` son distintas por construccion y nunca hubo colision que evitar
+entre dos IXPs. Usar los mismos valores hace que un miembro conectado a varios
+use un solo numero por concepto, y que un IXP nuevo adopte el esquema tal cual en
+vez de inventar el suyo.
 
 | origen | community |
 |---|---|
-| miembro `ixp` | `(rsasn, 65210)` |
-| miembro `isp` | `(rsasn, 65220)` |
-| miembro `academico` | `(rsasn, 65230)` |
-| miembro `gobierno` | `(rsasn, 65240)` |
-| miembro `cdn` | `(rsasn, 65250)` |
-| miembro `corporativo` | `(rsasn, 65260)` |
-| miembro `infraestructura_critica` | `(rsasn, 65270)` |
-| peer `upstream` | `(rsasn, 65280)` |
-| peer `collector` | `(rsasn, 65290)` |
+| RPKI valido | `(rsasn, 65012)` |
+| RPKI desconocido | `(rsasn, 65023)` |
+| miembro `ixp` | `(rsasn, 65110)` |
+| miembro `isp` | `(rsasn, 65120)` |
+| miembro `academico` | `(rsasn, 65130)` |
+| miembro `gobierno` | `(rsasn, 65140)` |
+| miembro `cdn` | `(rsasn, 65150)` |
+| miembro `corporativo` | `(rsasn, 65160)` |
+| miembro `infraestructura_critica` | `(rsasn, 65170)` |
+| peer `upstream` | `(rsasn, 65180)` |
+| peer `collector` | `(rsasn, 65190)` |
 | miembro `otro`, peer `special` | ninguna |
 
-El bloque entero cae dentro de los ASN privados, que es lo que lo separa del
-control de anuncio `(rsasn, peer-as)`.
+Las dos ultimas son extension: PIT no modela peers que no son miembros.
+
+El bloque entero, `65000..65199`, cae dentro de los ASN privados, que es lo que
+lo separa del control de anuncio `(rsasn, peer-as)`. Ahi no hay peers reales en
+un IXP, asi que los dos espacios quedan separados por construccion.
+
+## RPKI no tiene modos: si esta encendido, descarta
+
+`rpki_enabled` es el unico switch. Una ruta invalida se marca con
+`IXP_LC_FILTERED_RPKI_INVALID` y muere en el pipe hacia master, como cualquier
+otra ruta filtrada.
+
+De ahi sale que **solo se etiquetan dos estados**, valido y desconocido: son los
+unicos que un miembro puede llegar a ver. Una invalida se descarta, asi que no
+hay a quien informarle, y "no verificado" solo existiria con RPKI apagado, que es
+cuando tampoco se emite nada.
+
+Para estrenar RPKI sin riesgo se enciende primero en un route server y despues en
+el otro, midiendo el impacto en el primero. Usa la redundancia que ya existe en
+vez de una opcion de configuracion.
 
 ## El export conserva el bloque publico y borra el resto
 
 `f_export_<peer>` borra las large `(rsasn, *, *)` y, de las estandar, todo
-`(rsasn, *)` **menos** el bloque de tipos y las `mark_community` configuradas.
-Lo que se sigue borrando es el control de anuncio, que es interno.
+`(rsasn, *)` **menos** el bloque publico y las `mark_community` configuradas. Lo
+que se sigue borrando es el control de anuncio, que es interno.
 
 El borrado se expresa como el **complemento en rangos** de lo que se conserva:
 
 ```
-bgp_community.delete( [( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65199 ), ( routeserverasn, 65300..65535 )] );
+bgp_community.delete( [( routeserverasn, 0..64999 ), ( routeserverasn, 65200..65535 )] );
 ```
 
 Es una sola sentencia declarativa en vez de un borrado seguido de un re-add
 condicional. El re-add necesita saber que estaba presente *despues* de haber
 borrado todo, lo que sin variables locales obliga a anidar una rama por
-combinacion. El complemento crece lineal y no depende de sintaxis que varie
-entre menores de BIRD 2.x.
+combinacion. El complemento crece lineal y no depende de sintaxis que varie entre
+menores de BIRD 2.x.
 
 ## El import borra exactamente lo que el export conserva
 
 Simetrico y por la misma razon: lo que el route server tiene derecho a poner es
 justo lo que no puede aceptar de un peer. Sin esto un miembro manda
-`(rsasn, 65280)` en sus propias rutas y se hace pasar por el upstream ante los
-demas miembros.
+`(rsasn, 65180)` en sus propias rutas y se hace pasar por el upstream ante los
+demas, o se autoetiqueta como RPKI valido.
 
 ```
-bgp_community.delete( [( routeserverasn, 9999 ), ( routeserverasn, 65200..65299 )] );
+bgp_community.delete( [( routeserverasn, 65000..65199 )] );
 ```
 
 Va como primera sentencia del filtro de import, antes de cualquier chequeo.

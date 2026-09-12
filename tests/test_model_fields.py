@@ -135,7 +135,6 @@ async def test_rpki_server_defaults(db_session, ixp):
 
 
 async def test_route_server_new_defaults(db_session, ixp):
-    from ixforge.enums import RPKIPolicy
     from ixforge.models.route_server import RouteServer
 
     rs = RouteServer(ixp_id=ixp.id, name="rs1", ip_v4="192.0.2.1", is_active=True)
@@ -144,4 +143,3 @@ async def test_route_server_new_defaults(db_session, ixp):
 
     assert rs.passive_sessions is True
     assert rs.rpki_enabled is False
-    assert rs.rpki_policy is RPKIPolicy.info_only

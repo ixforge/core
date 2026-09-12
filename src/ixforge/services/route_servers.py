@@ -30,7 +30,6 @@ async def create(
         notes=data.notes,
         passive_sessions=data.passive_sessions,
         rpki_enabled=data.rpki_enabled,
-        rpki_policy=data.rpki_policy,
     )
     session.add(rs)
     try:
@@ -83,7 +82,7 @@ async def update(
         ) from exc
     await session.refresh(rs)
 
-    # Cambiar ip, passive_sessions, rpki_enabled o rpki_policy cambia el config
+    # Cambiar ip, passive_sessions o rpki_enabled cambia el config
     # generado. Sin este defer la plataforma parece funcionar y el route server
     # se queda con la version anterior
     from ixforge.tasks.config import defer_rs_config_regeneration

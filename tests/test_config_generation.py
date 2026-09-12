@@ -1178,7 +1178,7 @@ async def test_peer_context_carries_member_type_community(db_session, ixp):
 
     peers = await build_peers(db_session, rs.id, af=4)
 
-    assert peers[0].member_type_community == 65270
+    assert peers[0].member_type_community == 65170
 
 
 async def test_generated_config_names_every_protocol(db_session, ixp):
@@ -1309,20 +1309,17 @@ async def test_rs_context_collects_applicable_rpki_servers(db_session, ixp):
     assert [s.name for s in ctx.rpki_servers] == ["global"]
 
 
-async def test_rs_context_carries_policy_fields(db_session, ixp):
-    from ixforge.enums import RPKIPolicy
+async def test_rs_context_carries_rpki_fields(db_session, ixp):
     from ixforge.services.config_generation import build_rs_context
 
     rs = await _setup_route_server(db_session, ixp)
     rs.rpki_enabled = True
-    rs.rpki_policy = RPKIPolicy.reject_invalid
     rs.passive_sessions = False
     await db_session.flush()
 
     ctx = await build_rs_context(db_session, rs, ixp.asn)
 
     assert ctx.rpki_enabled is True
-    assert ctx.rpki_policy == "reject_invalid"
     assert ctx.passive_sessions is False
 
 
@@ -1355,7 +1352,6 @@ async def test_config_defines_euroix_communities(db_session, ixp):
 
     assert "define IXP_LC_FILTERED_BOGON " in cv.content
     assert "define IXP_LC_FILTERED_NEXT_HOP_NOT_PEER_IP " in cv.content
-    assert "define IXP_LC_INFO_RPKI_NOT_CHECKED " in cv.content
     assert "filter f_export_to_master" in cv.content
     assert "function ixp_community_filter" in cv.content
 
@@ -1569,7 +1565,7 @@ async def test_member_type_renders_standard_community(db_session, ixp):
     )
     cv = await generate_config(db_session, rs.id, ixp.id)
 
-    assert "bgp_community.add( (routeserverasn, 65250) );" in cv.content
+    assert "bgp_community.add( (routeserverasn, 65150) );" in cv.content
 
 
 @requires_bird
@@ -1596,50 +1592,11 @@ async def test_config_with_peers_parses(db_session, ixp):
 # ---------------------------------------------------------------------------
 
 
-async def test_rpki_disabled_marks_not_checked(db_session, ixp):
-    from ixforge.services.config_generation import generate_config
-
-    rs = await _setup_route_server(db_session, ixp)
-    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
-    cv = await generate_config(db_session, rs.id, ixp.id)
-
-    assert "protocol rpki" not in cv.content
-    assert "roa_check" not in cv.content
-    assert "import table on;" not in cv.content
-
-    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
-    assert "IXP_LC_INFO_RPKI_NOT_CHECKED" in import_block
-
-
-async def test_rpki_info_only_checks_without_filtering(db_session, ixp):
-    from ixforge.services.config_generation import generate_config
-
-    rs = await _setup_route_server(db_session, ixp)
-    rs.rpki_enabled = True
-    db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
-    await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
-    await db_session.flush()
-    cv = await generate_config(db_session, rs.id, ixp.id)
-
-    assert "roa4 table roa_v4;" in cv.content
-    assert 'remote "10.0.0.1" port 3323;' in cv.content
-    assert "roa_check(roa_v4, net, bgp_path.last)" in cv.content
-
-    # el assert tiene que mirar DENTRO del filtro de import: las communities
-    # estan todas declaradas en el bloque global de defines, asi que buscarlas
-    # en cv.content entero pasa o falla sin relacion con lo que se filtra
-    import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
-    assert "IXP_LC_INFO_RPKI_INVALID" in import_block
-    assert "IXP_LC_FILTERED_RPKI_INVALID" not in import_block
-
-
 async def test_rpki_reject_invalid_adds_filter_community(db_session, ixp):
-    from ixforge.enums import RPKIPolicy
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
     rs.rpki_enabled = True
-    rs.rpki_policy = RPKIPolicy.reject_invalid
     db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
     await _setup_member_peer(db_session, ixp, rs, asn=61455, ipv4="192.0.2.16")
     await db_session.flush()
@@ -1691,7 +1648,7 @@ async def test_rs_peer_upstream_block(db_session, ixp):
     assert "neighbor 192.0.2.5 as 64166;" in cv.content
     assert "bgp_community.add( (64166, 9999) );" in cv.content
     # el tipo del peer va con el mismo esquema que el de los miembros
-    assert "bgp_community.add( (routeserverasn, 65280) );" in cv.content
+    assert "bgp_community.add( (routeserverasn, 65180) );" in cv.content
     # el pipe no lleva anti-bucle: BIRD ya no reinyecta por el mismo pipe
     assert "export where !(bgp_community" not in cv.content
     # un peer no-miembro no es cliente del route server
@@ -1700,12 +1657,11 @@ async def test_rs_peer_upstream_block(db_session, ixp):
 
 @requires_bird
 async def test_full_config_with_rpki_and_upstream_parses(db_session, ixp):
-    from ixforge.enums import RouteServerPeerType, RPKIPolicy
+    from ixforge.enums import RouteServerPeerType
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
     rs.rpki_enabled = True
-    rs.rpki_policy = RPKIPolicy.reject_invalid
     db_session.add_all(
         [
             RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"),
@@ -1762,13 +1718,12 @@ async def _build_golden_ixp(db_session: AsyncSession, ixp: IXP) -> RouteServer:
     El orden de salida no depende de UUIDs: build_peers ordena por ASN e IP,
     build_rs_peers por ASN e IP, y los servidores RTR por nombre
     """
-    from ixforge.enums import RouteServerPeerType, RPKIPolicy
+    from ixforge.enums import RouteServerPeerType
 
     rs = await _setup_route_server(
         db_session, ixp, name="rs-golden", ip_v4="192.0.2.250", ip_v6="2001:db8::250"
     )
     rs.rpki_enabled = True
-    rs.rpki_policy = RPKIPolicy.reject_invalid
     db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
 
     # ISP con filtro de prefijos en las dos familias
@@ -1912,8 +1867,8 @@ async def test_export_filter_strips_both_community_forms(db_session, ixp):
     slug = (await build_peers(db_session, rs.id, af=4))[0].slug
     export_block = cv.content.split(f"filter f_export_{slug}")[1].split("}")[0]
     assert "bgp_large_community.delete( [( routeserverasn, *, * )] );" in export_block
-    assert "( routeserverasn, 0..65199 )" in export_block
-    assert "( routeserverasn, 65300..65535 )" in export_block
+    assert "( routeserverasn, 0..64999 )" in export_block
+    assert "( routeserverasn, 65200..65535 )" in export_block
 
 
 async def test_prefix_whitelist_is_not_shadowed_by_bogons(db_session, ixp):
@@ -2013,7 +1968,9 @@ async def test_rs_peer_sin_rpki_no_valida(db_session, ixp):
 
     bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
     assert "roa_check" not in bloque
-    assert "IXP_LC_INFO_RPKI_NOT_CHECKED" in bloque
+    # sin RPKI no se etiqueta nada: no hay estado que informar
+    assert "65012" not in bloque
+    assert "65023" not in bloque
 
 
 async def test_rs_peer_con_rpki_valida_y_etiqueta(db_session, ixp):
@@ -2028,19 +1985,18 @@ async def test_rs_peer_con_rpki_valida_y_etiqueta(db_session, ixp):
 
     bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
     assert "roa_check(roa_v4, net, bgp_path.last)" in bloque
-    assert "IXP_LC_INFO_RPKI_VALID" in bloque
-    assert "IXP_LC_INFO_RPKI_INVALID" in bloque
-    # en info_only se etiqueta pero no se marca para descarte
-    assert "IXP_LC_FILTERED_RPKI_INVALID" not in bloque
+    # los dos estados que el miembro ve, en community estandar como PIT
+    assert "bgp_community.add( (routeserverasn, 65012) );" in bloque
+    assert "bgp_community.add( (routeserverasn, 65023) );" in bloque
+    # y la invalida se marca para descarte, no se etiqueta
+    assert "IXP_LC_FILTERED_RPKI_INVALID" in bloque
 
 
 async def test_rs_peer_reject_invalid_marca_para_descarte(db_session, ixp):
-    from ixforge.enums import RPKIPolicy
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
     rs.rpki_enabled = True
-    rs.rpki_policy = RPKIPolicy.reject_invalid
     db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
     await _setup_rs_peer(db_session, ixp, rs)
     cv = await generate_config(db_session, rs.id, ixp.id)
@@ -2051,12 +2007,10 @@ async def test_rs_peer_reject_invalid_marca_para_descarte(db_session, ixp):
 
 async def test_rs_peer_pipe_descarta_en_el_mismo_lugar_que_los_miembros(db_session, ixp):
     """Marcar no sirve de nada si el pipe del peer sigue haciendo import all"""
-    from ixforge.enums import RPKIPolicy
     from ixforge.services.config_generation import generate_config
 
     rs = await _setup_route_server(db_session, ixp)
     rs.rpki_enabled = True
-    rs.rpki_policy = RPKIPolicy.reject_invalid
     db_session.add(RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"))
     await _setup_rs_peer(db_session, ixp, rs)
     cv = await generate_config(db_session, rs.id, ixp.id)
@@ -2103,9 +2057,9 @@ def test_rangos_del_borrado_conservan_los_intervalos():
     assert rangos_a_borrar(((9999, 9999),)) == (
         "( routeserverasn, 0..9998 ), ( routeserverasn, 10000..65535 )"
     )
-    # un bloque ancho, que es el caso de los tipos
-    assert rangos_a_borrar(((65200, 65299),)) == (
-        "( routeserverasn, 0..65199 ), ( routeserverasn, 65300..65535 )"
+    # un bloque ancho, que es el caso del bloque publico
+    assert rangos_a_borrar(((65000, 65199),)) == (
+        "( routeserverasn, 0..64999 ), ( routeserverasn, 65200..65535 )"
     )
     # varios intervalos, desordenados y solapados, se normalizan
     assert rangos_a_borrar(((300, 400), (100, 100), (350, 500))) == (
@@ -2133,7 +2087,7 @@ async def test_rs_peer_agrega_su_community_de_tipo(db_session, ixp):
     cv = await generate_config(db_session, rs.id, ixp.id)
 
     bloque = cv.content.split("protocol bgp pb_PIT")[1].split("protocol pipe")[0]
-    assert "bgp_community.add( (routeserverasn, 65280) );" in bloque
+    assert "bgp_community.add( (routeserverasn, 65180) );" in bloque
 
 
 async def test_rs_peer_special_no_agrega_tipo(db_session, ixp):
@@ -2178,8 +2132,8 @@ async def test_export_conserva_el_bloque_de_tipos(db_session, ixp):
     con_borrado = [b for b in exports if "bgp_community.delete" in b]
     assert con_borrado, exports
     for bloque in con_borrado:
-        assert "( routeserverasn, 0..65199 )" in bloque
-        assert "( routeserverasn, 65300..65535 )" in bloque
+        assert "( routeserverasn, 0..64999 )" in bloque
+        assert "( routeserverasn, 65200..65535 )" in bloque
 
 
 async def test_import_de_miembro_borra_el_bloque_de_tipos(db_session, ixp):
@@ -2193,5 +2147,5 @@ async def test_import_de_miembro_borra_el_bloque_de_tipos(db_session, ixp):
     cv = await generate_config(db_session, rs.id, ixp.id)
 
     import_block = cv.content.split("filter f_import_")[1].split("filter f_export_")[0]
-    assert "bgp_community.delete( [( routeserverasn, 65200..65299 )] );" in import_block
+    assert "bgp_community.delete( [( routeserverasn, 65000..65199 )] );" in import_block
     assert import_block.index("bgp_community.delete") < import_block.index("avoid_martians")

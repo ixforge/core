@@ -22,12 +22,6 @@ def test_route_server_peer_type_values():
     assert {e.value for e in RouteServerPeerType} == {"upstream", "collector", "special"}
 
 
-def test_rpki_policy_values():
-    from ixforge.enums import RPKIPolicy
-
-    assert {e.value for e in RPKIPolicy} == {"info_only", "reject_invalid"}
-
-
 def test_prefix_filter_source_values():
     from ixforge.enums import PrefixFilterSource
 
