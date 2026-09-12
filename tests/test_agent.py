@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from httpx import AsyncClient
+from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import (
@@ -657,6 +658,94 @@ class TestConteoDePrefijos:
         assert resp.json()["updated"] == 1
         await db_session.refresh(bgp)
         assert bgp.oper_state == BGPOperState.up
+
+
+    async def test_el_conteo_queda_expuesto_como_metrica(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        """Sin la metrica el conteo solo existe como valor actual y el grafico
+        historico no tiene de donde salir
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=64580, address="192.0.2.40", vid=310,
+            oper_state=BGPOperState.down,
+        )
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={
+                "sessions": [
+                    {
+                        "peer_ip": "192.0.2.40",
+                        "oper_state": "up",
+                        "af": 4,
+                        "prefixes_imported": 1420,
+                        "prefixes_exported": 73,
+                    },
+                ]
+            },
+        )
+
+        assert resp.status_code == 200
+        etiquetas = {"route_server_id": str(rs.id), "peer_asn": "64580", "af": "4"}
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_imported", etiquetas
+        ) == 1420
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_exported", etiquetas
+        ) == 73
+
+    async def test_la_sesion_sin_conteo_borra_la_serie(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        """La serie se borra en vez de quedar en el ultimo valor o en cero: en
+        el grafico tiene que quedar un hueco, que es lo que de verdad pasa.
+        Un gauge que se queda pegado sigue reportando 1420 prefijos de un peer
+        que ya no esta
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=64581, address="192.0.2.41", vid=311,
+            oper_state=BGPOperState.down,
+        )
+        etiquetas = {"route_server_id": str(rs.id), "peer_asn": "64581", "af": "4"}
+
+        async def reportar(cuerpo: dict[str, object]) -> None:
+            r = await client.post(
+                f"/api/v1/route-servers/{rs.id}/agent/status",
+                headers={"X-API-Key": raw_key},
+                json={"sessions": [cuerpo]},
+            )
+            assert r.status_code == 200
+
+        await reportar({
+            "peer_ip": "192.0.2.41", "oper_state": "up", "af": 4,
+            "prefixes_imported": 900, "prefixes_exported": 12,
+        })
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_imported", etiquetas
+        ) == 900
+
+        await reportar({"peer_ip": "192.0.2.41", "oper_state": "down", "af": 4})
+
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_imported", etiquetas
+        ) is None
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_exported", etiquetas
+        ) is None
 
 
 # ---------------------------------------------------------------------------

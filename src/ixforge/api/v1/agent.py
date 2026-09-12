@@ -1,5 +1,6 @@
 """Agent communication endpoints: config polling, status reporting, heartbeats."""
 
+import contextlib
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
@@ -12,7 +13,11 @@ from ixforge.api.deps import DBSession
 from ixforge.database import tenant_context as _tenant_context
 from ixforge.enums import BGPOperState
 from ixforge.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
-from ixforge.metrics import bgp_sessions_active
+from ixforge.metrics import (
+    bgp_session_prefixes_exported,
+    bgp_session_prefixes_imported,
+    bgp_sessions_active,
+)
 from ixforge.models.api_key import APIKey
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.config import ConfigVersion
@@ -127,6 +132,34 @@ async def get_agent_config(
     )
 
 
+def _publicar_conteo(
+    *,
+    route_server_id: uuid.UUID,
+    peer_asn: int,
+    af: int,
+    imported: int | None,
+    exported: int | None,
+) -> None:
+    """Publica el conteo de prefijos como metrica, o borra la serie si no hay
+
+    Borrar y no publicar cero: el gauge se queda con el ultimo valor para
+    siempre si nadie lo saca, asi que una sesion caida seguiria reportando los
+    prefijos que tenia cuando estaba arriba. Sin serie el grafico dibuja un
+    hueco, que es lo que realmente pasa
+    """
+    etiquetas = (str(route_server_id), str(peer_asn), str(af))
+    for gauge, valor in (
+        (bgp_session_prefixes_imported, imported),
+        (bgp_session_prefixes_exported, exported),
+    ):
+        if valor is None:
+            # KeyError si nunca tuvo serie, que es donde queremos que quede
+            with contextlib.suppress(KeyError):
+                gauge.remove(*etiquetas)
+        else:
+            gauge.labels(*etiquetas).set(valor)
+
+
 @agent_router.post(
     "/{route_server_id}/agent/status",
     response_model=AgentStatusResponse,
@@ -202,6 +235,8 @@ async def report_agent_status(
             not_found += 1
             continue
 
+        peer_asn = asn_by_tv.get(session.trunk_vlan_id, 0)
+
         # El conteo se guarda SIEMPRE, antes de mirar el estado: el caso normal
         # es una sesion que lleva dias arriba y cuyo unico dato que se mueve es
         # este. Si se escribiera despues del corte por "estado sin cambios", el
@@ -212,6 +247,13 @@ async def report_agent_status(
         # actual miente peor que un dato ausente
         session.prefixes_imported = report.prefixes_imported
         session.prefixes_exported = report.prefixes_exported
+        _publicar_conteo(
+            route_server_id=route_server_id,
+            peer_asn=peer_asn,
+            af=report.af,
+            imported=report.prefixes_imported,
+            exported=report.prefixes_exported,
+        )
 
         old_state = session.oper_state
         new_state = BGPOperState(report.oper_state)
@@ -222,8 +264,6 @@ async def report_agent_status(
 
         session.oper_state = new_state
         updated += 1
-
-        peer_asn = asn_by_tv.get(session.trunk_vlan_id, 0)
 
         # Emit events for meaningful state transitions
         if old_state == BGPOperState.up and new_state == BGPOperState.down:
