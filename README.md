@@ -5,7 +5,7 @@ API REST central de [IXForge](https://github.com/ixforge), plataforma open-sourc
 ## Componentes del ecosistema
 
 - **Core** (este repo) - API REST, logica de negocio, base de datos
-- [Agent](https://github.com/ixforge/agent) - Daemon Rust que aplica configs BIRD en route servers
+- [Agent](https://github.com/ixforge/agent) - Daemon Rust que aplica configs BIRD en route servers, y reporta el estado de las sesiones BGP y que prefijos anuncia cada peer
 - [Collector](https://github.com/ixforge/collector) - Daemon Python que recolecta metricas SNMP/ICMP
 - [E2E](https://github.com/ixforge/e2e) - Tests end-to-end del pipeline completo
 
