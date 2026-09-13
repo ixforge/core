@@ -12,6 +12,8 @@ services:
       IXFORGE_DEBUG: "true"
     volumes:
       - ../src:/app/src
+      # compartido con el portal: el core escribe los logos y el portal los sirve
+      - media_dev:/app/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,6 +32,7 @@ services:
       IXFORGE_DEBUG: "true"
     volumes:
       - ../src:/app/src
+      - media_dev:/app/media
     depends_on:
       - core
     restart: unless-stopped
@@ -52,3 +55,4 @@ services:
 
 volumes:
   pgdata_dev:
+  media_dev:
