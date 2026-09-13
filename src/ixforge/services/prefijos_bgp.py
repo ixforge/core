@@ -65,43 +65,49 @@ async def prefijos(
     """Los prefijos que el miembro esta anunciando ahora
 
     Se deduplica por prefijo: el mismo prefijo llega por las sesiones de los dos
-    route servers y listarlo dos veces seria ruido
+    route servers y listarlo dos veces seria ruido. El dedup y el limite van en
+    la base y no en memoria, porque el upstream trae cientos de miles de filas y
+    traerlas todas para quedarse con 25 tardaba medio minuto
+
+    Las dos fechas son de todos los observadores: el primer avistaje es el mas
+    viejo de los dos route servers y el ultimo el mas nuevo, mientras que el
+    camino y las communities salen de la observacion mas reciente
     """
+    fuente = or_(
+        BGPSessionPrefix.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)),
+        BGPSessionPrefix.route_server_peer_id.in_(_peers_del_miembro(ixp_id, member_id)),
+    )
+
     stmt = (
-        select(BGPSessionPrefix)
-        .where(
-            or_(
-                BGPSessionPrefix.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)),
-                BGPSessionPrefix.route_server_peer_id.in_(_peers_del_miembro(ixp_id, member_id)),
-            )
+        select(
+            BGPSessionPrefix.prefix,
+            BGPSessionPrefix.as_path,
+            BGPSessionPrefix.communities,
+            func.min(BGPSessionPrefix.first_seen_at)
+            .over(partition_by=BGPSessionPrefix.prefix)
+            .label("first_seen_at"),
+            func.max(BGPSessionPrefix.last_seen_at)
+            .over(partition_by=BGPSessionPrefix.prefix)
+            .label("last_seen_at"),
         )
-        .order_by(BGPSessionPrefix.prefix)
+        .where(fuente)
+        .distinct(BGPSessionPrefix.prefix)
+        .order_by(BGPSessionPrefix.prefix, desc(BGPSessionPrefix.last_seen_at))
+        .limit(limit)
     )
     if prefix:
         stmt = stmt.where(BGPSessionPrefix.prefix.like(f"{escapar_like(prefix)}%", escape="\\"))
 
-    vistos: dict[str, dict[str, Any]] = {}
-    for fila in (await db.execute(stmt)).scalars():
-        actual = vistos.get(fila.prefix)
-        if actual is None:
-            vistos[fila.prefix] = {
-                "prefix": fila.prefix,
-                "as_path": fila.as_path,
-                "communities": fila.communities,
-                "first_seen_at": fila.first_seen_at,
-                "last_seen_at": fila.last_seen_at,
-            }
-            continue
-        # Entre route servers se conserva lo mas reciente y el primer avistaje
-        # mas viejo: es el mismo prefijo visto dos veces, no dos prefijos
-        if fila.last_seen_at > actual["last_seen_at"]:
-            actual["last_seen_at"] = fila.last_seen_at
-            actual["as_path"] = fila.as_path
-            actual["communities"] = fila.communities
-        if fila.first_seen_at < actual["first_seen_at"]:
-            actual["first_seen_at"] = fila.first_seen_at
-
-    return list(vistos.values())[:limit]
+    return [
+        {
+            "prefix": fila.prefix,
+            "as_path": fila.as_path,
+            "communities": fila.communities,
+            "first_seen_at": fila.first_seen_at,
+            "last_seen_at": fila.last_seen_at,
+        }
+        for fila in (await db.execute(stmt)).all()
+    ]
 
 
 async def eventos(
