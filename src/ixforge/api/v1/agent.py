@@ -261,8 +261,8 @@ async def report_agent_status(
         if session is None:
             # El agente reporta todos los protocolos de BIRD sin distinguir, asi
             # que aca tambien llegan los peers que no son de un miembro: el
-            # upstream del IXP, los colectores. Antes se descartaban y por eso
-            # figuraban siempre en estado desconocido
+            # upstream del IXP, los colectores. Su estado y su conteo se guardan
+            # en el peer
             peer = peers_por_ip.get(report.peer_ip)
             if peer is None:
                 not_found += 1

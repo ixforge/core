@@ -1,10 +1,10 @@
-"""Las migraciones tienen que dejar el mismo schema que los modelos.
+"""Las migraciones tienen que dejar el mismo schema que los modelos
 
 La suite arma las tablas con Base.metadata.create_all, o sea desde los modelos.
 Produccion las arma corriendo las migraciones. Una migracion a la que le falte
-algo que el modelo declara pasa todos los tests y revienta al desplegar: paso
-con el server_default de gen_random_uuid() en el id, que sin el deja el insert
-sin valor y la columna es not null
+algo que el modelo declara pasa todos los tests y revienta al desplegar, por
+ejemplo un server_default: sin el, un insert que no trae el valor viola el not
+null
 """
 
 import asyncio
@@ -102,7 +102,7 @@ def test_las_columnas_coinciden(schema_de_migraciones):
 
 
 def test_las_columnas_con_server_default_lo_tienen(schema_de_migraciones):
-    """El caso que reviento en produccion: el id sin gen_random_uuid()"""
+    """Una columna con server_default en el modelo tiene que tenerlo en la base"""
     problemas = []
     for nombre, tabla in Base.metadata.tables.items():
         reales = schema_de_migraciones.get(nombre)

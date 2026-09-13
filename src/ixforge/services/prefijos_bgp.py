@@ -67,7 +67,7 @@ async def prefijos(
     Se deduplica por prefijo: el mismo prefijo llega por las sesiones de los dos
     route servers y listarlo dos veces seria ruido. El dedup y el limite van en
     la base y no en memoria, porque el upstream trae cientos de miles de filas y
-    traerlas todas para quedarse con 25 tardaba medio minuto
+    traerlas todas para quedarse con 25 no escala
 
     Las dos fechas son de todos los observadores: el primer avistaje es el mas
     viejo de los dos route servers y el ultimo el mas nuevo, mientras que el
