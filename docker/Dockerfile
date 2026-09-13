@@ -56,7 +56,11 @@ COPY --from=assets /build/src/ixforge/ui/static/ src/ixforge/ui/static/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh
 
-RUN chown -R ixforge:ixforge /app
+# media tiene que existir en la imagen antes del chown: un volumen nombrado nuevo
+# copia contenido y duenio del directorio de la imagen la primera vez que se
+# monta. Si no existe, el volumen nace de root y el core, que corre como
+# ixforge, no puede escribir los logos que se suben
+RUN mkdir -p /app/media && chown -R ixforge:ixforge /app
 USER ixforge
 
 EXPOSE 8000

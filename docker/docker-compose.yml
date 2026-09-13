@@ -11,6 +11,10 @@ services:
       - "${IXFORGE_PORT:-8000}:8000"
     env_file:
       - .env
+    # Logos subidos: los escribe el core y los sirve el portal, asi que los dos
+    # montan el mismo volumen. Nombrado para que sobreviva a recrear el contenedor
+    volumes:
+      - media:/app/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +59,8 @@ services:
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-deb.debian.org}
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-deb.debian.org}
     command: ["ui"]
+    volumes:
+      - media:/app/media
     environment:
       IXFORGE_CORE_URL: http://core:8000
       IXFORGE_SECRET_KEY: ${IXFORGE_SECRET_KEY}
@@ -88,6 +94,7 @@ services:
 
 volumes:
   pgdata:
+  media:
 
 networks:
   ixforge:
