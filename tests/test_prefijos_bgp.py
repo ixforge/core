@@ -279,3 +279,75 @@ class TestPrefijosDelUpstream:
         items = resp.json()["items"]
         assert [i["prefix"] for i in items] == ["181.123.200.0/22"]
         assert items[0]["route_server"]
+
+    async def test_el_limite_se_aplica_en_la_base(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP,
+        admin_user: User, auth_headers,
+    ):
+        """Con la tabla del upstream son cientos de miles de filas: traerlas
+        todas para quedarse con 25 tarda medio minuto
+        """
+        sesion = await self._con_peer(db_session, ixp, asn=64802, address="192.0.2.102", vid=432)
+        member_id = await _member_id_de(db_session, sesion)
+        peer_id = (await db_session.execute(
+            select(BGPSessionPrefix.route_server_peer_id).where(
+                BGPSessionPrefix.route_server_peer_id.is_not(None)
+            ).limit(1)
+        )).scalar_one()
+
+        ahora = datetime.now(UTC)
+        db_session.add_all([
+            BGPSessionPrefix(
+                id=uuid.uuid4(), ixp_id=ixp.id, route_server_peer_id=peer_id,
+                prefix=f"10.{a}.{b}.0/24", as_path=[61522], communities=[],
+                first_seen_at=ahora, last_seen_at=ahora,
+            )
+            for a in range(8) for b in range(256)
+        ])
+        await db_session.flush()
+
+        resp = await client.get(
+            f"/api/v1/members/{member_id}/prefixes?limit=25", headers=auth_headers
+        )
+
+        assert resp.status_code == 200
+        assert len(resp.json()["items"]) == 25
+
+    async def test_el_mismo_prefijo_de_dos_route_servers_sale_una_vez(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP,
+        admin_user: User, auth_headers,
+    ):
+        """Y conserva el primer avistaje mas viejo y el ultimo mas nuevo, que es
+        lo que significan esas dos fechas cuando hay dos observadores
+        """
+        from ixforge.enums import RouteServerPeerType
+        from ixforge.models.route_server_peer import RouteServerPeer
+
+        sesion = await self._con_peer(db_session, ixp, asn=64803, address="192.0.2.103", vid=433)
+        member_id = await _member_id_de(db_session, sesion)
+
+        rs2 = await _setup_route_server(db_session, ixp)
+        otro = RouteServerPeer(
+            id=uuid.uuid4(), ixp_id=ixp.id, route_server_id=rs2.id,
+            name="Upstream rs2", peer_ip="192.0.2.103", peer_asn=64803,
+            peer_type=RouteServerPeerType.upstream,
+        )
+        db_session.add(otro)
+        await db_session.flush()
+
+        viejo = datetime.now(UTC) - timedelta(days=3)
+        nuevo = datetime.now(UTC)
+        db_session.add(BGPSessionPrefix(
+            id=uuid.uuid4(), ixp_id=ixp.id, route_server_peer_id=otro.id,
+            prefix="181.123.200.0/22", as_path=[61522, 23201], communities=[],
+            first_seen_at=viejo, last_seen_at=nuevo,
+        ))
+        await db_session.flush()
+
+        resp = await client.get(
+            f"/api/v1/members/{member_id}/prefixes", headers=auth_headers
+        )
+
+        items = resp.json()["items"]
+        assert [i["prefix"] for i in items] == ["181.123.200.0/22"]
+        assert items[0]["first_seen_at"].startswith(viejo.strftime("%Y-%m-%d"))
