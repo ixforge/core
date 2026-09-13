@@ -273,6 +273,15 @@ async def report_agent_status(
                 updated += 1
             peer.prefixes_imported = report.prefixes_imported
             peer.prefixes_exported = report.prefixes_exported
+            # La columna guarda el valor de ahora; el grafico en el tiempo sale
+            # del gauge, asi que el upstream tambien tiene que publicarlo
+            _publicar_conteo(
+                route_server_id=route_server_id,
+                peer_asn=peer.peer_asn,
+                af=report.af,
+                imported=report.prefixes_imported,
+                exported=report.prefixes_exported,
+            )
             continue
 
         peer_asn = asn_by_tv.get(session.trunk_vlan_id, 0)
