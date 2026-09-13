@@ -1,4 +1,4 @@
-"""Member logo upload/delete endpoints."""
+"""Member logo upload, download and delete endpoints."""
 
 import asyncio
 import io
@@ -6,11 +6,12 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Response, UploadFile
+from fastapi.responses import FileResponse
 from PIL import Image
 
-from ixforge.api.deps import AdminUser, DBSession, IXPId
+from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
 from ixforge.config import get_settings
-from ixforge.exceptions import ValidationError
+from ixforge.exceptions import NotFoundError, ValidationError
 from ixforge.services.members import get as get_member
 
 _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}
@@ -32,6 +33,26 @@ def _process_and_save(content: bytes, dest: Path) -> None:
         raise ValueError("invalid image") from exc
     img = img.convert("RGBA") if img.mode in ("RGBA", "LA", "P") else img.convert("RGB")  # type: ignore[assignment]
     img.save(str(dest), format="PNG")
+
+
+@logo_router.get("/members/{member_id}/logo", response_class=FileResponse)
+async def download_logo(
+    member_id: uuid.UUID,
+    db: DBSession,
+    _user: CurrentUser,
+    ixp_id: IXPId,
+) -> FileResponse:
+    """El logo como PNG, para quien lo sirva desde su propio dominio
+
+    El sitio publico lo pide aca y lo entrega desde su servidor: el navegador del
+    visitante no alcanza la red donde vive el Core, y la URL de media que publica
+    logo_url es la del portal
+    """
+    await get_member(db, ixp_id, member_id)
+    dest = _logo_path(get_settings().media_root, member_id)
+    if not await asyncio.to_thread(dest.is_file):
+        raise NotFoundError("MemberLogo", str(member_id))
+    return FileResponse(dest, media_type="image/png")
 
 
 @logo_router.post("/members/{member_id}/logo", status_code=204)

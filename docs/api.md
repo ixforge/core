@@ -123,6 +123,7 @@ Codes: `NOT_FOUND` (404), `CONFLICT` (409), `VALIDATION_ERROR` (422), `FORBIDDEN
 | PATCH | `/members/{id}` | Admin | Update member |
 | DELETE | `/members/{id}` | Admin | Delete member (must be `terminated`) |
 | POST | `/members/{id}/transition` | Admin | Change state (`{"state": "active"}`) |
+| GET | `/members/{id}/logo` | JWT / API key | Download the logo as PNG (`members:read`). 404 if the member has none |
 | POST | `/members/{id}/logo` | Admin | Upload member logo |
 | DELETE | `/members/{id}/logo` | Admin | Delete member logo |
 
