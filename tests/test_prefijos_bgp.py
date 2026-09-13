@@ -212,3 +212,70 @@ class TestOrigenDeLosEventos:
 
         assert resp.status_code == 200
         assert all(i["route_server"] for i in resp.json()["items"])
+
+
+class TestPrefijosDelUpstream:
+    """El upstream tiene prefijos como cualquiera, solo que cuelgan de su peer"""
+
+    async def _con_peer(self, db_session, ixp, asn=64800, address="192.0.2.100", vid=430):
+        from ixforge.enums import RouteServerPeerType
+        from ixforge.models.route_server_peer import RouteServerPeer
+
+        rs = await _setup_route_server(db_session, ixp)
+        sesion = await _setup_sesion_bgp(
+            db_session, ixp, rs, asn=asn, address=address, vid=vid,
+            oper_state=BGPOperState.up,
+        )
+        peer = RouteServerPeer(
+            id=uuid.uuid4(), ixp_id=ixp.id, route_server_id=rs.id,
+            name="Upstream", peer_ip=address, peer_asn=asn,
+            peer_type=RouteServerPeerType.upstream,
+        )
+        db_session.add(peer)
+        await db_session.flush()
+
+        ahora = datetime.now(UTC)
+        db_session.add(BGPSessionPrefix(
+            id=uuid.uuid4(), ixp_id=ixp.id, route_server_peer_id=peer.id,
+            prefix="181.123.200.0/22", as_path=[61522, 23201],
+            communities=["61522:65012"], first_seen_at=ahora, last_seen_at=ahora,
+        ))
+        db_session.add(BGPPrefixEvent(
+            id=uuid.uuid4(), ixp_id=ixp.id, route_server_peer_id=peer.id,
+            prefix="181.123.200.0/22", event_type=PrefixEventType.announced,
+            as_path=[61522, 23201], communities=["61522:65012"], occurred_at=ahora,
+        ))
+        await db_session.flush()
+        return sesion
+
+    async def test_lista_los_prefijos_que_llegan_por_el_peer(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP,
+        admin_user: User, auth_headers,
+    ):
+        sesion = await self._con_peer(db_session, ixp)
+        member_id = await _member_id_de(db_session, sesion)
+
+        resp = await client.get(
+            f"/api/v1/members/{member_id}/prefixes", headers=auth_headers
+        )
+
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert [i["prefix"] for i in items] == ["181.123.200.0/22"]
+        assert items[0]["as_path"] == [61522, 23201]
+
+    async def test_el_historial_del_peer_tambien_sale(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP,
+        admin_user: User, auth_headers,
+    ):
+        sesion = await self._con_peer(db_session, ixp, asn=64801, address="192.0.2.101", vid=431)
+        member_id = await _member_id_de(db_session, sesion)
+
+        resp = await client.get(
+            f"/api/v1/members/{member_id}/prefix-events", headers=auth_headers
+        )
+
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert [i["prefix"] for i in items] == ["181.123.200.0/22"]
+        assert items[0]["route_server"]
