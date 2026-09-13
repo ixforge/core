@@ -3,10 +3,10 @@
 import contextlib
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Response
-from sqlalchemy import select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.api.deps import DBSession
@@ -44,6 +44,9 @@ from ixforge.services.events import create_event
 # Minimum agent version that is considered acceptable
 # Agents older than this will receive an upgrade header
 MINIMUM_AGENT_VERSION = "0.1.0"
+
+_LOTE = 10_000
+"""Cuantas filas por sentencia: postgres no acepta mas de 32767 argumentos"""
 
 agent_router = APIRouter(prefix="/route-servers", tags=["agent"])
 
@@ -569,6 +572,8 @@ async def report_agent_prefixes(
             assert peer is not None
             condicion = BGPSessionPrefix.route_server_peer_id == peer.id
 
+        # Lecturas y escrituras en bloque: el upstream manda mas de 120 mil
+        # prefijos y una sentencia por fila no termina nunca
         guardados = {
             fila.prefix: fila
             for fila in (
@@ -577,62 +582,100 @@ async def report_agent_prefixes(
         }
         reportados = {p.prefix: p for p in reporte.prefixes}
 
+        nuevos: list[dict[str, Any]] = []
+        eventos: list[dict[str, Any]] = []
+        cambiados: list[dict[str, Any]] = []
+        retirados: list[str] = []
+
         for prefix, reportado in reportados.items():
             fila = guardados.get(prefix)
             if fila is None:
-                db.add(BGPSessionPrefix(
-                    ixp_id=rs.ixp_id,
+                nuevos.append({
+                    "ixp_id": rs.ixp_id,
                     **origen,
-                    prefix=prefix,
-                    as_path=reportado.as_path,
-                    communities=reportado.communities,
-                    first_seen_at=ahora,
-                    last_seen_at=ahora,
-                ))
-                db.add(BGPPrefixEvent(
-                    ixp_id=rs.ixp_id,
+                    "prefix": prefix,
+                    "as_path": reportado.as_path,
+                    "communities": reportado.communities,
+                    "first_seen_at": ahora,
+                    "last_seen_at": ahora,
+                })
+                eventos.append({
+                    "ixp_id": rs.ixp_id,
                     **origen,
-                    prefix=prefix,
-                    event_type=PrefixEventType.announced,
-                    as_path=reportado.as_path,
-                    communities=reportado.communities,
-                    occurred_at=ahora,
-                ))
-                prefixes_added += 1
+                    "prefix": prefix,
+                    "event_type": PrefixEventType.announced,
+                    "as_path": reportado.as_path,
+                    "communities": reportado.communities,
+                    "previous_as_path": None,
+                    "previous_communities": None,
+                    "occurred_at": ahora,
+                })
                 continue
 
             # El prefijo sigue: solo deja rastro si cambio algo. Sin esto el
             # historial seria una fila de "sigue ahi" cada cinco minutos
             if fila.as_path != reportado.as_path or fila.communities != reportado.communities:
-                db.add(BGPPrefixEvent(
-                    ixp_id=rs.ixp_id,
+                eventos.append({
+                    "ixp_id": rs.ixp_id,
                     **origen,
-                    prefix=prefix,
-                    event_type=PrefixEventType.updated,
-                    as_path=reportado.as_path,
-                    previous_as_path=fila.as_path,
-                    communities=reportado.communities,
-                    previous_communities=fila.communities,
-                    occurred_at=ahora,
-                ))
-                fila.as_path = reportado.as_path
-                fila.communities = reportado.communities
-            fila.last_seen_at = ahora
+                    "prefix": prefix,
+                    "event_type": PrefixEventType.updated,
+                    "as_path": reportado.as_path,
+                    "communities": reportado.communities,
+                    "previous_as_path": fila.as_path,
+                    "previous_communities": fila.communities,
+                    "occurred_at": ahora,
+                })
+                cambiados.append({
+                    "id": fila.id,
+                    "as_path": reportado.as_path,
+                    "communities": reportado.communities,
+                })
 
         for prefix, fila in guardados.items():
             if prefix in reportados:
                 continue
-            db.add(BGPPrefixEvent(
-                ixp_id=rs.ixp_id,
+            eventos.append({
+                "ixp_id": rs.ixp_id,
                 **origen,
-                prefix=prefix,
-                event_type=PrefixEventType.withdrawn,
-                as_path=fila.as_path,
-                communities=fila.communities,
-                occurred_at=ahora,
-            ))
-            await db.delete(fila)
-            prefixes_removed += 1
+                "prefix": prefix,
+                "event_type": PrefixEventType.withdrawn,
+                "as_path": fila.as_path,
+                "communities": fila.communities,
+                "previous_as_path": None,
+                "previous_communities": None,
+                "occurred_at": ahora,
+            })
+            retirados.append(prefix)
+
+        if nuevos:
+            await db.execute(insert(BGPSessionPrefix), nuevos)
+        if cambiados:
+            # Update masivo por clave primaria: una sola ida a la base
+            await db.execute(update(BGPSessionPrefix), cambiados)
+        # Por lotes: postgres no acepta mas de 32767 argumentos en una sentencia
+        for i in range(0, len(retirados), _LOTE):
+            await db.execute(
+                delete(BGPSessionPrefix)
+                .where(condicion, BGPSessionPrefix.prefix.in_(retirados[i : i + _LOTE]))
+                .execution_options(synchronize_session=None)
+            )
+        if eventos:
+            await db.execute(insert(BGPPrefixEvent), eventos)
+
+        # Despues del diff, lo que queda en la tabla es exactamente lo reportado,
+        # asi que no hace falta enumerar los prefijos: sin eso serian 120 mil
+        # argumentos en una sentencia y postgres corta en 32767
+        if reportados:
+            await db.execute(
+                update(BGPSessionPrefix)
+                .where(condicion)
+                .values(last_seen_at=ahora)
+                .execution_options(synchronize_session=None)
+            )
+
+        prefixes_added += len(nuevos)
+        prefixes_removed += len(retirados)
 
     await db.flush()
 
