@@ -1162,11 +1162,10 @@ class TestReporteDePrefijos:
 
 
 class TestEstadoDePeersQueNoSonMiembros:
-    """El upstream del IXP tambien tiene sesion BGP, y el agente ya la reporta
+    """El upstream del IXP tambien tiene sesion BGP, y el agente la reporta
 
-    El agente manda todos los protocolos de BIRD sin distinguir, pero el Core
-    solo buscaba en las sesiones de miembros y descartaba el resto como
-    'no encontrado'. Por eso el upstream figuraba siempre en estado desconocido
+    El agente manda todos los protocolos de BIRD sin distinguir. Lo que no es
+    sesion de un miembro se busca entre los peers del route server
     """
 
     async def _peer(self, db_session, ixp, rs, peer_ip, af=4, asn=64166):
