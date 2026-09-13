@@ -166,7 +166,9 @@ The polling flow:
 
 1. **Config poll** (`GET .../agent/config`): agent compares hash, downloads if changed
 2. **Apply confirmation** (`POST .../agent/config/applied`): agent confirms the version is live
-3. **Status report** (`POST .../agent/status`): agent pushes BGP session operational
+3. **Status report** (`POST .../agent/status`): the agent reports every BIRD protocol
+   without distinguishing, so this covers both member sessions and the route server's
+   own peers (upstream, collectors). It pushes BGP session operational
    states and, per session, how many prefixes it imported and exported. Both counts are
    optional: a session that is not established has no count, and absent is not zero.
    The count is stored on every report, including reports where the state did not change

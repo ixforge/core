@@ -2,7 +2,16 @@
 
 import uuid
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.enums import BGPAdminState, BGPOperState, RouteServerPeerType
@@ -22,6 +31,14 @@ class RouteServerPeer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint(
             "route_server_id", "peer_ip", name="uq_route_server_peers_rs_ip"
+        ),
+        CheckConstraint(
+            "prefixes_imported IS NULL OR prefixes_imported >= 0",
+            name="ck_route_server_peers_prefixes_imported_no_negativo",
+        ),
+        CheckConstraint(
+            "prefixes_exported IS NULL OR prefixes_exported >= 0",
+            name="ck_route_server_peers_prefixes_exported_no_negativo",
         ),
     )
 
@@ -46,6 +63,10 @@ class RouteServerPeer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         String(32), nullable=True, comment="Forma asn:value"
     )
     max_prefixes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Lo ultimo que reporto el agente, igual que en las sesiones de miembros:
+    # null y no cero cuando la sesion no esta arriba
+    prefixes_imported: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    prefixes_exported: Mapped[int | None] = mapped_column(Integer, nullable=True)
     admin_state: Mapped[BGPAdminState] = mapped_column(
         Enum(BGPAdminState, name="bgp_admin_state"),
         nullable=False,

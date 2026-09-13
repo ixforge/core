@@ -25,6 +25,7 @@ from ixforge.models.config import ConfigVersion
 from ixforge.models.ip import IPAssignment, IPPool
 from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
+from ixforge.models.route_server_peer import RouteServerPeer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.schemas.agent import (
     AgentConfigApplied,
@@ -224,6 +225,17 @@ async def report_agent_status(
 
     sessions_by_peer = await _sesiones_por_peer(db, route_server_id)
 
+    peers_por_ip = {
+        str(p.peer_ip): p
+        for p in (
+            await db.execute(
+                select(RouteServerPeer).where(
+                    RouteServerPeer.route_server_id == route_server_id
+                )
+            )
+        ).scalars()
+    }
+
     # Pre-load ASN mapping for event data
     stmt_asn = (
         select(TrunkVLAN.id, Member.asn)
@@ -244,7 +256,23 @@ async def report_agent_status(
     for report in body.sessions:
         session = sessions_by_peer.get((report.peer_ip, report.af))
         if session is None:
-            not_found += 1
+            # El agente reporta todos los protocolos de BIRD sin distinguir, asi
+            # que aca tambien llegan los peers que no son de un miembro: el
+            # upstream del IXP, los colectores. Antes se descartaban y por eso
+            # figuraban siempre en estado desconocido
+            peer = peers_por_ip.get(report.peer_ip)
+            if peer is None:
+                not_found += 1
+                continue
+
+            nuevo_estado = BGPOperState(report.oper_state)
+            if peer.oper_state == nuevo_estado:
+                unchanged += 1
+            else:
+                peer.oper_state = nuevo_estado
+                updated += 1
+            peer.prefixes_imported = report.prefixes_imported
+            peer.prefixes_exported = report.prefixes_exported
             continue
 
         peer_asn = asn_by_tv.get(session.trunk_vlan_id, 0)

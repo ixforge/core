@@ -81,6 +81,8 @@ class RouteServerPeerRead(BaseModel):
     max_prefixes: int | None
     admin_state: BGPAdminState
     oper_state: BGPOperState
+    prefixes_imported: int | None
+    prefixes_exported: int | None
     created_at: datetime
     updated_at: datetime
 
