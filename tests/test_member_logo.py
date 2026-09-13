@@ -2,13 +2,16 @@
 
 import io
 import os
+import uuid
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import MemberState
+from ixforge.models.api_key import APIKey
 from ixforge.models.ixp import IXP
 from ixforge.models.member import Member
+from ixforge.services.auth import hash_api_key
 
 
 def _make_png_bytes() -> bytes:
@@ -89,3 +92,86 @@ class TestMemberLogoAPI:
         resp = await client.delete(f"/api/v1/members/{m.id}/logo", headers=auth_headers)
         assert resp.status_code == 204
         assert not os.path.exists(str(logo_dir / "logo.png"))
+
+
+class TestMemberLogoRead:
+    """El sitio publico sirve el logo desde su propio dominio pidiendoselo al Core,
+    asi que el navegador del visitante nunca necesita alcanzar la red interna
+    """
+
+    async def _miembro(self, db_session, ixp, tmp_path, monkeypatch, asn, con_logo=True):
+        from ixforge.config import get_settings
+        monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
+        m = Member(
+            ixp_id=ixp.id, name=f"ISP {asn}", short_name=f"L{asn}"[:10],
+            asn=asn, state=MemberState.active,
+        )
+        db_session.add(m)
+        await db_session.flush()
+        contenido = _make_png_bytes()
+        if con_logo:
+            carpeta = tmp_path / "members" / str(m.id)
+            carpeta.mkdir(parents=True)
+            (carpeta / "logo.png").write_bytes(contenido)
+        return m, contenido
+
+    async def test_devuelve_el_png(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        db_session: AsyncSession, tmp_path, monkeypatch
+    ) -> None:
+        m, contenido = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65020)
+
+        resp = await client.get(f"/api/v1/members/{m.id}/logo", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/png"
+        assert resp.content == contenido
+
+    async def test_miembro_sin_logo_da_404(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        db_session: AsyncSession, tmp_path, monkeypatch
+    ) -> None:
+        m, _ = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65021, con_logo=False)
+
+        resp = await client.get(f"/api/v1/members/{m.id}/logo", headers=auth_headers)
+
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "NOT_FOUND"
+
+    async def test_miembro_inexistente_da_404(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict, tmp_path, monkeypatch
+    ) -> None:
+        from ixforge.config import get_settings
+        monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
+
+        resp = await client.get(f"/api/v1/members/{uuid.uuid4()}/logo", headers=auth_headers)
+
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "NOT_FOUND"
+
+    async def test_una_key_de_solo_lectura_de_miembros_lo_puede_leer(
+        self, client: AsyncClient, ixp: IXP, admin_user, db_session: AsyncSession,
+        tmp_path, monkeypatch
+    ) -> None:
+        """Es el caso de la key del sitio publico: members:read y nada mas"""
+        m, contenido = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65022)
+        raw = "ixf_logoread1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+        db_session.add(APIKey(
+            id=uuid.uuid4(), key_hash=hash_api_key(raw), prefix=raw[:12], name="sitio",
+            scopes=["members:read"], user_id=admin_user.id, is_active=True,
+        ))
+        await db_session.flush()
+
+        resp = await client.get(f"/api/v1/members/{m.id}/logo", headers={"X-API-Key": raw})
+
+        assert resp.status_code == 200
+        assert resp.content == contenido
+
+    async def test_sin_autenticacion_no_entrega_nada(
+        self, client: AsyncClient, ixp: IXP, db_session: AsyncSession, tmp_path, monkeypatch
+    ) -> None:
+        m, _ = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65023)
+
+        resp = await client.get(f"/api/v1/members/{m.id}/logo")
+
+        assert resp.status_code == 401
