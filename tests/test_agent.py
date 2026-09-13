@@ -1380,3 +1380,37 @@ class TestEstadoDePeersQueNoSonMiembros:
 
         assert resp.status_code == 200
         assert resp.json()["prefixes_added"] == len(muchos)
+
+    async def test_un_reporte_del_tamano_del_upstream_es_viable(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """No es un test de rendimiento con umbral, es de viabilidad: con una
+        sentencia por fila este reporte no terminaba dentro del timeout del
+        agente, que es de 30 segundos
+        """
+        import time
+
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        await self._peer(db_session, ixp, rs, "192.0.2.97", asn=64781)
+
+        muchos = [
+            {"prefix": f"{a}.{b}.{c}.0/24", "as_path": [61522, 23201],
+             "communities": ["61522:65012", "64166:65180"]}
+            for a in range(20, 26) for b in range(256) for c in range(0, 256, 4)
+        ]
+        assert len(muchos) > 90000
+
+        t0 = time.monotonic()
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/prefixes",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{"peer_ip": "192.0.2.97", "af": 4, "prefixes": muchos}]},
+            timeout=120,
+        )
+        tardo = time.monotonic() - t0
+
+        assert resp.status_code == 200
+        assert resp.json()["prefixes_added"] == len(muchos)
+        assert tardo < 60, f"tardo {tardo:.0f}s para {len(muchos)} prefijos"
+        print(f"\n  {len(muchos)} prefijos en {tardo:.1f}s")
