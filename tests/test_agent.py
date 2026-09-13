@@ -1260,3 +1260,31 @@ class TestEstadoDePeersQueNoSonMiembros:
 
         await db_session.refresh(ajeno)
         assert ajeno.oper_state == BGPOperState.unknown
+
+    async def test_el_conteo_del_peer_tambien_sale_como_metrica(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """Sin la metrica el upstream tiene numero pero no tiene grafico: la
+        columna guarda el valor actual y la historia sale del gauge scrapeado
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        await self._peer(db_session, ixp, rs, "192.0.2.93", asn=64777)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{
+                "peer_ip": "192.0.2.93", "oper_state": "up", "af": 4,
+                "prefixes_imported": 123545, "prefixes_exported": 8,
+            }]},
+        )
+
+        assert resp.status_code == 200
+        etiquetas = {"route_server_id": str(rs.id), "peer_asn": "64777", "af": "4"}
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_imported", etiquetas
+        ) == 123545
+        assert REGISTRY.get_sample_value(
+            "ixforge_bgp_session_prefixes_exported", etiquetas
+        ) == 8
