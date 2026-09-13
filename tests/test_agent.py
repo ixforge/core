@@ -1159,3 +1159,104 @@ class TestReporteDePrefijos:
         ])
 
         assert resp.status_code == 422
+
+
+class TestEstadoDePeersQueNoSonMiembros:
+    """El upstream del IXP tambien tiene sesion BGP, y el agente ya la reporta
+
+    El agente manda todos los protocolos de BIRD sin distinguir, pero el Core
+    solo buscaba en las sesiones de miembros y descartaba el resto como
+    'no encontrado'. Por eso el upstream figuraba siempre en estado desconocido
+    """
+
+    async def _peer(self, db_session, ixp, rs, peer_ip, af=4, asn=64166):
+        from ixforge.enums import RouteServerPeerType
+        from ixforge.models.route_server_peer import RouteServerPeer
+
+        peer = RouteServerPeer(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            name="Upstream",
+            peer_ip=peer_ip,
+            peer_asn=asn,
+            peer_type=RouteServerPeerType.upstream,
+        )
+        db_session.add(peer)
+        await db_session.flush()
+        return peer
+
+    async def test_guarda_el_estado_del_peer(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        peer = await self._peer(db_session, ixp, rs, "192.0.2.90")
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{
+                "peer_ip": "192.0.2.90", "oper_state": "up", "af": 4,
+                "prefixes_imported": 123545, "prefixes_exported": 8,
+            }]},
+        )
+
+        assert resp.status_code == 200
+        await db_session.refresh(peer)
+        assert peer.oper_state == BGPOperState.up
+        assert peer.prefixes_imported == 123545
+        assert peer.prefixes_exported == 8
+
+    async def test_el_peer_ya_no_cuenta_como_no_encontrado(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        await self._peer(db_session, ixp, rs, "192.0.2.91")
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{"peer_ip": "192.0.2.91", "oper_state": "up", "af": 4}]},
+        )
+
+        assert resp.json()["not_found"] == 0
+        assert resp.json()["updated"] == 1
+
+    async def test_una_ip_que_no_es_de_nadie_sigue_siendo_no_encontrada(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """El fallback no puede tragarse todo: una IP desconocida tiene que
+        seguir avisando, que es como se detecta un config desincronizado
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{"peer_ip": "10.88.88.88", "oper_state": "up", "af": 4}]},
+        )
+
+        assert resp.json()["not_found"] == 1
+
+    async def test_el_peer_de_otro_route_server_no_se_toca(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """Cada agente reporta lo suyo. Un peer con la misma IP en otro route
+        server es otra sesion y no puede actualizarse desde aca
+        """
+        rs1 = await _setup_route_server(db_session, ixp)
+        rs2 = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs1)
+        ajeno = await self._peer(db_session, ixp, rs2, "192.0.2.92")
+
+        await client.post(
+            f"/api/v1/route-servers/{rs1.id}/agent/status",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{"peer_ip": "192.0.2.92", "oper_state": "up", "af": 4}]},
+        )
+
+        await db_session.refresh(ajeno)
+        assert ajeno.oper_state == BGPOperState.unknown
