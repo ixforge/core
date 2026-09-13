@@ -78,10 +78,10 @@ class ReportedPrefix(BaseModel):
 class SessionPrefixes(BaseModel):
     peer_ip: str
     af: int
-    # El tope del agente es 1000 por sesion. Aca va mas alto para que un cambio
-    # de ese lado no rebote como 422, pero acotado: sin limite un reporte
-    # manipulado seria una escritura sin fondo
-    prefixes: list[ReportedPrefix] = Field(max_length=10000)
+    # El upstream entrega la tabla que agrega: cientos de miles de prefijos. El
+    # tope existe para que un reporte manipulado no sea una escritura sin fondo,
+    # y va por encima del tope del agente para que un cambio alla no rebote aca
+    prefixes: list[ReportedPrefix] = Field(max_length=600000)
 
 
 class AgentPrefixReport(BaseModel):

@@ -1288,3 +1288,95 @@ class TestEstadoDePeersQueNoSonMiembros:
         assert REGISTRY.get_sample_value(
             "ixforge_bgp_session_prefixes_exported", etiquetas
         ) == 8
+
+    async def test_guarda_los_prefijos_del_peer(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """El upstream tambien tiene prefijos que mostrar, y son los mismos que
+        los de cualquier miembro: prefijo, camino y communities
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        peer = await self._peer(db_session, ixp, rs, "192.0.2.94", asn=64778)
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/prefixes",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{
+                "peer_ip": "192.0.2.94", "af": 4,
+                "prefixes": [
+                    {"prefix": "181.123.200.0/22", "as_path": [61522, 23201],
+                     "communities": ["61522:65012", "64166:65180"]},
+                    {"prefix": "58.69.253.0/24", "as_path": [61522, 36776], "communities": []},
+                ],
+            }]},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["prefixes_added"] == 2
+
+        filas = (await db_session.execute(
+            select(BGPSessionPrefix).where(
+                BGPSessionPrefix.route_server_peer_id == peer.id
+            )
+        )).scalars().all()
+        assert {f.prefix for f in filas} == {"181.123.200.0/22", "58.69.253.0/24"}
+        uno = next(f for f in filas if f.prefix == "181.123.200.0/22")
+        assert uno.as_path == [61522, 23201]
+        assert uno.communities == ["61522:65012", "64166:65180"]
+
+    async def test_el_prefijo_retirado_del_peer_tambien_deja_evento(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        peer = await self._peer(db_session, ixp, rs, "192.0.2.95", asn=64779)
+
+        async def reportar(prefijos):
+            r = await client.post(
+                f"/api/v1/route-servers/{rs.id}/agent/prefixes",
+                headers={"X-API-Key": raw_key},
+                json={"sessions": [{"peer_ip": "192.0.2.95", "af": 4, "prefixes": prefijos}]},
+            )
+            assert r.status_code == 200
+            return r.json()
+
+        await reportar([
+            {"prefix": "181.123.200.0/22", "as_path": [61522], "communities": []},
+            {"prefix": "58.69.253.0/24", "as_path": [61522], "communities": []},
+        ])
+        r = await reportar([{"prefix": "181.123.200.0/22", "as_path": [61522], "communities": []}])
+
+        assert r["prefixes_removed"] == 1
+        retiros = (await db_session.execute(
+            select(BGPPrefixEvent).where(
+                BGPPrefixEvent.route_server_peer_id == peer.id,
+                BGPPrefixEvent.event_type == PrefixEventType.withdrawn,
+            )
+        )).scalars().all()
+        assert [e.prefix for e in retiros] == ["58.69.253.0/24"]
+
+    async def test_acepta_un_reporte_grande(
+        self, client: AsyncClient, db_session: AsyncSession, ixp: IXP, admin_user: User,
+    ):
+        """La tabla que entrega el upstream son cientos de miles de prefijos, y
+        el limite del schema tiene que dejarlos pasar
+        """
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        await self._peer(db_session, ixp, rs, "192.0.2.96", asn=64780)
+
+        muchos = [
+            {"prefix": f"10.{a}.{b}.0/24", "as_path": [61522], "communities": []}
+            for a in range(60) for b in range(256)
+        ]
+        assert len(muchos) > 10000
+
+        resp = await client.post(
+            f"/api/v1/route-servers/{rs.id}/agent/prefixes",
+            headers={"X-API-Key": raw_key},
+            json={"sessions": [{"peer_ip": "192.0.2.96", "af": 4, "prefixes": muchos}]},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["prefixes_added"] == len(muchos)

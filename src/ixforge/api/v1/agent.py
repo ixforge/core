@@ -539,20 +539,40 @@ async def report_agent_prefixes(
     prefixes_removed = 0
     ahora = datetime.now(UTC)
 
+    peers_por_ip = {
+        str(p.peer_ip): p
+        for p in (
+            await db.execute(
+                select(RouteServerPeer).where(
+                    RouteServerPeer.route_server_id == route_server_id
+                )
+            )
+        ).scalars()
+    }
+
     for reporte in body.sessions:
         session = sessions_by_peer.get((reporte.peer_ip, reporte.af))
-        if session is None:
+        peer = None if session is not None else peers_por_ip.get(reporte.peer_ip)
+        if session is None and peer is None:
             continue
         sessions_updated += 1
+
+        # De donde cuelgan las filas: de la sesion del miembro o del peer
+        origen = (
+            {"bgp_session_id": session.id}
+            if session is not None
+            else {"route_server_peer_id": peer.id}  # type: ignore[union-attr]
+        )
+        if session is not None:
+            condicion = BGPSessionPrefix.bgp_session_id == session.id
+        else:
+            assert peer is not None
+            condicion = BGPSessionPrefix.route_server_peer_id == peer.id
 
         guardados = {
             fila.prefix: fila
             for fila in (
-                await db.execute(
-                    select(BGPSessionPrefix).where(
-                        BGPSessionPrefix.bgp_session_id == session.id
-                    )
-                )
+                await db.execute(select(BGPSessionPrefix).where(condicion))
             ).scalars()
         }
         reportados = {p.prefix: p for p in reporte.prefixes}
@@ -562,7 +582,7 @@ async def report_agent_prefixes(
             if fila is None:
                 db.add(BGPSessionPrefix(
                     ixp_id=rs.ixp_id,
-                    bgp_session_id=session.id,
+                    **origen,
                     prefix=prefix,
                     as_path=reportado.as_path,
                     communities=reportado.communities,
@@ -571,7 +591,7 @@ async def report_agent_prefixes(
                 ))
                 db.add(BGPPrefixEvent(
                     ixp_id=rs.ixp_id,
-                    bgp_session_id=session.id,
+                    **origen,
                     prefix=prefix,
                     event_type=PrefixEventType.announced,
                     as_path=reportado.as_path,
@@ -586,7 +606,7 @@ async def report_agent_prefixes(
             if fila.as_path != reportado.as_path or fila.communities != reportado.communities:
                 db.add(BGPPrefixEvent(
                     ixp_id=rs.ixp_id,
-                    bgp_session_id=session.id,
+                    **origen,
                     prefix=prefix,
                     event_type=PrefixEventType.updated,
                     as_path=reportado.as_path,
@@ -604,7 +624,7 @@ async def report_agent_prefixes(
                 continue
             db.add(BGPPrefixEvent(
                 ixp_id=rs.ixp_id,
-                bgp_session_id=session.id,
+                **origen,
                 prefix=prefix,
                 event_type=PrefixEventType.withdrawn,
                 as_path=fila.as_path,

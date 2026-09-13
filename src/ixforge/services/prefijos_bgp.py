@@ -8,12 +8,14 @@ todas anuncian lo mismo
 import uuid
 from typing import Any
 
-from sqlalchemy import Select, desc, select
+from sqlalchemy import Select, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.models.bgp_prefix import BGPPrefixEvent, BGPSessionPrefix
 from ixforge.models.bgp_session import BGPSession
+from ixforge.models.ip import IPAssignment
 from ixforge.models.route_server import RouteServer
+from ixforge.models.route_server_peer import RouteServerPeer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 
 
@@ -23,6 +25,24 @@ def _sesiones_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[tup
         .join(TrunkVLAN, TrunkVLAN.id == BGPSession.trunk_vlan_id)
         .join(Trunk, Trunk.id == TrunkVLAN.trunk_id)
         .where(Trunk.member_id == member_id, BGPSession.ixp_id == ixp_id)
+    )
+
+
+def _peers_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[tuple[uuid.UUID]]:
+    """Los peers del route server que usan una IP asignada a este miembro
+
+    El upstream del IXP no tiene sesion de miembro: su BGP lo maneja un peer.
+    Se lo reconoce por la IP, que es la que tiene asignada en el IPAM
+    """
+    ips = (
+        select(IPAssignment.address)
+        .join(TrunkVLAN, TrunkVLAN.id == IPAssignment.trunk_vlan_id)
+        .join(Trunk, Trunk.id == TrunkVLAN.trunk_id)
+        .where(Trunk.member_id == member_id, IPAssignment.ixp_id == ixp_id)
+    )
+    return select(RouteServerPeer.id).where(
+        RouteServerPeer.ixp_id == ixp_id,
+        RouteServerPeer.peer_ip.in_(ips),
     )
 
 
@@ -49,7 +69,12 @@ async def prefijos(
     """
     stmt = (
         select(BGPSessionPrefix)
-        .where(BGPSessionPrefix.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)))
+        .where(
+            or_(
+                BGPSessionPrefix.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)),
+                BGPSessionPrefix.route_server_peer_id.in_(_peers_del_miembro(ixp_id, member_id)),
+            )
+        )
         .order_by(BGPSessionPrefix.prefix)
     )
     if prefix:
@@ -94,9 +119,21 @@ async def eventos(
     """
     stmt = (
         select(BGPPrefixEvent, RouteServer.name)
-        .join(BGPSession, BGPSession.id == BGPPrefixEvent.bgp_session_id)
-        .join(RouteServer, RouteServer.id == BGPSession.route_server_id)
-        .where(BGPPrefixEvent.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)))
+        .outerjoin(BGPSession, BGPSession.id == BGPPrefixEvent.bgp_session_id)
+        .outerjoin(
+            RouteServerPeer, RouteServerPeer.id == BGPPrefixEvent.route_server_peer_id
+        )
+        .join(
+            RouteServer,
+            RouteServer.id
+            == func.coalesce(BGPSession.route_server_id, RouteServerPeer.route_server_id),
+        )
+        .where(
+            or_(
+                BGPPrefixEvent.bgp_session_id.in_(_sesiones_del_miembro(ixp_id, member_id)),
+                BGPPrefixEvent.route_server_peer_id.in_(_peers_del_miembro(ixp_id, member_id)),
+            )
+        )
         .order_by(desc(BGPPrefixEvent.occurred_at))
         .limit(limit)
     )

@@ -348,9 +348,12 @@ across route servers because both receive the same prefixes from the same peer.
 | GET | `/members/{id}/prefixes` | Prefixes the member advertises now. Filters: `prefix` (starts-with), `limit` |
 | GET | `/members/{id}/prefix-events` | Announce, withdraw and AS path changes, newest first. Filters: `prefix`, `limit` |
 
-The agent lists a session's prefixes only up to 1000. Above that it reports the
-count and no list, which keeps transit peers (hundreds of thousands of routes)
-out without the agent needing to know who is a member.
+Prefixes hang from a member's BGP session or from a route server peer, never both:
+the upstream has no member session but its prefixes are listed all the same, and
+they come back under the member whose IP that peer uses.
+
+The agent lists up to 500.000 prefixes per session. The cap is there so a session
+that goes wrong cannot produce an unbounded report, not to exclude transit.
 
 Prefix events are kept 30 days (`cleanup_old_prefix_events`, daily at 03:30).
 

@@ -3,7 +3,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -22,13 +32,29 @@ class BGPSessionPrefix(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "bgp_session_prefixes"
     __table_args__ = (
         UniqueConstraint("bgp_session_id", "prefix", name="uq_bgp_session_prefixes_sesion_prefijo"),
+        UniqueConstraint(
+            "route_server_peer_id", "prefix", name="uq_bgp_session_prefixes_peer_prefijo"
+        ),
+        CheckConstraint(
+            "(bgp_session_id IS NULL) <> (route_server_peer_id IS NULL)",
+            name="ck_bgp_session_prefixes_una_sola_fuente",
+        ),
         Index("ix_bgp_session_prefixes_prefix", "prefix"),
     )
 
-    bgp_session_id: Mapped[uuid.UUID] = mapped_column(
+    # Un prefijo cuelga de una sesion de miembro o de un peer del route server,
+    # nunca de las dos ni de ninguna: el upstream no tiene sesion de miembro
+    # pero sus prefijos se muestran igual
+    bgp_session_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("bgp_sessions.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    route_server_peer_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("route_server_peers.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     # Texto y no cidr: el sitio busca por prefijo con un LIKE por el comienzo, y
@@ -60,13 +86,24 @@ class BGPPrefixEvent(UUIDPrimaryKey, TenantMixin, Base):
     __tablename__ = "bgp_prefix_events"
     __table_args__ = (
         Index("ix_bgp_prefix_events_sesion_fecha", "bgp_session_id", "occurred_at"),
+        Index("ix_bgp_prefix_events_peer_fecha", "route_server_peer_id", "occurred_at"),
+        CheckConstraint(
+            "(bgp_session_id IS NULL) <> (route_server_peer_id IS NULL)",
+            name="ck_bgp_prefix_events_una_sola_fuente",
+        ),
         Index("ix_bgp_prefix_events_prefix", "prefix"),
     )
 
-    bgp_session_id: Mapped[uuid.UUID] = mapped_column(
+    bgp_session_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("bgp_sessions.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    route_server_peer_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("route_server_peers.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     prefix: Mapped[str] = mapped_column(String(43), nullable=False)
