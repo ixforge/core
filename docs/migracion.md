@@ -1,4 +1,4 @@
-# Migrar un IXP ya desplegado al set euro-ix
+# Migrar un IXP ya desplegado
 
 Procedimiento para IXPs que venian con los templates anteriores. Correrlo **una
 vez por IXP**, con una persona mirando cada paso.
@@ -17,8 +17,8 @@ Y para un IXP que venia con los templates viejos esto es un cambio de
   los peers y hay que verificarlo con ellos
 - **Gana `interpret communities off`**, el pass-through de communities well-known
   de RFC 1997
-- **Gana el patron euro-ix completo**: tabla y pipe por peer, chequeo de first AS,
-  proteccion de next hop, ASNs transit-free, filtrado por ASN de origen
+- **Gana el patron completo de route server**: tabla y pipe por peer, chequeo de
+  first AS, proteccion de next hop, ASNs transit-free, filtrado por ASN de origen
 - **Pierde `protocol kernel`.** Un route server no instala rutas en el kernel
 - **Las communities de tipo de miembro pasan al rango 65xxx.** Si el IXP venia
   emitiendo valores bajos (`2xx`), hay una colision explotable con el control de

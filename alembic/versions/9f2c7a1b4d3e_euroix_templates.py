@@ -16,7 +16,7 @@ ATENCION: para un IXP que venia con los templates viejos esto es un cambio de
 COMPORTAMIENTO, no de formato. Gana rs client, o sea el route server deja de
 meter su ASN en el AS path y de reescribir el next hop. Es una correccion,
 pero cambia lo que ven los peers. El procedimiento completo, con la foto
-previa y la verificacion, esta en docs/migracion-euroix.md
+previa y la verificacion, esta en docs/migracion.md
 """
 
 from collections.abc import Sequence
@@ -616,6 +616,6 @@ def downgrade() -> None:
     raise NotImplementedError(
         "No hay downgrade automatico: reconstruir los templates anteriores a ciegas "
         "seria peor que no bajar. Restaurar desde el export del paso 1 de "
-        "docs/migracion-euroix.md, o desde el template_snapshot de la ultima "
+        "docs/migracion.md, o desde el template_snapshot de la ultima "
         "ConfigVersion generada antes de la migracion"
     )
