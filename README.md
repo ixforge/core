@@ -50,7 +50,7 @@ flujo completo dev -> prod esta en [docs/staging.md](docs/staging.md).
 - [Guias de API](docs/guides/README.md) - Recetas: login, crear miembros, aprovisionar, consultar metricas
 - [API](docs/api.md) - Endpoints, autenticacion, paginacion
 - [Templates BIRD](docs/templates.md) - Como se genera la config, el patron de route server, editar templates
-- [Migracion route server](docs/migracion.md) - Procedimiento para IXPs ya desplegados
+- [Migracion](docs/migracion.md) - Procedimiento para actualizar un IXP ya desplegado
 - [Arquitectura](docs/architecture.md) - Capas, patrones, convenciones
 
 ## Licencia
