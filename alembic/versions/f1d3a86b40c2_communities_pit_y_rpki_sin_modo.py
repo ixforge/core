@@ -51,13 +51,18 @@ CAMBIOS: dict[str, tuple[str, str]] = {
 def _aplicar(desde: int, hasta: int) -> None:
     conn = op.get_bind()
     for archivo, contenidos in CAMBIOS.items():
+        # La cabecera descriptiva puede variar entre instalaciones
+        # El cuerpo completo debe coincidir para preservar personalizaciones
         resultado = conn.execute(
             sa.text(
                 "UPDATE route_server_templates SET content = :nuevo, updated_at = now() "
-                "WHERE filename = :archivo AND content = :anterior"
+                "WHERE filename = :archivo AND (content = :anterior OR ("
+                ":archivo = 'functions/communities.j2' AND "
+                "regexp_replace(content, '^#[^\n]*\n#[^\n]*\n\n', '') = :cuerpo_anterior))"
             ),
             {"nuevo": contenidos[hasta], "archivo": archivo,
-             "anterior": contenidos[desde]},
+             "anterior": contenidos[desde],
+             "cuerpo_anterior": contenidos[desde].partition("\n\n")[2]},
         )
         total = conn.execute(
             sa.text("SELECT count(*) FROM route_server_templates WHERE filename = :archivo"),
