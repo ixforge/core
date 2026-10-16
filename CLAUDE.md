@@ -1,7 +1,7 @@
 # Instrucciones
 - Nunca poner punto al final de un comentario
 - Absolutamente no emojis
-- Nunca poner comentarios changelog
+- Nunca poner comentarios changelog. El registro de cambios va en git, no en comentarios esparcidos por el codigo.
 - Si hay ambiguedad con impacto real, preguntar; si estas trabajando autonomo, documentar la decision tomada
 - Todo el codigo debe ser DRY, KISS, YAGNI
 - Se debe seguir la metodologia TDD, los tests son igual o mas importantes que el codigo que funciona
