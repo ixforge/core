@@ -11,6 +11,87 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  agent-pipeline:
+    name: Core + Agent + BIRD
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ixforge
+          POSTGRES_PASSWORD: ixforge
+          POSTGRES_DB: ixforge_pipeline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ixforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      IXFORGE_DATABASE_URL: postgresql+asyncpg://ixforge:ixforge@localhost:5432/ixforge_pipeline
+      IXFORGE_SECRET_KEY: ci-pipeline-secret-key-at-least-32-chars-long
+      IXFORGE_REQUIRE_BIRD: "1"
+      IXFORGE_RATE_LIMIT_PER_MINUTE: "1000"
+      IXFORGE_AGENT_BINARY: ${{ github.workspace }}/.pipeline-agent/target/debug/ixforge-agent
+      E2E_BASE_URL: http://127.0.0.1:8000/api/v1
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ixforge/agent
+          ref: ${{ vars.IXFORGE_AGENT_REF || 'main' }}
+          path: .pipeline-agent
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .pipeline-agent
+      - name: Install Core dependencies
+        run: uv sync --frozen
+      - name: Build Agent
+        working-directory: .pipeline-agent
+        run: cargo build --locked
+      - name: Build BIRD validator and daemon
+        run: docker build -t ixforge-bird-validator:2 docker/bird-validator/
+      - name: Migrate disposable database
+        run: uv run ixforge upgrade
+      - name: Start Core
+        run: |
+          uv run uvicorn ixforge.main:app --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/ixforge-pipeline-core.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/ixforge-pipeline-core.pid"
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/api/v1/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/ixforge-pipeline-core.log"
+          exit 1
+      - name: Verify apply, rejection and recovery
+        run: uv run pytest tests/pipeline_runner.py -v -s --basetemp "$RUNNER_TEMP/ixforge-pipeline"
+      - name: Stop Core
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/ixforge-pipeline-core.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/ixforge-pipeline-core.pid")" || true
+          fi
+      - name: Preserve process logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-pipeline-logs
+          path: |
+            ${{ runner.temp }}/ixforge-pipeline-core.log
+            ${{ runner.temp }}/ixforge-pipeline/**/*.log
+
   e2e:
     name: End-to-End Tests
     runs-on: ubuntu-latest

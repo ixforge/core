@@ -56,6 +56,46 @@ uv run pytest tests/ui/ -v
 uv run pytest --cov=ixforge --cov-report=term-missing
 ```
 
+Los tests de configuracion que invocan BIRD necesitan su imagen local:
+
+```bash
+docker build -t ixforge-bird-validator:2 docker/bird-validator/
+IXFORGE_REQUIRE_BIRD=1 uv run pytest
+```
+
+CI construye esa imagen y exige `IXFORGE_REQUIRE_BIRD=1`: si Docker o la imagen
+faltan, la suite falla durante la coleccion en vez de omitir la validacion.
+Sin esa variable, una maquina de desarrollo sin Docker puede seguir ejecutando
+el resto de los tests. La version de BIRD de la imagen debe coincidir con la
+del deployment; ver `docker/bird-validator/Dockerfile`.
+
+## Pipeline Core -> Agent -> BIRD
+
+El job `Core + Agent + BIRD` de `.github/workflows/e2e.yml` arranca los tres
+componentes reales sobre PostgreSQL desechable. Comprueba que el Agent instala
+la configuracion generada, BIRD muestra el router ID esperado y el Core recibe
+la confirmacion y el heartbeat. Luego genera una configuracion con sintaxis BIRD
+invalida: debe reportarse el rechazo y conservarse tanto el archivo como la
+configuracion activa. Una tercera version valida debe aplicarse y confirmarse.
+
+El job compila `ixforge/agent` desde `main`. La variable de repositorio
+`IXFORGE_AGENT_REF` permite fijar un tag o SHA para verificar una combinacion
+especifica. Los logs de Core, Agent y BIRD quedan como artefactos del job.
+
+Para correrlo localmente, iniciar Core sobre una **base migrada desechable sin
+setup**, construir la imagen anterior y compilar el Agent. El runner rechaza
+un Core que ya tenga un IXP configurado y crea sus propios datos de prueba:
+
+```bash
+IXFORGE_AGENT_BINARY=../agent/target/debug/ixforge-agent \
+  E2E_BASE_URL=http://127.0.0.1:8000/api/v1 \
+  IXFORGE_REQUIRE_BIRD=1 uv run pytest tests/pipeline_runner.py -v -s
+```
+
+BIRD corre en un contenedor sin red, con el UID/GID local y archivos temporales;
+el Agent usa ese mismo BIRD para validar. La prueba verifica el ciclo de
+configuracion y recuperacion, no establece sesiones BGP con routers externos.
+
 ## Linting y type checking
 
 ```bash

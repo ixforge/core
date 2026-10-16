@@ -1,11 +1,12 @@
 """Validacion de configs BIRD con bird -p en docker.
 
-Los tests que lo usan se saltean si docker o la imagen no estan disponibles,
-para que la suite siga corriendo en una maquina sin docker. Construir la imagen:
+En desarrollo los tests se saltean si docker o la imagen no estan disponibles.
+Con IXFORGE_REQUIRE_BIRD=1 la falta del validador aborta la suite. Construir la imagen:
 
     docker build -t ixforge-bird-validator:2 docker/bird-validator/
 """
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -15,15 +16,21 @@ BIRD_IMAGE = "ixforge-bird-validator:2"
 
 
 def bird_available() -> bool:
-    """True si docker existe y la imagen del validador esta construida"""
-    if shutil.which("docker") is None:
-        return False
-    result = subprocess.run(
-        ["docker", "image", "inspect", BIRD_IMAGE],
-        capture_output=True,
-        check=False,
-    )
-    return result.returncode == 0
+    """Comprueba el validador y exige su presencia cuando CI lo requiere"""
+    available = False
+    if shutil.which("docker") is not None:
+        result = subprocess.run(
+            ["docker", "image", "inspect", BIRD_IMAGE],
+            capture_output=True,
+            check=False,
+        )
+        available = result.returncode == 0
+    if not available and os.environ.get("IXFORGE_REQUIRE_BIRD") == "1":
+        raise RuntimeError(
+            f"IXFORGE_REQUIRE_BIRD=1 requiere Docker accesible y la imagen {BIRD_IMAGE}; "
+            f"construir con docker build -t {BIRD_IMAGE} docker/bird-validator/"
+        )
+    return available
 
 
 def assert_bird_parses(config: str) -> None:

@@ -52,6 +52,7 @@ flujo completo dev -> prod esta en [docs/staging.md](docs/staging.md).
 - [Templates BIRD](docs/templates.md) - Como se genera la config, el patron de route server, editar templates
 - [Migracion](docs/migracion.md) - Procedimiento para actualizar un IXP ya desplegado
 - [Arquitectura](docs/architecture.md) - Capas, patrones, convenciones
+- [Testing](TESTING.md) - Suite, validacion BIRD obligatoria en CI y pipeline Core -> Agent -> BIRD
 
 ## Licencia
 
