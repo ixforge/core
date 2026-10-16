@@ -36,10 +36,14 @@ async def event_list(request: Request) -> Response:
     is_htmx = request.headers.get("hx-request") == "true"
     template = "events/list_rows.html" if is_htmx else "events/list.html"
 
-    return render(request, template, {
-        "events": items,
-        "next_cursor": data.get("next_cursor"),
-        "has_more": data.get("has_more", False),
-        "filter_resource_type": resource_type,
-        "page_title": "Eventos",
-    })
+    return render(
+        request,
+        template,
+        {
+            "events": items,
+            "next_cursor": data.get("next_cursor"),
+            "has_more": data.get("has_more", False),
+            "filter_resource_type": resource_type,
+            "page_title": "Eventos",
+        },
+    )

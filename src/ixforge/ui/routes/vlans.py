@@ -32,21 +32,29 @@ async def vlan_list(request: Request) -> Response:
     is_htmx = request.headers.get("hx-request") == "true"
     template = "vlans/list_rows.html" if is_htmx else "vlans/list.html"
 
-    return render(request, template, {
-        "vlans": items,
-        "filter_type": filter_type,
-        "page_title": "VLANs",
-    })
+    return render(
+        request,
+        template,
+        {
+            "vlans": items,
+            "filter_type": filter_type,
+            "page_title": "VLANs",
+        },
+    )
 
 
 @require_auth
 async def vlan_new(request: Request) -> Response:
     if request.method == "GET":
-        return render(request, "vlans/form.html", {
-            "vlan": None,
-            "errors": {},
-            "page_title": "Nueva VLAN",
-        })
+        return render(
+            request,
+            "vlans/form.html",
+            {
+                "vlan": None,
+                "errors": {},
+                "page_title": "Nueva VLAN",
+            },
+        )
 
     token = require_token(request)
     api: APIClient = request.app.state.api
@@ -63,11 +71,15 @@ async def vlan_new(request: Request) -> Response:
         vlan = await api.post("/api/v1/vlans", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "vlans/form.html", {
-                "vlan": payload,
-                "errors": e.detail,
-                "page_title": "Nueva VLAN",
-            })
+            return render(
+                request,
+                "vlans/form.html",
+                {
+                    "vlan": payload,
+                    "errors": e.detail,
+                    "page_title": "Nueva VLAN",
+                },
+            )
         raise
 
     add_flash(request, f"VLAN '{vlan['name']}' creada", "success")
@@ -88,11 +100,15 @@ async def vlan_edit(request: Request) -> Response:
                 add_flash(request, "VLAN no encontrada", "error")
                 return RedirectResponse("/admin/vlans", status_code=302)
             raise
-        return render(request, "vlans/form.html", {
-            "vlan": vlan,
-            "errors": {},
-            "page_title": f"Editar {vlan.get('name', 'VLAN')}",
-        })
+        return render(
+            request,
+            "vlans/form.html",
+            {
+                "vlan": vlan,
+                "errors": {},
+                "page_title": f"Editar {vlan.get('name', 'VLAN')}",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {}
@@ -108,11 +124,15 @@ async def vlan_edit(request: Request) -> Response:
         vlan = await api.patch(f"/api/v1/vlans/{vlan_id}", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "vlans/form.html", {
-                "vlan": {**payload, "id": vlan_id},
-                "errors": e.detail,
-                "page_title": "Editar VLAN",
-            })
+            return render(
+                request,
+                "vlans/form.html",
+                {
+                    "vlan": {**payload, "id": vlan_id},
+                    "errors": e.detail,
+                    "page_title": "Editar VLAN",
+                },
+            )
         raise
 
     add_flash(request, "VLAN actualizada", "success")
@@ -152,7 +172,9 @@ async def vlan_detail(request: Request) -> Response:
     all_members: list[Any] = []
     if vlan.get("type") == "private":
         with contextlib.suppress(APIError):
-            vm_data = await api.get(f"/api/v1/vlans/{vlan_id}/members", token, params={"limit": 200})
+            vm_data = await api.get(
+                f"/api/v1/vlans/{vlan_id}/members", token, params={"limit": 200}
+            )
             vlan_members = vm_data.get("items", [])
         with contextlib.suppress(APIError):
             m_data = await api.get("/api/v1/members", token, params={"limit": 200})
@@ -165,18 +187,24 @@ async def vlan_detail(request: Request) -> Response:
     vlan_members_enriched = [
         {
             **vm,
-            "member_name": member_map.get(str(vm["member_id"]), {}).get("name", str(vm["member_id"])),
+            "member_name": member_map.get(str(vm["member_id"]), {}).get(
+                "name", str(vm["member_id"])
+            ),
             "member_asn": member_map.get(str(vm["member_id"]), {}).get("asn", ""),
         }
         for vm in vlan_members
     ]
 
-    return render(request, "vlans/detail.html", {
-        "vlan": vlan,
-        "vlan_members": vlan_members_enriched,
-        "available_members": available_members,
-        "page_title": vlan.get("name", "VLAN"),
-    })
+    return render(
+        request,
+        "vlans/detail.html",
+        {
+            "vlan": vlan,
+            "vlan_members": vlan_members_enriched,
+            "available_members": available_members,
+            "page_title": vlan.get("name", "VLAN"),
+        },
+    )
 
 
 @require_auth

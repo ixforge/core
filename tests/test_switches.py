@@ -20,7 +20,11 @@ class TestSwitchCRUD:
         ixp: IXP,
     ):
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-create", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-create",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
@@ -50,7 +54,11 @@ class TestSwitchCRUD:
         ixp: IXP,
     ):
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-get", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-get",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
@@ -81,7 +89,11 @@ class TestSwitchCRUD:
         ixp: IXP,
     ):
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-list", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-list",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
@@ -109,7 +121,11 @@ class TestSwitchCRUD:
         ixp: IXP,
     ):
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-upd", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-upd",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
@@ -142,7 +158,11 @@ class TestSwitchCRUD:
         ixp: IXP,
     ):
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-del", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-del",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
@@ -239,7 +259,11 @@ class TestSwitchSNMP:
         ixp: IXP,
     ):
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-snmp", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-snmp",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()

@@ -29,17 +29,23 @@ async def portal_dashboard(request: Request) -> Response:
         return render(request, "portal/not_linked.html", {"page_title": "Cuenta no vinculada"})
 
     member = await api.get(f"/api/v1/members/{member_id}", token)
-    trunks_data = await api.get("/api/v1/trunks", token, params={"member_id": member_id, "limit": 200})
+    trunks_data = await api.get(
+        "/api/v1/trunks", token, params={"member_id": member_id, "limit": 200}
+    )
 
     trunk_items = trunks_data.get("items", [])
     active_trunks = sum(1 for t in trunk_items if t.get("state") == "active")
 
-    return render(request, "portal/dashboard.html", {
-        "member": member,
-        "active_trunks": active_trunks,
-        "total_trunks": len(trunk_items),
-        "page_title": "Dashboard",
-    })
+    return render(
+        request,
+        "portal/dashboard.html",
+        {
+            "member": member,
+            "active_trunks": active_trunks,
+            "total_trunks": len(trunk_items),
+            "page_title": "Dashboard",
+        },
+    )
 
 
 @require_portal_auth
@@ -60,11 +66,17 @@ async def portal_trunks(request: Request) -> Response:
     member_id = get_session_member_id(request)
     if member_id is None:
         return render(request, "portal/not_linked.html", {"page_title": "Cuenta no vinculada"})
-    trunks_data = await api.get("/api/v1/trunks", token, params={"member_id": member_id, "limit": 200})
-    return render(request, "portal/trunks.html", {
-        "trunks": trunks_data.get("items", []),
-        "page_title": "Trunks",
-    })
+    trunks_data = await api.get(
+        "/api/v1/trunks", token, params={"member_id": member_id, "limit": 200}
+    )
+    return render(
+        request,
+        "portal/trunks.html",
+        {
+            "trunks": trunks_data.get("items", []),
+            "page_title": "Trunks",
+        },
+    )
 
 
 @require_portal_auth
@@ -75,7 +87,9 @@ async def portal_bgp_sessions(request: Request) -> Response:
     if member_id is None:
         return render(request, "portal/not_linked.html", {"page_title": "Cuenta no vinculada"})
     # Fetch BGP sessions for all route servers, filtering by member's trunk VLANs
-    trunks_data = await api.get("/api/v1/trunks", token, params={"member_id": member_id, "limit": 200})
+    trunks_data = await api.get(
+        "/api/v1/trunks", token, params={"member_id": member_id, "limit": 200}
+    )
     trunk_items = trunks_data.get("items", [])
 
     # Collect all trunk VLAN IDs across all member trunks
@@ -97,7 +111,8 @@ async def portal_bgp_sessions(request: Request) -> Response:
         for rs in route_servers:
             try:
                 bgp_data = await api.get(
-                    "/api/v1/bgp-sessions", token,
+                    "/api/v1/bgp-sessions",
+                    token,
                     params={"route_server_id": rs["id"], "limit": 200},
                 )
                 for s in bgp_data.get("items", []):
@@ -107,10 +122,14 @@ async def portal_bgp_sessions(request: Request) -> Response:
             except APIError:
                 pass
 
-    return render(request, "portal/bgp_sessions.html", {
-        "sessions": sessions,
-        "page_title": "Sesiones BGP",
-    })
+    return render(
+        request,
+        "portal/bgp_sessions.html",
+        {
+            "sessions": sessions,
+            "page_title": "Sesiones BGP",
+        },
+    )
 
 
 @require_portal_auth
@@ -120,8 +139,14 @@ async def portal_contacts(request: Request) -> Response:
     member_id = get_session_member_id(request)
     if member_id is None:
         return render(request, "portal/not_linked.html", {"page_title": "Cuenta no vinculada"})
-    contacts_data = await api.get(f"/api/v1/members/{member_id}/contacts", token, params={"limit": 200})
-    return render(request, "portal/contacts.html", {
-        "contacts": contacts_data.get("items", []),
-        "page_title": "Contactos",
-    })
+    contacts_data = await api.get(
+        f"/api/v1/members/{member_id}/contacts", token, params={"limit": 200}
+    )
+    return render(
+        request,
+        "portal/contacts.html",
+        {
+            "contacts": contacts_data.get("items", []),
+            "page_title": "Contactos",
+        },
+    )

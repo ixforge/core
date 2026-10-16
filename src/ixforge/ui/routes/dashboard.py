@@ -53,7 +53,9 @@ async def index(request: Request) -> Response:
 
     try:
         events_data = await api.get("/api/v1/events", token, params={"limit": 5})
-        events_items = events_data.get("items", []) if isinstance(events_data, dict) else events_data
+        events_items = (
+            events_data.get("items", []) if isinstance(events_data, dict) else events_data
+        )
     except APIError:
         pass
 
@@ -62,18 +64,22 @@ async def index(request: Request) -> Response:
     active_trunks = [t for t in all_trunk_items if t.get("state") == "active"]
     active_rs = [r for r in route_servers_items if r.get("is_active")]
 
-    return render(request, "dashboard/index.html", {
-        "members": all_member_items[:5],
-        "member_count": len(all_member_items),
-        "active_member_count": len(active_members),
-        "vlans": all_vlan_items,
-        "vlan_count": len(all_vlan_items),
-        "switch_count": len(all_switch_items),
-        "active_switch_count": len(active_switches),
-        "trunk_count": len(all_trunk_items),
-        "active_trunk_count": len(active_trunks),
-        "rs_count": len(route_servers_items),
-        "active_rs_count": len(active_rs),
-        "user_count": len(users_items),
-        "events": events_items,
-    })
+    return render(
+        request,
+        "dashboard/index.html",
+        {
+            "members": all_member_items[:5],
+            "member_count": len(all_member_items),
+            "active_member_count": len(active_members),
+            "vlans": all_vlan_items,
+            "vlan_count": len(all_vlan_items),
+            "switch_count": len(all_switch_items),
+            "active_switch_count": len(active_switches),
+            "trunk_count": len(all_trunk_items),
+            "active_trunk_count": len(active_trunks),
+            "rs_count": len(route_servers_items),
+            "active_rs_count": len(active_rs),
+            "user_count": len(users_items),
+            "events": events_items,
+        },
+    )

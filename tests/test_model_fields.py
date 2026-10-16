@@ -73,8 +73,12 @@ async def test_member_prefix_filter_nullable_lists(db_session, ixp):
     from ixforge.models.member_prefix_filter import MemberPrefixFilter
 
     member = Member(
-        ixp_id=ixp.id, name="LACTLD", short_name="LACTLD", asn=61455,
-        state=MemberState.active, peering_policy=PeeringPolicy.open,
+        ixp_id=ixp.id,
+        name="LACTLD",
+        short_name="LACTLD",
+        asn=61455,
+        state=MemberState.active,
+        peering_policy=PeeringPolicy.open,
     )
     db_session.add(member)
     await db_session.flush()

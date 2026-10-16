@@ -22,7 +22,9 @@ async def list_vlans(
         RouteServerVLAN.route_server_id == rs_id,
         RouteServerVLAN.ixp_id == ixp_id,
     )
-    return await paginate(session, stmt, params, RouteServerVLAN.created_at, RouteServerVLAN.id, RouteServerVLANRead)
+    return await paginate(
+        session, stmt, params, RouteServerVLAN.created_at, RouteServerVLAN.id, RouteServerVLANRead
+    )
 
 
 async def add_vlan(

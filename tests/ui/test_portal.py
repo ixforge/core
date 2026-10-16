@@ -29,7 +29,9 @@ def app():
 def member_client(app):
     """Client authenticated as a member user."""
     app.state.api.login = AsyncMock(return_value="member-jwt")
-    app.state.api.get = AsyncMock(return_value={"id": "u1", "role": "member", "member_id": MEMBER_ID})
+    app.state.api.get = AsyncMock(
+        return_value={"id": "u1", "role": "member", "member_id": MEMBER_ID}
+    )
     client = TestClient(app, base_url="https://testserver")
     client.post("/login", data={"email": "m@b.com", "password": "p"}, follow_redirects=False)
     return client
@@ -68,10 +70,12 @@ class TestPortalDashboard:
         assert resp.headers["location"] == "/admin"
 
     def test_member_renders_dashboard(self, member_client, app):
-        app.state.api.get = AsyncMock(side_effect=[
-            FAKE_MEMBER,
-            {"items": []},  # trunks
-        ])
+        app.state.api.get = AsyncMock(
+            side_effect=[
+                FAKE_MEMBER,
+                {"items": []},  # trunks
+            ]
+        )
         resp = member_client.get("/portal/dashboard")
         assert resp.status_code == 200
         assert "Dashboard" in resp.text
@@ -124,7 +128,9 @@ class TestPortalAccessControl:
     def test_portal_route_with_unknown_role_redirects_to_login(self, app):
         """Session with unknown role (not admin/member) should redirect to login."""
         app.state.api.login = AsyncMock(return_value="fake-jwt")
-        app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "superuser", "member_id": None})
+        app.state.api.get = AsyncMock(
+            return_value={"id": "abc", "role": "superuser", "member_id": None}
+        )
         client = TestClient(app, base_url="https://testserver")
         client.post("/login", data={"email": "a@b.com", "password": "p"}, follow_redirects=False)
 
@@ -132,12 +138,15 @@ class TestPortalAccessControl:
         assert resp.status_code == 302
         assert resp.headers["location"] == "/login"
 
-    @pytest.mark.parametrize("path", [
-        "/portal/profile",
-        "/portal/trunks",
-        "/portal/bgp-sessions",
-        "/portal/contacts",
-    ])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/portal/profile",
+            "/portal/trunks",
+            "/portal/bgp-sessions",
+            "/portal/contacts",
+        ],
+    )
     def test_admin_redirected_from_portal_route(self, admin_client, path):
         """Admin accessing any portal route is redirected to /admin."""
         resp = admin_client.get(path, follow_redirects=False)

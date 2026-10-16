@@ -24,7 +24,9 @@ from ixforge.models.vlan import VLAN
 
 
 async def _create_trunk_with_vlan(
-    db: AsyncSession, ixp: IXP, member: Member,
+    db: AsyncSession,
+    ixp: IXP,
+    member: Member,
 ) -> TrunkVLAN:
     """Create a trunk in active state with a VLAN assignment."""
     trunk = Trunk(
@@ -598,7 +600,8 @@ class TestBGPSessionConfigRegeneration:
             calls.append((str(route_server_id), triggered_by))
 
         monkeypatch.setattr(
-            "ixforge.tasks.config.defer_rs_config_regeneration", fake_defer,
+            "ixforge.tasks.config.defer_rs_config_regeneration",
+            fake_defer,
         )
         return calls
 
@@ -611,12 +614,21 @@ class TestBGPSessionConfigRegeneration:
         defer_spy: list,
     ):
         rs = RouteServer(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="rs-defer", ip_v4="192.0.2.249", is_active=True,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="rs-defer",
+            ip_v4="192.0.2.249",
+            is_active=True,
         )
         db_session.add(rs)
         member = Member(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="Defer Net", short_name="DEFN",
-            asn=64710, state=MemberState.active, peering_policy=PeeringPolicy.open,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Defer Net",
+            short_name="DEFN",
+            asn=64710,
+            state=MemberState.active,
+            peering_policy=PeeringPolicy.open,
         )
         db_session.add(member)
         await db_session.flush()

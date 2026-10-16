@@ -72,9 +72,7 @@ async def test_member_user_cannot_create_rpki_server(
 async def test_route_server_read_exposes_rpki_fields(
     client: AsyncClient, auth_headers: dict, route_server: RouteServer
 ):
-    resp = await client.get(
-        f"/api/v1/route-servers/{route_server.id}", headers=auth_headers
-    )
+    resp = await client.get(f"/api/v1/route-servers/{route_server.id}", headers=auth_headers)
 
     body = resp.json()
     assert body["passive_sessions"] is True
@@ -89,9 +87,7 @@ async def test_enabling_rpki_triggers_regeneration(
     async def _fake_defer(rs_id, triggered_by):
         calls.append((rs_id, triggered_by))
 
-    monkeypatch.setattr(
-        "ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer
-    )
+    monkeypatch.setattr("ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer)
 
     resp = await client.patch(
         f"/api/v1/route-servers/{route_server.id}",
@@ -112,9 +108,7 @@ async def test_rpki_server_scoped_to_one_route_server(
     async def _fake_defer(rs_id, triggered_by):
         calls.append(rs_id)
 
-    monkeypatch.setattr(
-        "ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer
-    )
+    monkeypatch.setattr("ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer)
 
     resp = await client.post(
         "/api/v1/rpki-servers",

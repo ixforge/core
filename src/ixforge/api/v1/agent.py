@@ -232,9 +232,7 @@ async def report_agent_status(
         str(p.peer_ip): p
         for p in (
             await db.execute(
-                select(RouteServerPeer).where(
-                    RouteServerPeer.route_server_id == route_server_id
-                )
+                select(RouteServerPeer).where(RouteServerPeer.route_server_id == route_server_id)
             )
         ).scalars()
     }
@@ -244,10 +242,13 @@ async def report_agent_status(
         select(TrunkVLAN.id, Member.asn)
         .join(Trunk, TrunkVLAN.trunk_id == Trunk.id)
         .join(Member, Trunk.member_id == Member.id)
-        .where(TrunkVLAN.id.in_(
-            select(BGPSession.trunk_vlan_id)
-            .where(BGPSession.route_server_id == route_server_id)
-        ))
+        .where(
+            TrunkVLAN.id.in_(
+                select(BGPSession.trunk_vlan_id).where(
+                    BGPSession.route_server_id == route_server_id
+                )
+            )
+        )
     )
     asn_result = await db.execute(stmt_asn)
     asn_by_tv: dict[uuid.UUID, int] = {row[0]: row[1] for row in asn_result.all()}
@@ -546,9 +547,7 @@ async def report_agent_prefixes(
         str(p.peer_ip): p
         for p in (
             await db.execute(
-                select(RouteServerPeer).where(
-                    RouteServerPeer.route_server_id == route_server_id
-                )
+                select(RouteServerPeer).where(RouteServerPeer.route_server_id == route_server_id)
             )
         ).scalars()
     }
@@ -576,9 +575,7 @@ async def report_agent_prefixes(
         # prefijos y una sentencia por fila no termina nunca
         guardados = {
             fila.prefix: fila
-            for fila in (
-                await db.execute(select(BGPSessionPrefix).where(condicion))
-            ).scalars()
+            for fila in (await db.execute(select(BGPSessionPrefix).where(condicion))).scalars()
         }
         reportados = {p.prefix: p for p in reporte.prefixes}
 
@@ -590,62 +587,72 @@ async def report_agent_prefixes(
         for prefix, reportado in reportados.items():
             fila = guardados.get(prefix)
             if fila is None:
-                nuevos.append({
-                    "ixp_id": rs.ixp_id,
-                    **origen,
-                    "prefix": prefix,
-                    "as_path": reportado.as_path,
-                    "communities": reportado.communities,
-                    "first_seen_at": ahora,
-                    "last_seen_at": ahora,
-                })
-                eventos.append({
-                    "ixp_id": rs.ixp_id,
-                    **origen,
-                    "prefix": prefix,
-                    "event_type": PrefixEventType.announced,
-                    "as_path": reportado.as_path,
-                    "communities": reportado.communities,
-                    "previous_as_path": None,
-                    "previous_communities": None,
-                    "occurred_at": ahora,
-                })
+                nuevos.append(
+                    {
+                        "ixp_id": rs.ixp_id,
+                        **origen,
+                        "prefix": prefix,
+                        "as_path": reportado.as_path,
+                        "communities": reportado.communities,
+                        "first_seen_at": ahora,
+                        "last_seen_at": ahora,
+                    }
+                )
+                eventos.append(
+                    {
+                        "ixp_id": rs.ixp_id,
+                        **origen,
+                        "prefix": prefix,
+                        "event_type": PrefixEventType.announced,
+                        "as_path": reportado.as_path,
+                        "communities": reportado.communities,
+                        "previous_as_path": None,
+                        "previous_communities": None,
+                        "occurred_at": ahora,
+                    }
+                )
                 continue
 
             # El prefijo sigue: solo deja rastro si cambio algo. Sin esto el
             # historial seria una fila de "sigue ahi" cada cinco minutos
             if fila.as_path != reportado.as_path or fila.communities != reportado.communities:
-                eventos.append({
-                    "ixp_id": rs.ixp_id,
-                    **origen,
-                    "prefix": prefix,
-                    "event_type": PrefixEventType.updated,
-                    "as_path": reportado.as_path,
-                    "communities": reportado.communities,
-                    "previous_as_path": fila.as_path,
-                    "previous_communities": fila.communities,
-                    "occurred_at": ahora,
-                })
-                cambiados.append({
-                    "id": fila.id,
-                    "as_path": reportado.as_path,
-                    "communities": reportado.communities,
-                })
+                eventos.append(
+                    {
+                        "ixp_id": rs.ixp_id,
+                        **origen,
+                        "prefix": prefix,
+                        "event_type": PrefixEventType.updated,
+                        "as_path": reportado.as_path,
+                        "communities": reportado.communities,
+                        "previous_as_path": fila.as_path,
+                        "previous_communities": fila.communities,
+                        "occurred_at": ahora,
+                    }
+                )
+                cambiados.append(
+                    {
+                        "id": fila.id,
+                        "as_path": reportado.as_path,
+                        "communities": reportado.communities,
+                    }
+                )
 
         for prefix, fila in guardados.items():
             if prefix in reportados:
                 continue
-            eventos.append({
-                "ixp_id": rs.ixp_id,
-                **origen,
-                "prefix": prefix,
-                "event_type": PrefixEventType.withdrawn,
-                "as_path": fila.as_path,
-                "communities": fila.communities,
-                "previous_as_path": None,
-                "previous_communities": None,
-                "occurred_at": ahora,
-            })
+            eventos.append(
+                {
+                    "ixp_id": rs.ixp_id,
+                    **origen,
+                    "prefix": prefix,
+                    "event_type": PrefixEventType.withdrawn,
+                    "as_path": fila.as_path,
+                    "communities": fila.communities,
+                    "previous_as_path": None,
+                    "previous_communities": None,
+                    "occurred_at": ahora,
+                }
+            )
             retirados.append(prefix)
 
         if nuevos:

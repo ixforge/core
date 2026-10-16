@@ -10,9 +10,7 @@ from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKe
 
 class RouteServerTemplate(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "route_server_templates"
-    __table_args__ = (
-        UniqueConstraint("ixp_id", "filename", name="uq_rs_templates_ixp_filename"),
-    )
+    __table_args__ = (UniqueConstraint("ixp_id", "filename", name="uq_rs_templates_ixp_filename"),)
 
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

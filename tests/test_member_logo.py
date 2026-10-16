@@ -16,6 +16,7 @@ from ixforge.services.auth import hash_api_key
 
 def _make_png_bytes() -> bytes:
     from PIL import Image
+
     buf = io.BytesIO()
     img = Image.new("RGB", (100, 100), color=(255, 0, 0))
     img.save(buf, format="PNG")
@@ -24,6 +25,7 @@ def _make_png_bytes() -> bytes:
 
 def _make_jpeg_bytes() -> bytes:
     from PIL import Image
+
     buf = io.BytesIO()
     img = Image.new("RGB", (100, 100), color=(0, 255, 0))
     img.save(buf, format="JPEG")
@@ -32,12 +34,20 @@ def _make_jpeg_bytes() -> bytes:
 
 class TestMemberLogoAPI:
     async def test_upload_png_logo(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
-        db_session: AsyncSession, tmp_path, monkeypatch
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
         from ixforge.config import get_settings
+
         monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
-        m = Member(ixp_id=ixp.id, name="ISP", short_name="I", asn=65010, state=MemberState.prospect)
+        m = Member(
+            ixp_id=ixp.id, name="ISP", short_name="I", asn=65010, state=MemberState.prospect
+        )
         db_session.add(m)
         await db_session.flush()
         resp = await client.post(
@@ -48,12 +58,20 @@ class TestMemberLogoAPI:
         assert resp.status_code == 204
 
     async def test_upload_jpeg_converts_to_png(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
-        db_session: AsyncSession, tmp_path, monkeypatch
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
         from ixforge.config import get_settings
+
         monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
-        m = Member(ixp_id=ixp.id, name="ISP2", short_name="I2", asn=65011, state=MemberState.prospect)
+        m = Member(
+            ixp_id=ixp.id, name="ISP2", short_name="I2", asn=65011, state=MemberState.prospect
+        )
         db_session.add(m)
         await db_session.flush()
         resp = await client.post(
@@ -67,7 +85,9 @@ class TestMemberLogoAPI:
     async def test_upload_invalid_mime_rejected(
         self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
     ) -> None:
-        m = Member(ixp_id=ixp.id, name="ISP3", short_name="I3", asn=65012, state=MemberState.prospect)
+        m = Member(
+            ixp_id=ixp.id, name="ISP3", short_name="I3", asn=65012, state=MemberState.prospect
+        )
         db_session.add(m)
         await db_session.flush()
         resp = await client.post(
@@ -78,12 +98,20 @@ class TestMemberLogoAPI:
         assert resp.status_code == 422
 
     async def test_delete_logo(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
-        db_session: AsyncSession, tmp_path, monkeypatch
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
         from ixforge.config import get_settings
+
         monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
-        m = Member(ixp_id=ixp.id, name="ISP4", short_name="I4", asn=65013, state=MemberState.prospect)
+        m = Member(
+            ixp_id=ixp.id, name="ISP4", short_name="I4", asn=65013, state=MemberState.prospect
+        )
         db_session.add(m)
         await db_session.flush()
         logo_dir = tmp_path / "members" / str(m.id)
@@ -101,10 +129,14 @@ class TestMemberLogoRead:
 
     async def _miembro(self, db_session, ixp, tmp_path, monkeypatch, asn, con_logo=True):
         from ixforge.config import get_settings
+
         monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
         m = Member(
-            ixp_id=ixp.id, name=f"ISP {asn}", short_name=f"L{asn}"[:10],
-            asn=asn, state=MemberState.active,
+            ixp_id=ixp.id,
+            name=f"ISP {asn}",
+            short_name=f"L{asn}"[:10],
+            asn=asn,
+            state=MemberState.active,
         )
         db_session.add(m)
         await db_session.flush()
@@ -116,8 +148,13 @@ class TestMemberLogoRead:
         return m, contenido
 
     async def test_devuelve_el_png(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
-        db_session: AsyncSession, tmp_path, monkeypatch
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
         m, contenido = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65020)
 
@@ -128,8 +165,13 @@ class TestMemberLogoRead:
         assert resp.content == contenido
 
     async def test_miembro_sin_logo_da_404(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
-        db_session: AsyncSession, tmp_path, monkeypatch
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
         m, _ = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65021, con_logo=False)
 
@@ -142,6 +184,7 @@ class TestMemberLogoRead:
         self, client: AsyncClient, ixp: IXP, auth_headers: dict, tmp_path, monkeypatch
     ) -> None:
         from ixforge.config import get_settings
+
         monkeypatch.setattr(get_settings(), "media_root", str(tmp_path))
 
         resp = await client.get(f"/api/v1/members/{uuid.uuid4()}/logo", headers=auth_headers)
@@ -150,16 +193,28 @@ class TestMemberLogoRead:
         assert resp.json()["error"]["code"] == "NOT_FOUND"
 
     async def test_una_key_de_solo_lectura_de_miembros_lo_puede_leer(
-        self, client: AsyncClient, ixp: IXP, admin_user, db_session: AsyncSession,
-        tmp_path, monkeypatch
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        admin_user,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
         """Es el caso de la key del sitio publico: members:read y nada mas"""
         m, contenido = await self._miembro(db_session, ixp, tmp_path, monkeypatch, 65022)
         raw = "ixf_logoread1234567890abcdef1234567890abcdef1234567890abcdef12345678"
-        db_session.add(APIKey(
-            id=uuid.uuid4(), key_hash=hash_api_key(raw), prefix=raw[:12], name="sitio",
-            scopes=["members:read"], user_id=admin_user.id, is_active=True,
-        ))
+        db_session.add(
+            APIKey(
+                id=uuid.uuid4(),
+                key_hash=hash_api_key(raw),
+                prefix=raw[:12],
+                name="sitio",
+                scopes=["members:read"],
+                user_id=admin_user.id,
+                is_active=True,
+            )
+        )
         await db_session.flush()
 
         resp = await client.get(f"/api/v1/members/{m.id}/logo", headers={"X-API-Key": raw})

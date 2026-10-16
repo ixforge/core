@@ -73,7 +73,12 @@ class TestContactCreate:
         app.state.api.post = AsyncMock(return_value={**FAKE_CONTACT})
         resp = authed_client.post(
             f"/admin/members/{FAKE_MEMBER['id']}/contacts/new",
-            data={"name": "John Doe", "email": "john@acme.example.net", "phone": "+1234567890", "role": "noc"},
+            data={
+                "name": "John Doe",
+                "email": "john@acme.example.net",
+                "phone": "+1234567890",
+                "role": "noc",
+            },
             follow_redirects=False,
         )
         assert resp.status_code == 302
@@ -81,7 +86,12 @@ class TestContactCreate:
         app.state.api.post.assert_called_once_with(
             f"/api/v1/members/{FAKE_MEMBER['id']}/contacts",
             "test-jwt",
-            json={"name": "John Doe", "email": "john@acme.example.net", "phone": "+1234567890", "role": "noc"},
+            json={
+                "name": "John Doe",
+                "email": "john@acme.example.net",
+                "phone": "+1234567890",
+                "role": "noc",
+            },
         )
 
     def test_create_contact_error_flashes(self, authed_client, app):
@@ -99,7 +109,11 @@ class TestContactEdit:
         app.state.api.patch = AsyncMock(return_value={**FAKE_CONTACT})
         resp = authed_client.post(
             f"/admin/contacts/{FAKE_CONTACT['id']}/edit",
-            data={"name": "Jane Doe", "email": "jane@acme.example.net", "member_id": FAKE_MEMBER["id"]},
+            data={
+                "name": "Jane Doe",
+                "email": "jane@acme.example.net",
+                "member_id": FAKE_MEMBER["id"],
+            },
             follow_redirects=False,
         )
         assert resp.status_code == 302

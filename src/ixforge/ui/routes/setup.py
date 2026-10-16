@@ -37,10 +37,14 @@ async def setup_submit(request: Request) -> Response:
     form_data = {k: v for k, v in form.items() if k not in ("password", "password_confirm")}
 
     if password != password_confirm:
-        return render(request, "setup.html", {
-            "errors": {"error": {"message": "Las contraseñas no coinciden"}},
-            "form": form_data,
-        })
+        return render(
+            request,
+            "setup.html",
+            {
+                "errors": {"error": {"message": "Las contraseñas no coinciden"}},
+                "form": form_data,
+            },
+        )
 
     try:
         asn = int(str(form.get("asn") or 0))
@@ -70,10 +74,16 @@ async def setup_submit(request: Request) -> Response:
         if exc.status_code == 409:
             add_flash(request, "El sistema ya fue configurado", "info")
             return RedirectResponse("/login", status_code=302)
-        return render(request, "setup.html", {
-            "errors": exc.detail if isinstance(exc.detail, dict) else {"error": {"message": str(exc.detail)}},
-            "form": form_data,
-        })
+        return render(
+            request,
+            "setup.html",
+            {
+                "errors": exc.detail
+                if isinstance(exc.detail, dict)
+                else {"error": {"message": str(exc.detail)}},
+                "form": form_data,
+            },
+        )
 
     # Mark as configured in app state cache
     request.app.state.ixp_configured = True

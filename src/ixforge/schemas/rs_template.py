@@ -12,7 +12,9 @@ _MAX_CONTENT_LENGTH = 524288  # 512 KB
 
 def _validate_filename(v: str) -> str:
     if not _FILENAME_RE.match(v):
-        raise ValueError("Filename must contain only alphanumeric, _, -, / characters and end with .j2")
+        raise ValueError(
+            "Filename must contain only alphanumeric, _, -, / characters and end with .j2"
+        )
     if v.count("/") > 1:
         raise ValueError("Filename cannot have more than one directory level")
     return v

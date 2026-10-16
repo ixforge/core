@@ -35,22 +35,30 @@ async def custom_field_list(request: Request) -> Response:
         et = item.get("entity_type", "other")
         grouped.setdefault(et, []).append(item)
 
-    return render(request, "custom_fields/list.html", {
-        "fields": items,
-        "grouped_fields": grouped,
-        "filter_entity_type": entity_type,
-        "page_title": "Custom Fields",
-    })
+    return render(
+        request,
+        "custom_fields/list.html",
+        {
+            "fields": items,
+            "grouped_fields": grouped,
+            "filter_entity_type": entity_type,
+            "page_title": "Custom Fields",
+        },
+    )
 
 
 @require_auth
 async def custom_field_new(request: Request) -> Response:
     if request.method == "GET":
-        return render(request, "custom_fields/form.html", {
-            "field": None,
-            "errors": {},
-            "page_title": "Nuevo Custom Field",
-        })
+        return render(
+            request,
+            "custom_fields/form.html",
+            {
+                "field": None,
+                "errors": {},
+                "page_title": "Nuevo Custom Field",
+            },
+        )
 
     token = require_token(request)
     api: APIClient = request.app.state.api
@@ -74,11 +82,15 @@ async def custom_field_new(request: Request) -> Response:
         await api.post("/api/v1/custom-fields", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "custom_fields/form.html", {
-                "field": payload,
-                "errors": e.detail,
-                "page_title": "Nuevo Custom Field",
-            })
+            return render(
+                request,
+                "custom_fields/form.html",
+                {
+                    "field": payload,
+                    "errors": e.detail,
+                    "page_title": "Nuevo Custom Field",
+                },
+            )
         raise
 
     add_flash(request, f"Custom field '{payload['field_name']}' creado", "success")

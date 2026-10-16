@@ -114,9 +114,13 @@ def create_ui_app() -> Starlette:
         Route("/admin/members/{member_id}/asn-name", members.member_asn_name),
         Route("/admin/members/{member_id}", members.member_detail),
         Route("/admin/members/{member_id}/edit", members.member_edit, methods=["GET", "POST"]),
-        Route("/admin/members/{member_id}/transition", members.member_transition, methods=["POST"]),
+        Route(
+            "/admin/members/{member_id}/transition", members.member_transition, methods=["POST"]
+        ),
         Route("/admin/members/{member_id}/logo", members.member_logo_upload, methods=["POST"]),
-        Route("/admin/members/{member_id}/logo/delete", members.member_logo_delete, methods=["POST"]),
+        Route(
+            "/admin/members/{member_id}/logo/delete", members.member_logo_delete, methods=["POST"]
+        ),
         Route("/admin/members/{member_id}/contacts/new", members.contact_new, methods=["POST"]),
         Route("/admin/members/{member_id}/delete", members.member_delete, methods=["POST"]),
         # Contacts (top-level for edit/delete)
@@ -137,8 +141,12 @@ def create_ui_app() -> Starlette:
         # Locations
         Route("/admin/locations", locations.location_list),
         Route("/admin/locations/new", locations.location_new, methods=["GET", "POST"]),
-        Route("/admin/locations/{location_id}/edit", locations.location_edit, methods=["GET", "POST"]),
-        Route("/admin/locations/{location_id}/delete", locations.location_delete, methods=["POST"]),
+        Route(
+            "/admin/locations/{location_id}/edit", locations.location_edit, methods=["GET", "POST"]
+        ),
+        Route(
+            "/admin/locations/{location_id}/delete", locations.location_delete, methods=["POST"]
+        ),
         # Switches
         Route("/admin/switches", switches.switch_list),
         Route("/admin/switches/new", switches.switch_new, methods=["GET", "POST"]),
@@ -148,26 +156,80 @@ def create_ui_app() -> Starlette:
         # Route Servers
         Route("/admin/route-servers", route_servers.route_server_list),
         Route("/admin/route-servers/new", route_servers.route_server_new, methods=["GET", "POST"]),
-        Route("/admin/route-servers/vlan-pools", route_servers.route_server_vlan_pools, methods=["GET"]),
+        Route(
+            "/admin/route-servers/vlan-pools",
+            route_servers.route_server_vlan_pools,
+            methods=["GET"],
+        ),
         # Route Server Templates (before {rs_id} catch-all)
         Route("/admin/route-servers/templates", rs_templates.template_list),
-        Route("/admin/route-servers/templates/new", rs_templates.template_new, methods=["GET", "POST"]),
+        Route(
+            "/admin/route-servers/templates/new",
+            rs_templates.template_new,
+            methods=["GET", "POST"],
+        ),
         Route("/admin/route-servers/templates/{tpl_id}/edit", rs_templates.template_edit),
-        Route("/admin/route-servers/templates/{tpl_id}/save", rs_templates.template_save, methods=["POST"]),
-        Route("/admin/route-servers/templates/{tpl_id}/delete", rs_templates.template_delete, methods=["POST"]),
-        Route("/admin/route-servers/templates/{tpl_id}/preview", rs_templates.template_preview, methods=["POST"]),
+        Route(
+            "/admin/route-servers/templates/{tpl_id}/save",
+            rs_templates.template_save,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/templates/{tpl_id}/delete",
+            rs_templates.template_delete,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/templates/{tpl_id}/preview",
+            rs_templates.template_preview,
+            methods=["POST"],
+        ),
         Route("/admin/route-servers/{rs_id}", route_servers.route_server_detail),
-        Route("/admin/route-servers/{rs_id}/edit", route_servers.route_server_edit, methods=["GET", "POST"]),
-        Route("/admin/route-servers/{rs_id}/vlans/add", route_servers.rs_vlan_add, methods=["POST"]),
-        Route("/admin/route-servers/{rs_id}/vlans/{vlan_id}/remove", route_servers.rs_vlan_remove, methods=["POST"]),
-        Route("/admin/route-servers/{rs_id}/ips/assign", route_servers.rs_ip_assign, methods=["POST"]),
-        Route("/admin/route-servers/{rs_id}/ips/{assignment_id}/release", route_servers.rs_ip_release, methods=["POST"]),
-        Route("/admin/route-servers/{route_server_id}/bgp-sessions", route_servers.route_server_add_bgp_session, methods=["POST"]),
-        Route("/admin/route-servers/{rs_id}/delete", route_servers.route_server_delete, methods=["POST"]),
-        Route("/admin/route-servers/{rs_id}/config/generate", route_servers.route_server_config_generate, methods=["POST"]),
-        Route("/admin/route-servers/{rs_id}/config/history", route_servers.route_server_config_history),
+        Route(
+            "/admin/route-servers/{rs_id}/edit",
+            route_servers.route_server_edit,
+            methods=["GET", "POST"],
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/vlans/add", route_servers.rs_vlan_add, methods=["POST"]
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/vlans/{vlan_id}/remove",
+            route_servers.rs_vlan_remove,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/ips/assign", route_servers.rs_ip_assign, methods=["POST"]
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/ips/{assignment_id}/release",
+            route_servers.rs_ip_release,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/{route_server_id}/bgp-sessions",
+            route_servers.route_server_add_bgp_session,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/delete",
+            route_servers.route_server_delete,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/config/generate",
+            route_servers.route_server_config_generate,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/route-servers/{rs_id}/config/history",
+            route_servers.route_server_config_history,
+        ),
         Route("/admin/route-servers/{rs_id}/config/diff", route_servers.route_server_config_diff),
-        Route("/admin/route-servers/{rs_id}/config/{version_id}/view", route_servers.route_server_config_view),
+        Route(
+            "/admin/route-servers/{rs_id}/config/{version_id}/view",
+            route_servers.route_server_config_view,
+        ),
         # VLANs
         Route("/admin/vlans", vlans.vlan_list),
         Route("/admin/vlans/new", vlans.vlan_new, methods=["GET", "POST"]),
@@ -175,7 +237,11 @@ def create_ui_app() -> Starlette:
         Route("/admin/vlans/{vlan_id}/edit", vlans.vlan_edit, methods=["GET", "POST"]),
         Route("/admin/vlans/{vlan_id}/delete", vlans.vlan_delete, methods=["POST"]),
         Route("/admin/vlans/{vlan_id}/members/add", vlans.vlan_member_add, methods=["POST"]),
-        Route("/admin/vlans/{vlan_id}/members/{member_id}/remove", vlans.vlan_member_remove, methods=["POST"]),
+        Route(
+            "/admin/vlans/{vlan_id}/members/{member_id}/remove",
+            vlans.vlan_member_remove,
+            methods=["POST"],
+        ),
         # IP Pools
         Route("/admin/ip-pools", ip_pools.ip_pool_list),
         Route("/admin/ip-pools/new", ip_pools.ip_pool_new, methods=["GET", "POST"]),
@@ -185,8 +251,16 @@ def create_ui_app() -> Starlette:
         Route("/admin/bgp-sessions", bgp_sessions.bgp_session_list),
         Route("/admin/bgp-sessions/new", bgp_sessions.bgp_session_new, methods=["GET", "POST"]),
         Route("/admin/bgp-sessions/{session_id}", bgp_sessions.bgp_session_detail),
-        Route("/admin/bgp-sessions/{session_id}/delete", bgp_sessions.bgp_session_delete, methods=["POST"]),
-        Route("/admin/bgp-sessions/{session_id}/toggle", bgp_sessions.bgp_session_toggle, methods=["POST"]),
+        Route(
+            "/admin/bgp-sessions/{session_id}/delete",
+            bgp_sessions.bgp_session_delete,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/bgp-sessions/{session_id}/toggle",
+            bgp_sessions.bgp_session_toggle,
+            methods=["POST"],
+        ),
         # Trunks
         Route("/admin/trunks", trunks.trunk_list),
         Route("/admin/trunks/new", trunks.trunk_new, methods=["GET", "POST"]),
@@ -195,24 +269,60 @@ def create_ui_app() -> Starlette:
         Route("/admin/trunks/{trunk_id}/delete", trunks.trunk_delete, methods=["POST"]),
         Route("/admin/trunks/{trunk_id}/transition", trunks.trunk_transition, methods=["POST"]),
         Route("/admin/trunks/{trunk_id}/vlans", trunks.trunk_assign_vlan, methods=["POST"]),
-        Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/delete", trunks.trunk_unassign_vlan, methods=["POST"]),
-        Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/ips", trunks.trunk_assign_ip, methods=["POST"]),
-        Route("/admin/trunks/{trunk_id}/vlans/{tv_id}/ips/{aid}/delete", trunks.trunk_release_ip, methods=["POST"]),
-        Route("/admin/trunks/{trunk_id}/connections", trunks.trunk_add_connection, methods=["POST"]),
-        Route("/admin/trunks/{trunk_id}/connections/{cid}/transition", trunks.trunk_connection_transition, methods=["POST"]),
-        Route("/admin/trunks/{trunk_id}/connections/{cid}/delete", trunks.trunk_connection_delete, methods=["POST"]),
+        Route(
+            "/admin/trunks/{trunk_id}/vlans/{tv_id}/delete",
+            trunks.trunk_unassign_vlan,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/trunks/{trunk_id}/vlans/{tv_id}/ips", trunks.trunk_assign_ip, methods=["POST"]
+        ),
+        Route(
+            "/admin/trunks/{trunk_id}/vlans/{tv_id}/ips/{aid}/delete",
+            trunks.trunk_release_ip,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/trunks/{trunk_id}/connections", trunks.trunk_add_connection, methods=["POST"]
+        ),
+        Route(
+            "/admin/trunks/{trunk_id}/connections/{cid}/transition",
+            trunks.trunk_connection_transition,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/trunks/{trunk_id}/connections/{cid}/delete",
+            trunks.trunk_connection_delete,
+            methods=["POST"],
+        ),
         # Connections
         Route("/admin/connections", connections.connection_list),
         Route("/admin/connections/new", connections.connection_new, methods=["GET", "POST"]),
-        Route("/admin/connections/{connection_id}/edit", connections.connection_edit, methods=["GET", "POST"]),
-        Route("/admin/connections/{connection_id}/transition", connections.connection_transition, methods=["POST"]),
+        Route(
+            "/admin/connections/{connection_id}/edit",
+            connections.connection_edit,
+            methods=["GET", "POST"],
+        ),
+        Route(
+            "/admin/connections/{connection_id}/transition",
+            connections.connection_transition,
+            methods=["POST"],
+        ),
         # Events
         Route("/admin/events", events.event_list),
         # Custom Fields
         Route("/admin/custom-fields", custom_fields.custom_field_list),
         Route("/admin/custom-fields/new", custom_fields.custom_field_new, methods=["GET", "POST"]),
-        Route("/admin/custom-fields/{field_id}/edit", custom_fields.custom_field_edit, methods=["POST"]),
-        Route("/admin/custom-fields/{field_id}/delete", custom_fields.custom_field_delete, methods=["POST"]),
+        Route(
+            "/admin/custom-fields/{field_id}/edit",
+            custom_fields.custom_field_edit,
+            methods=["POST"],
+        ),
+        Route(
+            "/admin/custom-fields/{field_id}/delete",
+            custom_fields.custom_field_delete,
+            methods=["POST"],
+        ),
         # IX-F Export
         Route("/admin/ixf-export", ixf_export.ixf_export_view),
         # Settings

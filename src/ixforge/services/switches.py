@@ -81,9 +81,7 @@ async def create(
     try:
         await session.flush()
     except IntegrityError as exc:
-        raise ConflictError(
-            f"Switch with name '{data.name}' already exists in this IXP"
-        ) from exc
+        raise ConflictError(f"Switch with name '{data.name}' already exists in this IXP") from exc
     return switch
 
 
@@ -128,7 +126,9 @@ async def update(
             raise NotFoundError("Location", str(update_fields["location_id"]))
 
     if "extra_data" in update_fields and update_fields["extra_data"] is not None:
-        await custom_fields.validate_extra_data(session, ixp_id, "switch", update_fields["extra_data"])
+        await custom_fields.validate_extra_data(
+            session, ixp_id, "switch", update_fields["extra_data"]
+        )
 
     if "snmp_community" in update_fields:
         snmp_community = update_fields.pop("snmp_community")
@@ -140,9 +140,7 @@ async def update(
     try:
         await session.flush()
     except IntegrityError as exc:
-        raise ConflictError(
-            "Switch with that name already exists in this IXP"
-        ) from exc
+        raise ConflictError("Switch with that name already exists in this IXP") from exc
     await session.refresh(switch)
     return switch
 

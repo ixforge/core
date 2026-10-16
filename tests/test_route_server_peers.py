@@ -10,9 +10,7 @@ from ixforge.models.route_server import RouteServer
 
 @pytest.fixture
 async def route_server(db_session: AsyncSession, ixp: IXP) -> RouteServer:
-    rs = RouteServer(
-        ixp_id=ixp.id, name="rs1", ip_v4="192.0.2.250", ip_v6="2001:db8::250"
-    )
+    rs = RouteServer(ixp_id=ixp.id, name="rs1", ip_v4="192.0.2.250", ip_v6="2001:db8::250")
     db_session.add(rs)
     await db_session.flush()
     return rs
@@ -146,9 +144,7 @@ async def test_create_peer_triggers_regeneration(
     async def _fake_defer(rs_id, triggered_by):
         calls.append((rs_id, triggered_by))
 
-    monkeypatch.setattr(
-        "ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer
-    )
+    monkeypatch.setattr("ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer)
 
     await client.post(
         f"/api/v1/route-servers/{route_server.id}/peers",
@@ -171,9 +167,7 @@ async def test_update_and_delete_trigger_regeneration(
     async def _fake_defer(rs_id, triggered_by):
         calls.append(triggered_by)
 
-    monkeypatch.setattr(
-        "ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer
-    )
+    monkeypatch.setattr("ixforge.tasks.config.defer_rs_config_regeneration", _fake_defer)
 
     patched = await client.patch(
         f"{url}/{peer_id}", headers=auth_headers, json={"max_prefixes": 100}

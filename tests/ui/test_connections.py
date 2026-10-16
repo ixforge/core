@@ -112,7 +112,11 @@ class TestTrunkList:
             if path == "/api/v1/members":
                 return {"items": [FAKE_MEMBER], "next_cursor": None, "has_more": False}
             if path == "/api/v1/trunks":
-                return {"items": [active_trunk, draft_trunk], "next_cursor": None, "has_more": False}
+                return {
+                    "items": [active_trunk, draft_trunk],
+                    "next_cursor": None,
+                    "has_more": False,
+                }
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
@@ -128,7 +132,9 @@ class TestTrunkDetail:
                 return [FAKE_TRUNK_VLAN]
             if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}/connections":
                 return []
-            if path.startswith(f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/") and path.endswith("/ips"):
+            if path.startswith(f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/") and path.endswith(
+                "/ips"
+            ):
                 return []
             if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}":
                 return FAKE_TRUNK
@@ -170,7 +176,9 @@ class TestTrunkDetail:
                 return [FAKE_TRUNK_VLAN]
             if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}/connections":
                 return [conn]
-            if path.startswith(f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/") and path.endswith("/ips"):
+            if path.startswith(f"/api/v1/trunks/{FAKE_TRUNK['id']}/vlans/") and path.endswith(
+                "/ips"
+            ):
                 return []
             if path == f"/api/v1/trunks/{FAKE_TRUNK['id']}":
                 return FAKE_TRUNK
@@ -193,9 +201,7 @@ class TestTrunkDetail:
 
     def test_disabled_connection_shows_decommission_and_reactivate(self, authed_client, app):
         conn, html = self._render_with_connection(app, authed_client, "disabled")
-        transition_url = (
-            f"/admin/trunks/{FAKE_TRUNK['id']}/connections/{conn['id']}/transition"
-        )
+        transition_url = f"/admin/trunks/{FAKE_TRUNK['id']}/connections/{conn['id']}/transition"
         assert transition_url in html
         assert "Decomisionar" in html
         assert "Reactivar" in html
@@ -250,7 +256,18 @@ class TestTrunkForm:
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "required"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/trunks/new",
             data={"member_id": "", "name": ""},
@@ -404,9 +421,7 @@ class TestTrunkActions:
         )
         assert resp.status_code == 302
         assert f"/admin/trunks/{FAKE_TRUNK['id']}" in resp.headers["location"]
-        app.state.api.delete.assert_awaited_once_with(
-            f"/api/v1/connections/{cid}", "test-jwt"
-        )
+        app.state.api.delete.assert_awaited_once_with(f"/api/v1/connections/{cid}", "test-jwt")
 
     def test_delete_connection_error_flashes(self, authed_client, app):
         cid = str(uuid.uuid4())

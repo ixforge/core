@@ -92,7 +92,9 @@ class MemberRead(BaseModel):
 
         settings = get_settings()
         path = os.path.join(settings.media_root, "members", str(self.id), "logo.png")
-        self.logo_url = f"{settings.media_url}/members/{self.id}/logo.png" if os.path.exists(path) else None
+        self.logo_url = (
+            f"{settings.media_url}/members/{self.id}/logo.png" if os.path.exists(path) else None
+        )
         return self
 
 

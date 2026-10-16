@@ -211,13 +211,9 @@ class TestConnectionStateMachine:
 
         assert result.state == ConnectionState.decommissioned
 
-    async def test_transition_active_to_disabled(
-        self, db_session: AsyncSession, ixp: IXP
-    ) -> None:
+    async def test_transition_active_to_disabled(self, db_session: AsyncSession, ixp: IXP) -> None:
         _member, trunk, switch = await _setup(db_session, ixp)
-        conn = await _make_connection(
-            db_session, ixp, trunk, switch, state=ConnectionState.active
-        )
+        conn = await _make_connection(db_session, ixp, trunk, switch, state=ConnectionState.active)
 
         result = await conn_svc.transition(
             db_session, conn.id, ConnectionState.disabled, ixp_id=ixp.id
@@ -225,9 +221,7 @@ class TestConnectionStateMachine:
 
         assert result.state == ConnectionState.disabled
 
-    async def test_transition_disabled_to_active(
-        self, db_session: AsyncSession, ixp: IXP
-    ) -> None:
+    async def test_transition_disabled_to_active(self, db_session: AsyncSession, ixp: IXP) -> None:
         _member, trunk, switch = await _setup(db_session, ixp)
         conn = await _make_connection(
             db_session, ixp, trunk, switch, state=ConnectionState.disabled
@@ -259,9 +253,7 @@ class TestConnectionStateMachine:
         conn = await _make_connection(db_session, ixp, trunk, switch, state=ConnectionState.draft)
 
         with pytest.raises(ValidationError):
-            await conn_svc.transition(
-                db_session, conn.id, ConnectionState.active, ixp_id=ixp.id
-            )
+            await conn_svc.transition(db_session, conn.id, ConnectionState.active, ixp_id=ixp.id)
 
     async def test_transition_decommissioned_to_anything_invalid(
         self, db_session: AsyncSession, ixp: IXP
@@ -272,9 +264,7 @@ class TestConnectionStateMachine:
         )
 
         with pytest.raises(ValidationError):
-            await conn_svc.transition(
-                db_session, conn.id, ConnectionState.draft, ixp_id=ixp.id
-            )
+            await conn_svc.transition(db_session, conn.id, ConnectionState.draft, ixp_id=ixp.id)
 
 
 class TestDeleteConnection:
@@ -293,9 +283,7 @@ class TestDeleteConnection:
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
         _member, trunk, switch = await _setup(db_session, ixp)
-        conn = await _make_connection(
-            db_session, ixp, trunk, switch, state=ConnectionState.active
-        )
+        conn = await _make_connection(db_session, ixp, trunk, switch, state=ConnectionState.active)
 
         with pytest.raises(ValidationError):
             await conn_svc.delete(db_session, ixp.id, conn.id)

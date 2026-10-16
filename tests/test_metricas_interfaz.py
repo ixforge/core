@@ -43,11 +43,13 @@ class TestMetricasDeInterfaz:
         self, client, auth_headers, db_session, ixp
     ):
         cid = str(uuid.uuid4())
-        vm = _respuesta_vm([
-            _serie("ixforge_interface_traffic_in_bps", "1500000", port_id=cid),
-            _serie("ixforge_interface_traffic_out_bps", "2500000", port_id=cid),
-            _serie("ixforge_interface_oper_status", "1", port_id=cid),
-        ])
+        vm = _respuesta_vm(
+            [
+                _serie("ixforge_interface_traffic_in_bps", "1500000", port_id=cid),
+                _serie("ixforge_interface_traffic_out_bps", "2500000", port_id=cid),
+                _serie("ixforge_interface_oper_status", "1", port_id=cid),
+            ]
+        )
         with patch("ixforge.services.metricas.consultar_vm", new=AsyncMock(return_value=vm)):
             resp = await client.get("/api/v1/metrics/interfaces", headers=auth_headers)
 
@@ -89,9 +91,7 @@ class TestMetricasDeInterfaz:
 
         assert resp.json()["items"][0]["oper_status"] == "down"
 
-    async def test_si_victoriametrics_no_responde_devuelve_vacio(
-        self, client, auth_headers, ixp
-    ):
+    async def test_si_victoriametrics_no_responde_devuelve_vacio(self, client, auth_headers, ixp):
         """Una metrica caida no puede tumbar a quien la consulta"""
         with patch(
             "ixforge.services.metricas.consultar_vm",
@@ -113,10 +113,12 @@ class TestMetricasDeInterfaz:
             "status": "success",
             "data": {
                 "resultType": "matrix",
-                "result": [{
-                    "metric": {"__name__": "ixforge_interface_traffic_in_bps", "port_id": cid},
-                    "values": [[1757000000, "100"], [1757000060, "200"]],
-                }],
+                "result": [
+                    {
+                        "metric": {"__name__": "ixforge_interface_traffic_in_bps", "port_id": cid},
+                        "values": [[1757000000, "100"], [1757000060, "200"]],
+                    }
+                ],
             },
         }
         with patch("ixforge.services.metricas.consultar_vm_rango", new=AsyncMock(return_value=vm)):
@@ -163,11 +165,20 @@ class TestMetricasIcmp:
         mid = str(uuid.uuid4())
         vm = {
             "status": "success",
-            "data": {"resultType": "matrix", "result": [{
-                "metric": {"__name__": "ixforge_icmp_rtt_seconds", "member_id": mid,
-                           "ip": "45.170.101.11", "ip_version": "4"},
-                "values": [[1757000000, "0.0012"], [1757000060, "0.0015"]],
-            }]},
+            "data": {
+                "resultType": "matrix",
+                "result": [
+                    {
+                        "metric": {
+                            "__name__": "ixforge_icmp_rtt_seconds",
+                            "member_id": mid,
+                            "ip": "45.170.101.11",
+                            "ip_version": "4",
+                        },
+                        "values": [[1757000000, "0.0012"], [1757000060, "0.0015"]],
+                    }
+                ],
+            },
         }
         with patch("ixforge.services.metricas.consultar_vm_rango", new=AsyncMock(return_value=vm)):
             resp = await client.get(
@@ -199,13 +210,11 @@ class TestMetricasIcmp:
 
     async def test_rechaza_una_metrica_icmp_inventada(self, client, auth_headers, ixp):
         resp = await client.get(
-            "/api/v1/metrics/icmp/series?metric=rtt\"}+or+up{", headers=auth_headers
+            '/api/v1/metrics/icmp/series?metric=rtt"}+or+up{', headers=auth_headers
         )
         assert resp.status_code == 422
 
-    async def test_si_victoriametrics_no_responde_devuelve_vacio(
-        self, client, auth_headers, ixp
-    ):
+    async def test_si_victoriametrics_no_responde_devuelve_vacio(self, client, auth_headers, ixp):
         with patch(
             "ixforge.services.metricas.consultar_vm_rango",
             new=AsyncMock(side_effect=TimeoutError("sin respuesta")),
@@ -239,9 +248,13 @@ class TestMetricasAgregadas:
 
     async def test_devuelve_entrada_y_salida(self, client, auth_headers, ixp):
         def matriz(valor: str) -> dict:
-            return {"status": "success", "data": {"resultType": "matrix", "result": [
-                {"metric": {}, "values": [[1757000000, valor]]}
-            ]}}
+            return {
+                "status": "success",
+                "data": {
+                    "resultType": "matrix",
+                    "result": [{"metric": {}, "values": [[1757000000, valor]]}],
+                },
+            }
 
         llamadas = []
 
@@ -260,9 +273,13 @@ class TestMetricasAgregadas:
         assert len(llamadas) == 2
 
     async def test_pico_de_trafico(self, client, auth_headers, ixp):
-        vm = {"status": "success", "data": {"resultType": "vector", "result": [
-            {"metric": {}, "value": [1757000000, "9500000"]}
-        ]}}
+        vm = {
+            "status": "success",
+            "data": {
+                "resultType": "vector",
+                "result": [{"metric": {}, "value": [1757000000, "9500000"]}],
+            },
+        }
         with patch("ixforge.services.metricas.consultar_vm", new=AsyncMock(return_value=vm)):
             resp = await client.get(
                 "/api/v1/metrics/aggregate/peak?range=24h", headers=auth_headers
@@ -285,9 +302,7 @@ class TestMetricasAgregadas:
         assert all("max_over_time" in c for c in capturado["consultas"])
         assert all("[7d:]" in c for c in capturado["consultas"])
 
-    async def test_si_victoriametrics_no_responde_devuelve_vacio(
-        self, client, auth_headers, ixp
-    ):
+    async def test_si_victoriametrics_no_responde_devuelve_vacio(self, client, auth_headers, ixp):
         with patch(
             "ixforge.services.metricas.consultar_vm_rango",
             new=AsyncMock(side_effect=TimeoutError("sin respuesta")),
@@ -302,9 +317,7 @@ class TestMetricasAgregadas:
 class TestSeriesDePrefijos:
     """Historia del conteo de prefijos, que la columna no guarda"""
 
-    async def test_toma_el_maximo_entre_route_servers(
-        self, client, auth_headers, db_session, ixp
-    ):
+    async def test_toma_el_maximo_entre_route_servers(self, client, auth_headers, db_session, ixp):
         """Los dos route servers reciben los mismos prefijos del mismo peer.
         Sumarlos duplicaria el conteo de cada miembro, igual que sumar el
         Eth-Trunk con el puerto fisico que envuelve
@@ -327,9 +340,7 @@ class TestSeriesDePrefijos:
         assert "max by (af)" in capturado["consulta"]
         assert f'peer_asn="{asn}"' in capturado["consulta"]
 
-    async def test_separa_las_series_por_familia(
-        self, client, auth_headers, db_session, ixp
-    ):
+    async def test_separa_las_series_por_familia(self, client, auth_headers, db_session, ixp):
         member_id, _ = await _miembro_con_asn(db_session, ixp, 64591)
         vm = {
             "status": "success",

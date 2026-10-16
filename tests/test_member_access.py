@@ -30,7 +30,10 @@ from ixforge.services.auth import create_access_token, hash_password
 
 
 async def _create_connection(
-    db: AsyncSession, ixp: IXP, member: Member, **overrides,
+    db: AsyncSession,
+    ixp: IXP,
+    member: Member,
+    **overrides,
 ) -> Connection:
     """Create a Connection with required Trunk, Location + Switch"""
     tag = f"ma-{uuid.uuid4().hex[:6]}"
@@ -50,13 +53,20 @@ async def _create_connection(
         trunk_id = trunk.id
 
     location = Location(
-        id=uuid.uuid4(), ixp_id=ixp.id, name=f"DC-{tag}", city="Test", country="US",
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"DC-{tag}",
+        city="Test",
+        country="US",
     )
     db.add(location)
     await db.flush()
 
     switch = Switch(
-        id=uuid.uuid4(), ixp_id=ixp.id, name=f"sw-{tag}", location_id=location.id,
+        id=uuid.uuid4(),
+        ixp_id=ixp.id,
+        name=f"sw-{tag}",
+        location_id=location.id,
     )
     db.add(switch)
     await db.flush()

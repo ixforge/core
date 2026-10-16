@@ -33,24 +33,30 @@ async def _get_rs_used_in_pool(session: AsyncSession, pool_id: uuid.UUID) -> set
 async def _check_address_unique(session: AsyncSession, address: str, ixp_id: uuid.UUID) -> None:
     """Ensure the address is not already assigned within the tenant."""
     in_member = await session.scalar(
-        select(IPAssignment.id).where(
+        select(IPAssignment.id)
+        .where(
             IPAssignment.address == address,
             IPAssignment.ixp_id == ixp_id,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if in_member is not None:
         raise ConflictError(f"Address {address} is already assigned to a member connection")
     in_rs = await session.scalar(
-        select(RSIPAssignment.id).where(
+        select(RSIPAssignment.id)
+        .where(
             RSIPAssignment.address == address,
             RSIPAssignment.ixp_id == ixp_id,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if in_rs is not None:
         raise ConflictError(f"Address {address} is already assigned to a route server")
 
 
-async def list_assignments(session: AsyncSession, ixp_id: uuid.UUID, rs_id: uuid.UUID) -> list[RSIPAssignmentRead]:
+async def list_assignments(
+    session: AsyncSession, ixp_id: uuid.UUID, rs_id: uuid.UUID
+) -> list[RSIPAssignmentRead]:
     """List all IP assignments for a route server."""
     rs = await session.get(RouteServer, rs_id)
     if rs is None or rs.ixp_id != ixp_id:
@@ -80,10 +86,12 @@ async def assign(
     af = 4 if network.version == 4 else 6
 
     existing = await session.scalar(
-        select(RSIPAssignment.id).where(
+        select(RSIPAssignment.id)
+        .where(
             RSIPAssignment.route_server_id == rs_id,
             RSIPAssignment.af == af,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if existing is not None:
         raise ConflictError(f"Route server already has an IPv{af} assignment")
@@ -143,7 +151,9 @@ async def assign(
     return assignment
 
 
-async def release(session: AsyncSession, ixp_id: uuid.UUID, rs_id: uuid.UUID, assignment_id: uuid.UUID) -> None:
+async def release(
+    session: AsyncSession, ixp_id: uuid.UUID, rs_id: uuid.UUID, assignment_id: uuid.UUID
+) -> None:
     """Release an RS IP assignment and clear the corresponding rs.ip_v4 or rs.ip_v6."""
     assignment = await session.get(RSIPAssignment, assignment_id)
     if assignment is None or assignment.ixp_id != ixp_id:

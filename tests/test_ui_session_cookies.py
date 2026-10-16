@@ -30,7 +30,9 @@ def test_cookies_no_seguras_si_se_deshabilita(monkeypatch):
     # Deployments internos sirven el portal por HTTP plano: la cookie Secure
     # haria imposible iniciar sesion
     app = _build_app(
-        monkeypatch, IXFORGE_DEBUG="false", IXFORGE_UI_SECURE_COOKIES="false",
+        monkeypatch,
+        IXFORGE_DEBUG="false",
+        IXFORGE_UI_SECURE_COOKIES="false",
     )
     assert _session_middleware_kwargs(app)["https_only"] is False
 

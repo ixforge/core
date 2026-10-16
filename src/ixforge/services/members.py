@@ -145,10 +145,14 @@ async def _has_complete_trunk(session: AsyncSession, member_id: uuid.UUID) -> bo
     """Check whether the member has at least one active trunk."""
     from ixforge.enums import TrunkState
 
-    stmt = select(Trunk.id).where(
-        Trunk.member_id == member_id,
-        Trunk.state == TrunkState.active,
-    ).limit(1)
+    stmt = (
+        select(Trunk.id)
+        .where(
+            Trunk.member_id == member_id,
+            Trunk.state == TrunkState.active,
+        )
+        .limit(1)
+    )
     result = await session.scalar(stmt)
     return result is not None
 
@@ -178,9 +182,7 @@ async def transition(
         and target_state == MemberState.active
         and not await _has_complete_trunk(session, member_id)
     ):
-        raise ValidationError(
-            "Cannot activate member: at least one trunk must be active"
-        )
+        raise ValidationError("Cannot activate member: at least one trunk must be active")
 
     # Termination requires all trunks to be decommissioned first
     if target_state == MemberState.terminated:

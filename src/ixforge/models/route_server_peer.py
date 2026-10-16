@@ -29,9 +29,7 @@ class RouteServerPeer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "route_server_peers"
     __table_args__ = (
-        UniqueConstraint(
-            "route_server_id", "peer_ip", name="uq_route_server_peers_rs_ip"
-        ),
+        UniqueConstraint("route_server_id", "peer_ip", name="uq_route_server_peers_rs_ip"),
         CheckConstraint(
             "prefixes_imported IS NULL OR prefixes_imported >= 0",
             name="ck_route_server_peers_prefixes_imported_no_negativo",

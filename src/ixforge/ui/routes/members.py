@@ -42,14 +42,18 @@ async def member_list(request: Request) -> Response:
     is_htmx = request.headers.get("hx-request") == "true"
     template = "members/list_rows.html" if is_htmx else "members/list.html"
 
-    return render(request, template, {
-        "members": items,
-        "next_cursor": data.get("next_cursor"),
-        "has_more": data.get("has_more", False),
-        "filter_state": state,
-        "search": search,
-        "page_title": "Miembros",
-    })
+    return render(
+        request,
+        template,
+        {
+            "members": items,
+            "next_cursor": data.get("next_cursor"),
+            "has_more": data.get("has_more", False),
+            "filter_state": state,
+            "search": search,
+            "page_title": "Miembros",
+        },
+    )
 
 
 @require_auth
@@ -60,7 +64,9 @@ async def member_detail(request: Request) -> Response:
 
     try:
         member = await api.get(f"/api/v1/members/{member_id}", token)
-        trunks_data = await api.get("/api/v1/trunks", token, params={"member_id": member_id, "limit": 200})
+        trunks_data = await api.get(
+            "/api/v1/trunks", token, params={"member_id": member_id, "limit": 200}
+        )
     except APIError as e:
         if e.status_code == 404:
             add_flash(request, "Miembro no encontrado", "error")
@@ -71,26 +77,36 @@ async def member_detail(request: Request) -> Response:
     contacts: list[Any] = []
     try:
         contacts_data = await api.get(f"/api/v1/members/{member_id}/contacts", token)
-        contacts = contacts_data.get("items", []) if isinstance(contacts_data, dict) else contacts_data
+        contacts = (
+            contacts_data.get("items", []) if isinstance(contacts_data, dict) else contacts_data
+        )
     except APIError:
         pass
 
-    return render(request, "members/detail.html", {
-        "member": member,
-        "trunks": trunks_data.get("items", []),
-        "contacts": contacts,
-        "page_title": member.get("name", "Miembro"),
-    })
+    return render(
+        request,
+        "members/detail.html",
+        {
+            "member": member,
+            "trunks": trunks_data.get("items", []),
+            "contacts": contacts,
+            "page_title": member.get("name", "Miembro"),
+        },
+    )
 
 
 @require_auth
 async def member_new(request: Request) -> Response:
     if request.method == "GET":
-        return render(request, "members/form.html", {
-            "member": None,
-            "errors": {},
-            "page_title": "Nuevo Miembro",
-        })
+        return render(
+            request,
+            "members/form.html",
+            {
+                "member": None,
+                "errors": {},
+                "page_title": "Nuevo Miembro",
+            },
+        )
 
     token = require_token(request)
     api: APIClient = request.app.state.api
@@ -110,8 +126,15 @@ async def member_new(request: Request) -> Response:
         payload["peeringdb_id"] = int(str(peeringdb_id))
 
     # Extended fields
-    for field in ("member_type", "description", "city", "country",
-                  "connection_date", "contract_type", "notes"):
+    for field in (
+        "member_type",
+        "description",
+        "city",
+        "country",
+        "connection_date",
+        "contract_type",
+        "notes",
+    ):
         val = str(form.get(field, "")).strip()
         if val:
             payload[field] = val
@@ -122,11 +145,15 @@ async def member_new(request: Request) -> Response:
         member = await api.post("/api/v1/members", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "members/form.html", {
-                "member": payload,
-                "errors": e.detail,
-                "page_title": "Nuevo Miembro",
-            })
+            return render(
+                request,
+                "members/form.html",
+                {
+                    "member": payload,
+                    "errors": e.detail,
+                    "page_title": "Nuevo Miembro",
+                },
+            )
         raise
 
     add_flash(request, f"Miembro '{member['name']}' creado", "success")
@@ -141,17 +168,31 @@ async def member_edit(request: Request) -> Response:
 
     if request.method == "GET":
         member = await api.get(f"/api/v1/members/{member_id}", token)
-        return render(request, "members/form.html", {
-            "member": member,
-            "errors": {},
-            "page_title": f"Editar {member.get('name', 'Miembro')}",
-        })
+        return render(
+            request,
+            "members/form.html",
+            {
+                "member": member,
+                "errors": {},
+                "page_title": f"Editar {member.get('name', 'Miembro')}",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {}
-    for field in ("name", "short_name", "peering_policy", "website",
-                  "member_type", "description", "city", "country",
-                  "connection_date", "contract_type", "notes"):
+    for field in (
+        "name",
+        "short_name",
+        "peering_policy",
+        "website",
+        "member_type",
+        "description",
+        "city",
+        "country",
+        "connection_date",
+        "contract_type",
+        "notes",
+    ):
         val = form.get(field)
         if val is not None:
             payload[field] = str(val) if str(val).strip() else None
@@ -164,11 +205,15 @@ async def member_edit(request: Request) -> Response:
         member = await api.patch(f"/api/v1/members/{member_id}", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "members/form.html", {
-                "member": {**payload, "id": member_id},
-                "errors": e.detail,
-                "page_title": "Editar Miembro",
-            })
+            return render(
+                request,
+                "members/form.html",
+                {
+                    "member": {**payload, "id": member_id},
+                    "errors": e.detail,
+                    "page_title": "Editar Miembro",
+                },
+            )
         raise
 
     add_flash(request, "Miembro actualizado", "success")

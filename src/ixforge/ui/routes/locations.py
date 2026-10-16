@@ -20,18 +20,28 @@ async def location_list(request: Request) -> Response:
     token = require_token(request)
     api: APIClient = request.app.state.api
     data = await api.get("/api/v1/locations", token, params={"limit": 200})
-    return render(request, "locations/list.html", {
-        "locations": data.get("items", []),
-        "page_title": "Locations",
-    })
+    return render(
+        request,
+        "locations/list.html",
+        {
+            "locations": data.get("items", []),
+            "page_title": "Locations",
+        },
+    )
 
 
 @require_auth
 async def location_new(request: Request) -> Response:
     if request.method == "GET":
-        return render(request, "locations/form.html", {
-            "location": None, "errors": {}, "page_title": "Nueva Location",
-        })
+        return render(
+            request,
+            "locations/form.html",
+            {
+                "location": None,
+                "errors": {},
+                "page_title": "Nueva Location",
+            },
+        )
     token = require_token(request)
     api: APIClient = request.app.state.api
     form = await request.form()
@@ -44,9 +54,15 @@ async def location_new(request: Request) -> Response:
         loc = await api.post("/api/v1/locations", token, json=payload)
     except APIError as e:
         if e.status_code in (409, 422):
-            return render(request, "locations/form.html", {
-                "location": payload, "errors": e.detail, "page_title": "Nueva Location",
-            })
+            return render(
+                request,
+                "locations/form.html",
+                {
+                    "location": payload,
+                    "errors": e.detail,
+                    "page_title": "Nueva Location",
+                },
+            )
         raise
     add_flash(request, f"Location '{loc['name']}' creada", "success")
     return RedirectResponse("/admin/locations", status_code=302)
@@ -59,9 +75,15 @@ async def location_edit(request: Request) -> Response:
     location_id = request.path_params["location_id"]
     if request.method == "GET":
         loc = await api.get(f"/api/v1/locations/{location_id}", token)
-        return render(request, "locations/form.html", {
-            "location": loc, "errors": {}, "page_title": f"Editar {loc.get('name', 'Location')}",
-        })
+        return render(
+            request,
+            "locations/form.html",
+            {
+                "location": loc,
+                "errors": {},
+                "page_title": f"Editar {loc.get('name', 'Location')}",
+            },
+        )
     form = await request.form()
     payload: dict[str, Any] = {}
     for field in ("name", "city", "country"):
@@ -72,10 +94,15 @@ async def location_edit(request: Request) -> Response:
         loc = await api.patch(f"/api/v1/locations/{location_id}", token, json=payload)
     except APIError as e:
         if e.status_code in (409, 422):
-            return render(request, "locations/form.html", {
-                "location": {**payload, "id": location_id}, "errors": e.detail,
-                "page_title": "Editar Location",
-            })
+            return render(
+                request,
+                "locations/form.html",
+                {
+                    "location": {**payload, "id": location_id},
+                    "errors": e.detail,
+                    "page_title": "Editar Location",
+                },
+            )
         raise
     add_flash(request, "Location actualizada", "success")
     return RedirectResponse("/admin/locations", status_code=302)

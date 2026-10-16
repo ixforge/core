@@ -32,9 +32,7 @@ class TestSetupEndpoint:
         assert resp.status_code == 201
         assert resp.json() == {"message": "Setup completed"}
 
-    async def test_setup_creates_ixp_in_db(
-        self, client: AsyncClient, db_session: AsyncSession
-    ):
+    async def test_setup_creates_ixp_in_db(self, client: AsyncClient, db_session: AsyncSession):
         await client.post(
             "/api/v1/setup",
             json={
@@ -78,18 +76,14 @@ class TestSetupEndpoint:
                 },
             },
         )
-        result = await db_session.execute(
-            select(User).where(User.email == "super@test.com")
-        )
+        result = await db_session.execute(select(User).where(User.email == "super@test.com"))
         user = result.scalar_one_or_none()
         assert user is not None
         assert user.full_name == "Super Admin"
         assert user.role == UserRole.admin
         assert user.is_active is True
 
-    async def test_setup_rejects_when_ixp_exists(
-        self, client: AsyncClient, ixp: IXP
-    ):
+    async def test_setup_rejects_when_ixp_exists(self, client: AsyncClient, ixp: IXP):
         resp = await client.post(
             "/api/v1/setup",
             json={
@@ -180,9 +174,7 @@ class TestSetupEndpoint:
             },
         )
         assert resp.status_code == 422
-        result = await db_session.execute(
-            select(IXP).where(IXP.short_name == "ATOM")
-        )
+        result = await db_session.execute(select(IXP).where(IXP.short_name == "ATOM"))
         assert result.scalar_one_or_none() is None
 
 
@@ -224,9 +216,7 @@ class TestSetupDefaultTemplates:
         # el esqueleto es el unico protegido: los includes son editables para que
         # un operador pueda ajustar filtros sin pedir un release
         assert templates["bird.conf.j2"].is_protected is True
-        assert not any(
-            t.is_protected for name, t in templates.items() if name != "bird.conf.j2"
-        )
+        assert not any(t.is_protected for name, t in templates.items() if name != "bird.conf.j2")
 
 
 class TestSetupStatus:

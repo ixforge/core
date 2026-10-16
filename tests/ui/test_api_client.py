@@ -38,17 +38,24 @@ class TestAPIClient:
     async def test_401_raises_authentication_error(self, api_client):
         """401 from API raises AuthenticationError."""
         api_client._client = self._mock_client(
-            lambda req: httpx.Response(401, json={"error": {"code": "UNAUTHORIZED", "message": "bad token", "details": {}}})
+            lambda req: httpx.Response(
+                401,
+                json={"error": {"code": "UNAUTHORIZED", "message": "bad token", "details": {}}},
+            )
         )
         with pytest.raises(AuthenticationError):
             await api_client.get("/api/v1/members", token="expired")
 
     async def test_422_raises_api_error_with_details(self, api_client):
         """422 from API raises APIError with validation details."""
-        body = {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"loc": ["body", "name"], "msg": "required", "type": "missing"}]}}
-        api_client._client = self._mock_client(
-            lambda req: httpx.Response(422, json=body)
-        )
+        body = {
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Validation error",
+                "details": [{"loc": ["body", "name"], "msg": "required", "type": "missing"}],
+            }
+        }
+        api_client._client = self._mock_client(lambda req: httpx.Response(422, json=body))
         with pytest.raises(APIError) as exc_info:
             await api_client.post("/api/v1/members", token="jwt", json={})
         assert exc_info.value.status_code == 422
@@ -56,7 +63,9 @@ class TestAPIClient:
     async def test_404_raises_api_error(self, api_client):
         """404 from API raises APIError."""
         api_client._client = self._mock_client(
-            lambda req: httpx.Response(404, json={"error": {"code": "NOT_FOUND", "message": "not found", "details": {}}})
+            lambda req: httpx.Response(
+                404, json={"error": {"code": "NOT_FOUND", "message": "not found", "details": {}}}
+            )
         )
         with pytest.raises(APIError) as exc_info:
             await api_client.get("/api/v1/members/bad-id", token="jwt")
@@ -65,15 +74,15 @@ class TestAPIClient:
     async def test_login_returns_token(self, api_client):
         """login() returns access_token string."""
         api_client._client = self._mock_client(
-            lambda req: httpx.Response(200, json={"access_token": "jwt123", "token_type": "bearer"})
+            lambda req: httpx.Response(
+                200, json={"access_token": "jwt123", "token_type": "bearer"}
+            )
         )
         token = await api_client.login("user@test.com", "pass123")
         assert token == "jwt123"
 
     async def test_delete_success(self, api_client):
         """DELETE returns None on 204."""
-        api_client._client = self._mock_client(
-            lambda req: httpx.Response(204)
-        )
+        api_client._client = self._mock_client(lambda req: httpx.Response(204))
         result = await api_client.delete("/api/v1/vlans/123", token="jwt")
         assert result is None

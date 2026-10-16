@@ -43,8 +43,11 @@ async def _correr(sesion: _SesionFalsa, estado: int = 201) -> tuple[list[str], l
     async def send(message: Message) -> None:
         enviados.append(message)
 
-    scope: Scope = {"type": "http", "path": "/api/v1/route-servers",
-                    "state": {"db_session": sesion}}
+    scope: Scope = {
+        "type": "http",
+        "path": "/api/v1/route-servers",
+        "state": {"db_session": sesion},
+    }
 
     async def receive() -> Message:
         return {"type": "http.request"}

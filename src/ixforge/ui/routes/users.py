@@ -23,10 +23,14 @@ async def user_list(request: Request) -> Response:
 
     data = await api.get("/api/v1/users", token, params={"limit": 200})
 
-    return render(request, "users/list.html", {
-        "users": data.get("items", []),
-        "page_title": "Usuarios",
-    })
+    return render(
+        request,
+        "users/list.html",
+        {
+            "users": data.get("items", []),
+            "page_title": "Usuarios",
+        },
+    )
 
 
 @require_auth
@@ -54,23 +58,31 @@ async def user_detail(request: Request) -> Response:
     # Pop raw key from session (one-time display)
     new_raw_key = request.session.pop("new_raw_key", "")
 
-    return render(request, "users/detail.html", {
-        "user": user,
-        "api_keys": api_keys,
-        "new_raw_key": new_raw_key,
-        "management_resources": sorted(MANAGEMENT_RESOURCES),
-        "page_title": user.get("email", "Usuario"),
-    })
+    return render(
+        request,
+        "users/detail.html",
+        {
+            "user": user,
+            "api_keys": api_keys,
+            "new_raw_key": new_raw_key,
+            "management_resources": sorted(MANAGEMENT_RESOURCES),
+            "page_title": user.get("email", "Usuario"),
+        },
+    )
 
 
 @require_auth
 async def user_new(request: Request) -> Response:
     if request.method == "GET":
-        return render(request, "users/form.html", {
-            "user": None,
-            "errors": {},
-            "page_title": "Nuevo Usuario",
-        })
+        return render(
+            request,
+            "users/form.html",
+            {
+                "user": None,
+                "errors": {},
+                "page_title": "Nuevo Usuario",
+            },
+        )
 
     token = require_token(request)
     api: APIClient = request.app.state.api
@@ -91,11 +103,15 @@ async def user_new(request: Request) -> Response:
         user = await api.post("/api/v1/users", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "users/form.html", {
-                "user": payload,
-                "errors": e.detail,
-                "page_title": "Nuevo Usuario",
-            })
+            return render(
+                request,
+                "users/form.html",
+                {
+                    "user": payload,
+                    "errors": e.detail,
+                    "page_title": "Nuevo Usuario",
+                },
+            )
         raise
 
     add_flash(request, f"Usuario '{user['email']}' creado", "success")

@@ -78,7 +78,12 @@ class TestRouteServerList:
         assert resp.status_code == 302
 
     def test_list_filter_by_is_active(self, authed_client, app):
-        inactive_rs = {**FAKE_RS, "id": str(uuid.uuid4()), "name": "rs2-inactive", "is_active": False}
+        inactive_rs = {
+            **FAKE_RS,
+            "id": str(uuid.uuid4()),
+            "name": "rs2-inactive",
+            "is_active": False,
+        }
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_RS, inactive_rs]})
         resp = authed_client.get("/admin/route-servers?is_active=true")
         assert resp.status_code == 200
@@ -232,7 +237,18 @@ class TestRouteServerForm:
             return {"id": "abc", "role": "admin", "member_id": None}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "required"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/route-servers/new",
             data={"name": ""},
@@ -259,7 +275,14 @@ class TestRouteServerForm:
 class TestRouteServerVlanPools:
     def test_vlan_pools_returns_fragment(self, authed_client, app):
         fake_pools = [
-            {"id": str(uuid.uuid4()), "network": "10.0.0.0/24", "af": 4, "total_hosts": 254, "used_count": 5, "next_available": "10.0.0.6"},
+            {
+                "id": str(uuid.uuid4()),
+                "network": "10.0.0.0/24",
+                "af": 4,
+                "total_hosts": 254,
+                "used_count": 5,
+                "next_available": "10.0.0.6",
+            },
         ]
 
         async def fake_get(path, token, params=None):

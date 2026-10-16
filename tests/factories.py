@@ -113,7 +113,6 @@ class SwitchFactory(_NoDBFactory):
     extra_data = None
 
 
-
 class VLANFactory(_NoDBFactory):
     class Meta:
         model = VLAN

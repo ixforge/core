@@ -11,11 +11,18 @@ from ixforge.services.auth import hash_password
 
 class TestUserExtendedFields:
     async def test_create_user_with_phone(self, client: AsyncClient, auth_headers: dict) -> None:
-        resp = await client.post("/api/v1/users", json={
-            "email": "u1@example.com", "password": "pass12345678",
-            "full_name": "User One", "role": "member",
-            "phone": "+54 11 1234-5678", "position": "NOC Engineer",
-        }, headers=auth_headers)
+        resp = await client.post(
+            "/api/v1/users",
+            json={
+                "email": "u1@example.com",
+                "password": "pass12345678",
+                "full_name": "User One",
+                "role": "member",
+                "phone": "+54 11 1234-5678",
+                "position": "NOC Engineer",
+            },
+            headers=auth_headers,
+        )
         assert resp.status_code == 201
         assert resp.json()["phone"] == "+54 11 1234-5678"
         assert resp.json()["position"] == "NOC Engineer"
@@ -24,8 +31,12 @@ class TestUserExtendedFields:
         self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession
     ) -> None:
         u = User(
-            id=uuid.uuid4(), email="u2@ex.com", hashed_password=hash_password("pass"),
-            full_name="U2", role=UserRole.member, is_active=True
+            id=uuid.uuid4(),
+            email="u2@ex.com",
+            hashed_password=hash_password("pass"),
+            full_name="U2",
+            role=UserRole.member,
+            is_active=True,
         )
         db_session.add(u)
         await db_session.flush()
@@ -40,10 +51,15 @@ class TestUserExtendedFields:
     async def test_user_read_includes_extended_fields(
         self, client: AsyncClient, auth_headers: dict
     ) -> None:
-        resp = await client.post("/api/v1/users", json={
-            "email": "u3@example.com", "password": "pass12345678",
-            "full_name": "User Three",
-        }, headers=auth_headers)
+        resp = await client.post(
+            "/api/v1/users",
+            json={
+                "email": "u3@example.com",
+                "password": "pass12345678",
+                "full_name": "User Three",
+            },
+            headers=auth_headers,
+        )
         assert resp.status_code == 201
         body = resp.json()
         assert "phone" in body

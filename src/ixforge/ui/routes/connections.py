@@ -56,15 +56,20 @@ async def connection_list(request: Request) -> Response:
     is_htmx = request.headers.get("hx-request") == "true"
     template = "connections/list_rows.html" if is_htmx else "connections/list.html"
 
-    return render(request, template, {
-        "connections": items,
-        "filter_state": state_filter,
-        "page_title": "Conexiones",
-    })
+    return render(
+        request,
+        template,
+        {
+            "connections": items,
+            "filter_state": state_filter,
+            "page_title": "Conexiones",
+        },
+    )
 
 
 async def _load_form_data(
-    api: APIClient, token: str,
+    api: APIClient,
+    token: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Load members, trunks and switches for the connection form."""
     members_data = await api.get("/api/v1/members", token, params={"limit": 200})
@@ -78,10 +83,12 @@ async def _load_form_data(
 
 def _trunks_json(trunks: list[dict[str, Any]]) -> str:
     """Serialize trunks to JSON for Alpine.js (only id, name, member_id)."""
-    return json.dumps([
-        {"id": t["id"], "name": t.get("name", ""), "member_id": t.get("member_id", "")}
-        for t in trunks
-    ])
+    return json.dumps(
+        [
+            {"id": t["id"], "name": t.get("name", ""), "member_id": t.get("member_id", "")}
+            for t in trunks
+        ]
+    )
 
 
 @require_auth
@@ -94,17 +101,21 @@ async def connection_new(request: Request) -> Response:
     if request.method == "GET":
         preselect_trunk_id = request.query_params.get("trunk_id", "")
         preselect_member_id = request.query_params.get("member_id", "")
-        return render(request, "connections/form.html", {
-            "connection": None,
-            "members": members,
-            "trunks": trunks,
-            "trunks_json": _trunks_json(trunks),
-            "switches": switches,
-            "preselect_trunk_id": preselect_trunk_id,
-            "preselect_member_id": preselect_member_id,
-            "errors": {},
-            "page_title": "Nueva Conexion",
-        })
+        return render(
+            request,
+            "connections/form.html",
+            {
+                "connection": None,
+                "members": members,
+                "trunks": trunks,
+                "trunks_json": _trunks_json(trunks),
+                "switches": switches,
+                "preselect_trunk_id": preselect_trunk_id,
+                "preselect_member_id": preselect_member_id,
+                "errors": {},
+                "page_title": "Nueva Conexion",
+            },
+        )
 
     form = await request.form()
     trunk_id = str(form.get("trunk_id", ""))
@@ -120,23 +131,33 @@ async def connection_new(request: Request) -> Response:
 
     try:
         await api.post(
-            f"/api/v1/trunks/{trunk_id}/connections", token, json=payload,
+            f"/api/v1/trunks/{trunk_id}/connections",
+            token,
+            json=payload,
         )
         add_flash(request, "Conexion creada", "success")
         return RedirectResponse("/admin/connections", status_code=302)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "connections/form.html", {
-                "connection": {**payload, "trunk_id": trunk_id, "member_id": str(form.get("member_id", ""))},
-                "members": members,
-                "trunks": trunks,
-                "trunks_json": _trunks_json(trunks),
-                "switches": switches,
-                "preselect_trunk_id": "",
-                "preselect_member_id": "",
-                "errors": e.detail,
-                "page_title": "Nueva Conexion",
-            })
+            return render(
+                request,
+                "connections/form.html",
+                {
+                    "connection": {
+                        **payload,
+                        "trunk_id": trunk_id,
+                        "member_id": str(form.get("member_id", "")),
+                    },
+                    "members": members,
+                    "trunks": trunks,
+                    "trunks_json": _trunks_json(trunks),
+                    "switches": switches,
+                    "preselect_trunk_id": "",
+                    "preselect_member_id": "",
+                    "errors": e.detail,
+                    "page_title": "Nueva Conexion",
+                },
+            )
         raise
 
 
@@ -154,18 +175,22 @@ async def connection_edit(request: Request) -> Response:
     members, trunks, switches = await _load_form_data(api, token)
 
     def formulario(connection: dict[str, Any], errors: Any) -> Response:
-        return render(request, "connections/form.html", {
-            "connection": connection,
-            "members": members,
-            "trunks": trunks,
-            "trunks_json": _trunks_json(trunks),
-            "switches": switches,
-            "preselect_trunk_id": "",
-            "preselect_member_id": "",
-            "errors": errors,
-            "editando": True,
-            "page_title": "Editar Conexion",
-        })
+        return render(
+            request,
+            "connections/form.html",
+            {
+                "connection": connection,
+                "members": members,
+                "trunks": trunks,
+                "trunks_json": _trunks_json(trunks),
+                "switches": switches,
+                "preselect_trunk_id": "",
+                "preselect_member_id": "",
+                "errors": errors,
+                "editando": True,
+                "page_title": "Editar Conexion",
+            },
+        )
 
     if request.method == "GET":
         connection = await api.get(f"/api/v1/connections/{connection_id}", token)

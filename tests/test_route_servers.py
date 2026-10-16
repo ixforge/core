@@ -47,7 +47,9 @@ class TestRouteServerCRUD:
         assert body["last_heartbeat_at"] is None
         assert body["agent_version"] is None
 
-    async def test_create_route_server_minimal(self, client: AsyncClient, auth_headers: dict, ixp: IXP):
+    async def test_create_route_server_minimal(
+        self, client: AsyncClient, auth_headers: dict, ixp: IXP
+    ):
         resp = await client.post(
             "/api/v1/route-servers",
             headers=auth_headers,
@@ -204,23 +206,35 @@ class TestRouteServerCRUD:
         db_session.add(member)
 
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-del", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-del",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
 
         switch = Switch(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-del", location_id=location.id,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="sw-del",
+            location_id=location.id,
         )
         db_session.add(switch)
         await db_session.flush()
 
         trunk = Trunk(
-            id=uuid.uuid4(), ixp_id=ixp.id, member_id=member.id,
-            name="ae0", state=TrunkState.active,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=member.id,
+            name="ae0",
+            state=TrunkState.active,
         )
         db_session.add(trunk)
-        vlan = VLAN(id=uuid.uuid4(), ixp_id=ixp.id, name="Peering", vid=100, type=VLANType.production)
+        vlan = VLAN(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="Peering", vid=100, type=VLANType.production
+        )
         db_session.add(vlan)
         await db_session.flush()
         trunk_vlan = TrunkVLAN(id=uuid.uuid4(), ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan.id)

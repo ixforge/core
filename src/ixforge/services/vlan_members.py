@@ -20,7 +20,9 @@ async def list_members(
     session: AsyncSession, ixp_id: uuid.UUID, vlan_id: uuid.UUID, params: CursorParams
 ) -> CursorPage[VLANMemberRead]:
     stmt = select(VLANMember).where(VLANMember.vlan_id == vlan_id, VLANMember.ixp_id == ixp_id)
-    return await paginate(session, stmt, params, VLANMember.created_at, VLANMember.id, VLANMemberRead)
+    return await paginate(
+        session, stmt, params, VLANMember.created_at, VLANMember.id, VLANMemberRead
+    )
 
 
 async def add_member(

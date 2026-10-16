@@ -52,9 +52,11 @@ def authed_client(app):
 
 class TestSwitchesList:
     def test_list_renders(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "items": [FAKE_SWITCH],
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "items": [FAKE_SWITCH],
+            }
+        )
         resp = authed_client.get("/admin/switches")
         assert resp.status_code == 200
         assert "switch-01" in resp.text
@@ -71,7 +73,12 @@ class TestSwitchesList:
         assert resp.status_code == 200
 
     def test_list_filter_by_is_active(self, authed_client, app):
-        inactive = {**FAKE_SWITCH, "id": str(uuid.uuid4()), "name": "sw-inactive", "is_active": False}
+        inactive = {
+            **FAKE_SWITCH,
+            "id": str(uuid.uuid4()),
+            "name": "sw-inactive",
+            "is_active": False,
+        }
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_SWITCH, inactive]})
         resp = authed_client.get("/admin/switches?is_active=true")
         assert resp.status_code == 200
@@ -81,10 +88,12 @@ class TestSwitchesList:
 
 class TestSwitchDetail:
     def test_detail_renders(self, authed_client, app):
-        app.state.api.get = AsyncMock(side_effect=[
-            FAKE_SWITCH,
-            {"items": [FAKE_PORT]},
-        ])
+        app.state.api.get = AsyncMock(
+            side_effect=[
+                FAKE_SWITCH,
+                {"items": [FAKE_PORT]},
+            ]
+        )
         resp = authed_client.get(f"/admin/switches/{FAKE_SWITCH['id']}")
         assert resp.status_code == 200
         assert "switch-01" in resp.text
@@ -93,10 +102,12 @@ class TestSwitchDetail:
         assert "eth1" in resp.text
 
     def test_detail_renders_empty_ports(self, authed_client, app):
-        app.state.api.get = AsyncMock(side_effect=[
-            FAKE_SWITCH,
-            {"items": []},
-        ])
+        app.state.api.get = AsyncMock(
+            side_effect=[
+                FAKE_SWITCH,
+                {"items": []},
+            ]
+        )
         resp = authed_client.get(f"/admin/switches/{FAKE_SWITCH['id']}")
         assert resp.status_code == 200
         assert "switch-01" in resp.text
@@ -129,7 +140,18 @@ class TestSwitchForm:
         assert f"/admin/switches/{FAKE_SWITCH['id']}" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "field required"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "field required"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/switches/new",
             data={"name": "", "vendor": "", "model": "", "management_ip": ""},

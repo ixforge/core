@@ -233,7 +233,11 @@ class TestCombinedConfigValidity:
     ):
         # Los ultimos 4 bytes derivan el router id, deben formar una IPv4 valida
         rs = await _setup_route_server(
-            db_session, ixp, ip_v4=None, ip_v6="2001:db8::4501:203", name="rs-v6only",
+            db_session,
+            ixp,
+            ip_v4=None,
+            ip_v6="2001:db8::4501:203",
+            name="rs-v6only",
         )
 
         resp = await client.post(
@@ -741,9 +745,7 @@ class TestConfigDiff:
     ):
         """GET /route-servers/{rs_id}/config/diff returns 404 when version IDs belong to another RS."""
         rs1 = await _setup_route_server(db_session, ixp, name="rs1")
-        rs2 = await _setup_route_server(
-            db_session, ixp, name="rs2", ip_v4="192.0.2.251"
-        )
+        rs2 = await _setup_route_server(db_session, ixp, name="rs2", ip_v4="192.0.2.251")
 
         # Generate configs on rs1
         resp1 = await client.post(
@@ -780,18 +782,14 @@ class TestConfigDiff:
 PEERING_VLAN_VID = 64
 
 
-async def _get_or_create_peering_lan(
-    db: AsyncSession, ixp: IXP
-) -> tuple[VLAN, IPPool, IPPool]:
+async def _get_or_create_peering_lan(db: AsyncSession, ixp: IXP) -> tuple[VLAN, IPPool, IPPool]:
     """Una unica LAN de peering compartida por todos los miembros del IXP
 
     Idempotente: el primer miembro la crea y los siguientes la reusan, asi cada
     test la pide sin coordinarse con los demas
     """
     existing = (
-        await db.execute(
-            select(VLAN).where(VLAN.ixp_id == ixp.id, VLAN.vid == PEERING_VLAN_VID)
-        )
+        await db.execute(select(VLAN).where(VLAN.ixp_id == ixp.id, VLAN.vid == PEERING_VLAN_VID))
     ).scalar_one_or_none()
 
     if existing is None:
@@ -822,13 +820,7 @@ async def _get_or_create_peering_lan(
         await db.flush()
 
     pools = (
-        (
-            await db.execute(
-                select(IPPool)
-                .where(IPPool.vlan_id == existing.id)
-                .order_by(IPPool.af)
-            )
-        )
+        (await db.execute(select(IPPool).where(IPPool.vlan_id == existing.id).order_by(IPPool.af)))
         .scalars()
         .all()
     )
@@ -850,9 +842,7 @@ async def _attach_trunk(
     max_prefixes: int | None = None,
 ) -> TrunkVLAN:
     """Trunk activo con su conexion, IPs y sesiones BGP en la VLAN dada"""
-    location = Location(
-        ixp_id=ixp.id, name=f"DC-{trunk_name}", city="Test", country="US"
-    )
+    location = Location(ixp_id=ixp.id, name=f"DC-{trunk_name}", city="Test", country="US")
     db.add(location)
     await db.flush()
 
@@ -860,9 +850,7 @@ async def _attach_trunk(
     db.add(switch)
     await db.flush()
 
-    trunk = Trunk(
-        ixp_id=ixp.id, member_id=member.id, name=trunk_name, state=TrunkState.active
-    )
+    trunk = Trunk(ixp_id=ixp.id, member_id=member.id, name=trunk_name, state=TrunkState.active)
     db.add(trunk)
     await db.flush()
 
@@ -975,6 +963,7 @@ async def _add_second_connection(
         ipv4=ipv4,
         ipv6=None,
     )
+
 
 # ---------------------------------------------------------------------------
 # Presupuesto de nombres de simbolos BIRD
@@ -1096,9 +1085,7 @@ async def test_peer_context_prefix_filter_is_per_af(db_session, ixp):
         db_session, ixp, rs, asn=273973, ipv4="192.0.2.11", ipv6="2001:db8::11"
     )
     db_session.add(
-        MemberPrefixFilter(
-            ixp_id=ixp.id, member_id=member.id, af=6, prefixes=["2001:db8:aa::/48"]
-        )
+        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=6, prefixes=["2001:db8:aa::/48"])
     )
     await db_session.flush()
 
@@ -1119,9 +1106,7 @@ async def test_empty_prefix_list_is_not_the_same_as_null(db_session, ixp):
 
     rs = await _setup_route_server(db_session, ixp)
     member = await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
-    db_session.add(
-        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=[])
-    )
+    db_session.add(MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=[]))
     await db_session.flush()
 
     peers = await build_peers(db_session, rs.id, af=4)
@@ -1138,9 +1123,7 @@ async def test_empty_origin_asns_falls_back_to_member_asn(db_session, ixp):
 
     rs = await _setup_route_server(db_session, ixp)
     member = await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
-    db_session.add(
-        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, origin_asns=[])
-    )
+    db_session.add(MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, origin_asns=[]))
     await db_session.flush()
 
     peers = await build_peers(db_session, rs.id, af=4)
@@ -1289,9 +1272,7 @@ async def test_rs_context_collects_applicable_rpki_servers(db_session, ixp):
     from ixforge.services.config_generation import build_rs_context
 
     rs = await _setup_route_server(db_session, ixp)
-    other = await _setup_route_server(
-        db_session, ixp, name="rs2", ip_v4="192.0.2.251", ip_v6=None
-    )
+    other = await _setup_route_server(db_session, ixp, name="rs2", ip_v4="192.0.2.251", ip_v6=None)
     db_session.add_all(
         [
             RPKIServer(ixp_id=ixp.id, name="global", host="10.0.0.1"),
@@ -1521,9 +1502,7 @@ async def test_empty_prefix_list_authorizes_nothing_in_the_config(db_session, ix
 
     rs = await _setup_route_server(db_session, ixp)
     member = await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
-    db_session.add(
-        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=[])
-    )
+    db_session.add(MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=[]))
     await db_session.flush()
     cv = await generate_config(db_session, rs.id, ixp.id)
 
@@ -1578,9 +1557,7 @@ async def test_config_with_peers_parses(db_session, ixp):
         db_session, ixp, rs, asn=273973, ipv4="192.0.2.11", ipv6="2001:db8::11"
     )
     db_session.add(
-        MemberPrefixFilter(
-            ixp_id=ixp.id, member_id=member.id, af=4, prefixes=["45.170.100.0/24"]
-        )
+        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=["45.170.100.0/24"])
     )
     await db_session.flush()
     cv = await generate_config(db_session, rs.id, ixp.id)
@@ -1688,9 +1665,7 @@ async def test_full_config_with_rpki_and_upstream_parses(db_session, ixp):
         member_type=MemberType.isp,
     )
     db_session.add(
-        MemberPrefixFilter(
-            ixp_id=ixp.id, member_id=member.id, af=4, prefixes=["45.170.100.0/24"]
-        )
+        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=4, prefixes=["45.170.100.0/24"])
     )
     await _setup_member_peer(
         db_session,
@@ -1889,9 +1864,7 @@ async def test_prefix_whitelist_is_not_shadowed_by_bogons(db_session, ixp):
         db_session, ixp, rs, asn=273973, ipv4="192.0.2.11", ipv6="2001:db8::11"
     )
     db_session.add(
-        MemberPrefixFilter(
-            ixp_id=ixp.id, member_id=member.id, af=6, prefixes=["2400:aa::/48"]
-        )
+        MemberPrefixFilter(ixp_id=ixp.id, member_id=member.id, af=6, prefixes=["2400:aa::/48"])
     )
     await db_session.flush()
     cv = await generate_config(db_session, rs.id, ixp.id)
@@ -2064,8 +2037,7 @@ def test_rangos_del_borrado_conservan_los_intervalos():
     )
     # varios intervalos, desordenados y solapados, se normalizan
     assert rangos_a_borrar(((300, 400), (100, 100), (350, 500))) == (
-        "( routeserverasn, 0..99 ), ( routeserverasn, 101..299 ), "
-        "( routeserverasn, 501..65535 )"
+        "( routeserverasn, 0..99 ), ( routeserverasn, 101..299 ), ( routeserverasn, 501..65535 )"
     )
     # pegados se funden en vez de dejar un tramo invertido
     assert rangos_a_borrar(((10, 10), (11, 11))) == (
@@ -2161,7 +2133,9 @@ class TestMiembroSinSesionBGP:
     """
 
     async def test_no_cambia_la_config_generada(
-        self, db_session: AsyncSession, ixp: IXP,
+        self,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs = await _setup_route_server(db_session, ixp)
         await _setup_active_peer(db_session, ixp, rs, peer_ip="192.0.2.10", peer_asn=64550)
@@ -2170,24 +2144,36 @@ class TestMiembroSinSesionBGP:
 
         # El miembro nuevo con trunk y conexion, pero sin sesion BGP
         miembro = Member(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="Upstream del IXP",
-            short_name="UP", asn=64166, state=MemberState.active,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="Upstream del IXP",
+            short_name="UP",
+            asn=64166,
+            state=MemberState.active,
             peering_policy=PeeringPolicy.open,
         )
         db_session.add(miembro)
         trunk = Trunk(
-            id=uuid.uuid4(), ixp_id=ixp.id, member_id=miembro.id,
-            name="Eth-Trunk9", state=TrunkState.active,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            member_id=miembro.id,
+            name="Eth-Trunk9",
+            state=TrunkState.active,
         )
         db_session.add(trunk)
         await db_session.flush()
 
         # El trunk necesita una VLAN para poder activarse, asi que esa parte
         # tambien tiene que ser inocua
-        vlan_peering = (await db_session.execute(select(VLAN).where(VLAN.ixp_id == ixp.id))).scalars().first()
+        vlan_peering = (
+            (await db_session.execute(select(VLAN).where(VLAN.ixp_id == ixp.id))).scalars().first()
+        )
         assert vlan_peering is not None
         tv = TrunkVLAN(
-            id=uuid.uuid4(), ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan_peering.id,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            trunk_id=trunk.id,
+            vlan_id=vlan_peering.id,
         )
         db_session.add(tv)
         await db_session.flush()
@@ -2195,14 +2181,25 @@ class TestMiembroSinSesionBGP:
         # Y la VLAN de produccion exige una IP para que el trunk active. Es el
         # paso que mas puede filtrarse a la config, porque la IP es lo que
         # identifica una sesion
-        pool = (await db_session.execute(
-            select(IPPool).where(IPPool.vlan_id == vlan_peering.id, IPPool.af == 4)
-        )).scalars().first()
+        pool = (
+            (
+                await db_session.execute(
+                    select(IPPool).where(IPPool.vlan_id == vlan_peering.id, IPPool.af == 4)
+                )
+            )
+            .scalars()
+            .first()
+        )
         assert pool is not None
-        db_session.add(IPAssignment(
-            id=uuid.uuid4(), ixp_id=ixp.id, pool_id=pool.id,
-            trunk_vlan_id=tv.id, address="192.0.2.250",
-        ))
+        db_session.add(
+            IPAssignment(
+                id=uuid.uuid4(),
+                ixp_id=ixp.id,
+                pool_id=pool.id,
+                trunk_vlan_id=tv.id,
+                address="192.0.2.250",
+            )
+        )
         await db_session.flush()
 
         despues = await generar(db_session, rs.id, ixp.id)
@@ -2212,7 +2209,8 @@ class TestMiembroSinSesionBGP:
         # es lo que BIRD ejecuta
         def sin_encabezado(c: str) -> str:
             return "\n".join(
-                linea for linea in c.splitlines()
+                linea
+                for linea in c.splitlines()
                 if not linea.startswith(("# Generated by", "# Config hash:"))
             )
 

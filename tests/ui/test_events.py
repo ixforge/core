@@ -35,9 +35,13 @@ def authed_client(app):
 
 class TestEventList:
     def test_list_renders(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "items": [FAKE_EVENT], "next_cursor": None, "has_more": False,
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "items": [FAKE_EVENT],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
         resp = authed_client.get("/admin/events")
         assert resp.status_code == 200
         assert "Eventos" in resp.text
@@ -50,19 +54,32 @@ class TestEventList:
         assert resp.status_code == 302
 
     def test_list_filter_by_resource_type(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "items": [FAKE_EVENT], "next_cursor": None, "has_more": False,
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "items": [FAKE_EVENT],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
         resp = authed_client.get("/admin/events?resource_type=member")
         assert resp.status_code == 200
         # Verify the API was called with the filter
         call_args = app.state.api.get.call_args
-        assert call_args[1].get("params", call_args[0][2] if len(call_args[0]) > 2 else {}).get("resource_type") == "member"
+        assert (
+            call_args[1]
+            .get("params", call_args[0][2] if len(call_args[0]) > 2 else {})
+            .get("resource_type")
+            == "member"
+        )
 
     def test_list_htmx_returns_partial(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "items": [FAKE_EVENT], "next_cursor": None, "has_more": False,
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "items": [FAKE_EVENT],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
         resp = authed_client.get("/admin/events", headers={"hx-request": "true"})
         assert resp.status_code == 200
         assert "<!DOCTYPE html>" not in resp.text

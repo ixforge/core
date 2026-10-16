@@ -20,7 +20,9 @@ config_router = APIRouter(
 )
 
 
-async def _ensure_route_server_exists(db: DBSession, ixp_id: uuid.UUID, route_server_id: uuid.UUID) -> RouteServer:
+async def _ensure_route_server_exists(
+    db: DBSession, ixp_id: uuid.UUID, route_server_id: uuid.UUID
+) -> RouteServer:
     """Fetch a route server or raise NotFoundError."""
     return await rs_svc.get(db, ixp_id, route_server_id)
 

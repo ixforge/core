@@ -10,7 +10,10 @@ from ixforge.models.route_server import RouteServer
 
 
 async def _setup_rs(
-    db: AsyncSession, ixp: IXP, name: str = "rs-keys-test", ip_v4: str = "192.0.2.240",
+    db: AsyncSession,
+    ixp: IXP,
+    name: str = "rs-keys-test",
+    ip_v4: str = "192.0.2.240",
 ) -> RouteServer:
     rs = RouteServer(id=uuid.uuid4(), ixp_id=ixp.id, name=name, ip_v4=ip_v4, is_active=True)
     db.add(rs)
@@ -20,7 +23,11 @@ async def _setup_rs(
 
 class TestRSAPIKeyCreate:
     async def test_create_returns_raw_key_with_agent_scope(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs = await _setup_rs(db_session, ixp)
         resp = await client.post(
@@ -36,7 +43,11 @@ class TestRSAPIKeyCreate:
         assert body["is_active"] is True
 
     async def test_created_key_authorizes_agent_endpoint(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs = await _setup_rs(db_session, ixp, name="rs-keys-auth")
         resp = await client.post(
@@ -54,7 +65,11 @@ class TestRSAPIKeyCreate:
         assert resp.status_code == 404
 
     async def test_key_rejected_for_other_route_server(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs1 = await _setup_rs(db_session, ixp, name="rs-keys-a")
         rs2 = await _setup_rs(db_session, ixp, name="rs-keys-b", ip_v4="192.0.2.241")
@@ -72,7 +87,11 @@ class TestRSAPIKeyCreate:
         assert resp.status_code == 403
 
     async def test_member_cannot_create(
-        self, client: AsyncClient, member_auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        member_auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs = await _setup_rs(db_session, ixp, name="rs-keys-member")
         resp = await client.post(
@@ -83,7 +102,10 @@ class TestRSAPIKeyCreate:
         assert resp.status_code == 403
 
     async def test_create_for_unknown_rs_is_404(
-        self, client: AsyncClient, auth_headers: dict, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        ixp: IXP,
     ):
         resp = await client.post(
             f"/api/v1/route-servers/{uuid.uuid4()}/api-keys",
@@ -95,7 +117,11 @@ class TestRSAPIKeyCreate:
 
 class TestRSAPIKeyListAndRevoke:
     async def test_list_keys(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs = await _setup_rs(db_session, ixp, name="rs-keys-list")
         for name in ("k1", "k2"):
@@ -105,7 +131,8 @@ class TestRSAPIKeyListAndRevoke:
                 json={"name": name},
             )
         resp = await client.get(
-            f"/api/v1/route-servers/{rs.id}/api-keys", headers=auth_headers,
+            f"/api/v1/route-servers/{rs.id}/api-keys",
+            headers=auth_headers,
         )
         assert resp.status_code == 200
         names = {k["name"] for k in resp.json()}
@@ -113,7 +140,11 @@ class TestRSAPIKeyListAndRevoke:
         assert all("raw_key" not in k for k in resp.json())
 
     async def test_revoke_key(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs = await _setup_rs(db_session, ixp, name="rs-keys-revoke")
         created = await client.post(
@@ -125,7 +156,8 @@ class TestRSAPIKeyListAndRevoke:
         raw_key = created.json()["raw_key"]
 
         resp = await client.delete(
-            f"/api/v1/route-servers/{rs.id}/api-keys/{key_id}", headers=auth_headers,
+            f"/api/v1/route-servers/{rs.id}/api-keys/{key_id}",
+            headers=auth_headers,
         )
         assert resp.status_code == 204
 
@@ -136,7 +168,11 @@ class TestRSAPIKeyListAndRevoke:
         assert resp.status_code == 401
 
     async def test_revoke_key_of_other_rs_is_404(
-        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
     ):
         rs1 = await _setup_rs(db_session, ixp, name="rs-keys-r1")
         rs2 = await _setup_rs(db_session, ixp, name="rs-keys-r2", ip_v4="192.0.2.242")
@@ -148,6 +184,7 @@ class TestRSAPIKeyListAndRevoke:
         key_id = created.json()["id"]
 
         resp = await client.delete(
-            f"/api/v1/route-servers/{rs2.id}/api-keys/{key_id}", headers=auth_headers,
+            f"/api/v1/route-servers/{rs2.id}/api-keys/{key_id}",
+            headers=auth_headers,
         )
         assert resp.status_code == 404

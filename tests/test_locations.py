@@ -16,31 +16,45 @@ from ixforge.services import locations as loc_svc
 
 class TestLocationService:
     async def test_create_location(self, db_session: AsyncSession, ixp: IXP) -> None:
-        loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="SCL", country="CL"))
+        loc = await loc_svc.create(
+            db_session, ixp.id, LocationCreate(name="DC1", city="SCL", country="CL")
+        )
         assert loc.id is not None
         assert loc.name == "DC1"
         assert loc.ixp_id == ixp.id
 
     async def test_create_duplicate_name_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US"))
+        await loc_svc.create(
+            db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US")
+        )
         with pytest.raises(ConflictError):
-            await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US"))
+            await loc_svc.create(
+                db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US")
+            )
 
     async def test_get_not_found_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
         with pytest.raises(NotFoundError):
             await loc_svc.get(db_session, ixp.id, uuid.uuid4())
 
     async def test_update_location(self, db_session: AsyncSession, ixp: IXP) -> None:
-        loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US"))
+        loc = await loc_svc.create(
+            db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US")
+        )
         updated = await loc_svc.update(db_session, ixp.id, loc.id, LocationUpdate(city="Rosario"))
         assert updated.city == "Rosario"
 
     async def test_delete_location(self, db_session: AsyncSession, ixp: IXP) -> None:
-        loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US"))
+        loc = await loc_svc.create(
+            db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US")
+        )
         await loc_svc.delete(db_session, ixp.id, loc.id)
 
-    async def test_delete_location_with_switch_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
-        loc = await loc_svc.create(db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US"))
+    async def test_delete_location_with_switch_raises(
+        self, db_session: AsyncSession, ixp: IXP
+    ) -> None:
+        loc = await loc_svc.create(
+            db_session, ixp.id, LocationCreate(name="DC1", city="TestCity", country="US")
+        )
         sw = Switch(ixp_id=ixp.id, name="SW1", location_id=loc.id)
         db_session.add(sw)
         await db_session.flush()
@@ -61,13 +75,15 @@ class TestLocationsAPI:
     async def test_create_location_api(
         self, client: AsyncClient, ixp: IXP, auth_headers: dict
     ) -> None:
-        resp = await client.post("/api/v1/locations", json={"name": "DC1", "city": "TestCity", "country": "US"}, headers=auth_headers)
+        resp = await client.post(
+            "/api/v1/locations",
+            json={"name": "DC1", "city": "TestCity", "country": "US"},
+            headers=auth_headers,
+        )
         assert resp.status_code == 201
         assert resp.json()["name"] == "DC1"
 
-    async def test_get_location_not_found(
-        self, client: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_get_location_not_found(self, client: AsyncClient, auth_headers: dict) -> None:
         resp = await client.get(f"/api/v1/locations/{uuid.uuid4()}", headers=auth_headers)
         assert resp.status_code == 404
 
@@ -122,7 +138,9 @@ class TestLocationsAPI:
         db_session.add(Location(ixp_id=ixp.id, name="DC-dup", city="TestCity", country="US"))
         await db_session.flush()
         resp = await client.post(
-            "/api/v1/locations", json={"name": "DC-dup", "city": "TestCity", "country": "US"}, headers=auth_headers
+            "/api/v1/locations",
+            json={"name": "DC-dup", "city": "TestCity", "country": "US"},
+            headers=auth_headers,
         )
         assert resp.status_code == 409
 

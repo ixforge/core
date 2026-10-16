@@ -35,16 +35,12 @@ class Trunk(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
     connections: Mapped[list["Connection"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="trunk", lazy="raise"
     )
-    trunk_vlans: Mapped[list["TrunkVLAN"]] = relationship(
-        back_populates="trunk", lazy="raise"
-    )
+    trunk_vlans: Mapped[list["TrunkVLAN"]] = relationship(back_populates="trunk", lazy="raise")
 
 
 class TrunkVLAN(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "trunk_vlans"
-    __table_args__ = (
-        UniqueConstraint("trunk_id", "vlan_id", name="uq_trunk_vlans_trunk_vlan"),
-    )
+    __table_args__ = (UniqueConstraint("trunk_id", "vlan_id", name="uq_trunk_vlans_trunk_vlan"),)
 
     trunk_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

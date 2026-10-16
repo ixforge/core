@@ -21,6 +21,7 @@ async def health(response: Response, db: DBSession) -> dict[str, Any]:
         checks["database"] = {"status": "ok"}
     except Exception:
         import structlog
+
         structlog.get_logger().error("health.database_check_failed", exc_info=True)
         checks["database"] = {"status": "error", "detail": "Database connection failed"}
         overall_healthy = False

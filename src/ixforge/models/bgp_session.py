@@ -21,7 +21,9 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "bgp_sessions"
     __table_args__ = (
         UniqueConstraint(
-            "route_server_id", "trunk_vlan_id", "af",
+            "route_server_id",
+            "trunk_vlan_id",
+            "af",
             name="uq_bgp_sessions_rs_trunk_vlan_af",
         ),
         Index("ix_bgp_sessions_rs_trunk_vlan", "route_server_id", "trunk_vlan_id"),
@@ -64,8 +66,12 @@ class BGPSession(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     # arriba: de un peer caido no se sabe cuantas rutas tiene, y un cero se lee
     # como "conectado sin anunciar nada", que es un problema distinto
     prefixes_imported: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, comment="Rutas recibidas del peer segun el ultimo reporte",
+        Integer,
+        nullable=True,
+        comment="Rutas recibidas del peer segun el ultimo reporte",
     )
     prefixes_exported: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, comment="Rutas anunciadas al peer segun el ultimo reporte",
+        Integer,
+        nullable=True,
+        comment="Rutas anunciadas al peer segun el ultimo reporte",
     )

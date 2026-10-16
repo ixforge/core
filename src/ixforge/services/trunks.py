@@ -78,11 +78,7 @@ async def get(session: AsyncSession, ixp_id: uuid.UUID, trunk_id: uuid.UUID) -> 
     Always loads member relationship so TrunkRead
     can populate member_name consistently.
     """
-    stmt = (
-        select(Trunk)
-        .where(Trunk.id == trunk_id)
-        .options(joinedload(Trunk.member))
-    )
+    stmt = select(Trunk).where(Trunk.id == trunk_id).options(joinedload(Trunk.member))
     result = await session.execute(stmt)
     trunk = result.unique().scalar_one_or_none()
     if trunk is None or trunk.ixp_id != ixp_id:
@@ -98,11 +94,7 @@ async def list_trunks(
     member_id: uuid.UUID | None = None,
 ) -> CursorPage[TrunkRead]:
     """List trunks with optional member filter."""
-    stmt = (
-        select(Trunk)
-        .where(Trunk.ixp_id == ixp_id)
-        .options(joinedload(Trunk.member))
-    )
+    stmt = select(Trunk).where(Trunk.ixp_id == ixp_id).options(joinedload(Trunk.member))
     if member_id is not None:
         stmt = stmt.where(Trunk.member_id == member_id)
     return await paginate(
@@ -162,36 +154,33 @@ async def transition(
     if target_state == TrunkState.active:
         # Requires at least 1 connection
         has_connection = await session.scalar(
-            select(Connection.id)
-            .where(Connection.trunk_id == trunk_id)
-            .limit(1)
+            select(Connection.id).where(Connection.trunk_id == trunk_id).limit(1)
         )
         if has_connection is None:
-            raise ValidationError(
-                "Cannot activate trunk: at least one connection is required"
-            )
+            raise ValidationError("Cannot activate trunk: at least one connection is required")
 
         # Requires at least 1 TrunkVLAN
         trunk_vlans = (
-            await session.execute(
-                select(TrunkVLAN)
-                .where(TrunkVLAN.trunk_id == trunk_id)
-                .options(joinedload(TrunkVLAN.vlan))
+            (
+                await session.execute(
+                    select(TrunkVLAN)
+                    .where(TrunkVLAN.trunk_id == trunk_id)
+                    .options(joinedload(TrunkVLAN.vlan))
+                )
             )
-        ).unique().scalars().all()
+            .unique()
+            .scalars()
+            .all()
+        )
         if not trunk_vlans:
-            raise ValidationError(
-                "Cannot activate trunk: at least one VLAN must be assigned"
-            )
+            raise ValidationError("Cannot activate trunk: at least one VLAN must be assigned")
 
         # For each production TrunkVLAN, at least 1 IP
         for tv in trunk_vlans:
             vlan = tv.vlan
             if vlan is not None and vlan.type == VLANType.production:
                 has_ip = await session.scalar(
-                    select(IPAssignment.id)
-                    .where(IPAssignment.trunk_vlan_id == tv.id)
-                    .limit(1)
+                    select(IPAssignment.id).where(IPAssignment.trunk_vlan_id == tv.id).limit(1)
                 )
                 if has_ip is None:
                     raise ValidationError(
@@ -210,9 +199,7 @@ async def transition(
             .limit(1)
         )
         if has_bgp is not None:
-            raise ValidationError(
-                "Cannot decommission trunk: delete all BGP sessions first"
-            )
+            raise ValidationError("Cannot decommission trunk: delete all BGP sessions first")
 
         has_ip = await session.scalar(
             select(IPAssignment.id)
@@ -224,19 +211,13 @@ async def transition(
             .limit(1)
         )
         if has_ip is not None:
-            raise ValidationError(
-                "Cannot decommission trunk: release all IPs first"
-            )
+            raise ValidationError("Cannot decommission trunk: release all IPs first")
 
         has_vlan = await session.scalar(
-            select(TrunkVLAN.id)
-            .where(TrunkVLAN.trunk_id == trunk_id)
-            .limit(1)
+            select(TrunkVLAN.id).where(TrunkVLAN.trunk_id == trunk_id).limit(1)
         )
         if has_vlan is not None:
-            raise ValidationError(
-                "Cannot decommission trunk: unassign all VLANs first"
-            )
+            raise ValidationError("Cannot decommission trunk: unassign all VLANs first")
 
         has_active_conn = await session.scalar(
             select(Connection.id)
@@ -290,9 +271,7 @@ async def assign_vlan(
     """Assign a VLAN to a trunk."""
     trunk = await get(session, ixp_id, trunk_id)
     if trunk.state in (TrunkState.disabled, TrunkState.decommissioned):
-        raise ValidationError(
-            f"Cannot assign resources to a {trunk.state} trunk"
-        )
+        raise ValidationError(f"Cannot assign resources to a {trunk.state} trunk")
 
     # Validate that the VLAN belongs to the same IXP
     vlan = await session.get(VLAN, vlan_id)
@@ -309,17 +288,17 @@ async def assign_vlan(
         .limit(1)
     )
     if existing is not None:
-        raise ConflictError(
-            f"VLAN {vlan_id} is already assigned to trunk {trunk_id}"
-        )
+        raise ConflictError(f"VLAN {vlan_id} is already assigned to trunk {trunk_id}")
 
     # Validate private VLAN access
     if vlan.type == VLANType.private:
         is_authorized = await session.scalar(
-            select(VLANMember.id).where(
+            select(VLANMember.id)
+            .where(
                 VLANMember.vlan_id == vlan_id,
                 VLANMember.member_id == trunk.member_id,
-            ).limit(1)
+            )
+            .limit(1)
         )
         if is_authorized is None:
             raise ValidationError("Member is not authorized for this private VLAN")
@@ -333,11 +312,7 @@ async def assign_vlan(
     await session.flush()
 
     # Return with vlan loaded for enrichment
-    stmt = (
-        select(TrunkVLAN)
-        .where(TrunkVLAN.id == tv.id)
-        .options(joinedload(TrunkVLAN.vlan))
-    )
+    stmt = select(TrunkVLAN).where(TrunkVLAN.id == tv.id).options(joinedload(TrunkVLAN.vlan))
     result = await session.execute(stmt)
     return result.unique().scalar_one()
 
@@ -365,25 +340,17 @@ async def unassign_vlan(
 
     # Block if IPs are assigned
     has_ip = await session.scalar(
-        select(IPAssignment.id)
-        .where(IPAssignment.trunk_vlan_id == trunk_vlan_id)
-        .limit(1)
+        select(IPAssignment.id).where(IPAssignment.trunk_vlan_id == trunk_vlan_id).limit(1)
     )
     if has_ip is not None:
-        raise ConflictError(
-            "Cannot unassign VLAN: release all IP assignments first"
-        )
+        raise ConflictError("Cannot unassign VLAN: release all IP assignments first")
 
     # Block if BGP sessions exist
     has_bgp = await session.scalar(
-        select(BGPSession.id)
-        .where(BGPSession.trunk_vlan_id == trunk_vlan_id)
-        .limit(1)
+        select(BGPSession.id).where(BGPSession.trunk_vlan_id == trunk_vlan_id).limit(1)
     )
     if has_bgp is not None:
-        raise ConflictError(
-            "Cannot unassign VLAN: delete all BGP sessions first"
-        )
+        raise ConflictError("Cannot unassign VLAN: delete all BGP sessions first")
 
     await session.delete(tv)
     await session.flush()
@@ -451,10 +418,12 @@ async def release_ip(
     if ip_pool is None:
         raise NotFoundError("IPPool", str(assignment.pool_id))
     has_bgp = await session.scalar(
-        select(BGPSession.id).where(
+        select(BGPSession.id)
+        .where(
             BGPSession.trunk_vlan_id == assignment.trunk_vlan_id,
             BGPSession.af == ip_pool.af,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if has_bgp is not None:
         raise ConflictError(
@@ -475,12 +444,9 @@ async def list_ips(
     tv = await session.get(TrunkVLAN, trunk_vlan_id)
     if tv is None or tv.ixp_id != ixp_id:
         raise NotFoundError("TrunkVLAN", str(trunk_vlan_id))
-    stmt = (
-        select(IPAssignment)
-        .where(
-            IPAssignment.trunk_vlan_id == trunk_vlan_id,
-            IPAssignment.ixp_id == ixp_id,
-        )
+    stmt = select(IPAssignment).where(
+        IPAssignment.trunk_vlan_id == trunk_vlan_id,
+        IPAssignment.ixp_id == ixp_id,
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
@@ -515,9 +481,7 @@ async def add_connection(
 
     # Check type consistency
     existing_type_result = await session.execute(
-        select(Connection.type)
-        .where(Connection.trunk_id == trunk_id)
-        .limit(1)
+        select(Connection.type).where(Connection.trunk_id == trunk_id).limit(1)
     )
     existing_type = existing_type_result.scalar_one_or_none()
     if existing_type is not None and existing_type != data.type:

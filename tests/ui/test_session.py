@@ -29,6 +29,7 @@ class TestSessionHelpers:
         async def handler(request: Request):
             token = get_token(request)
             return JSONResponse({"token": token})
+
         client = TestClient(self._make_app(handler))
         resp = client.get("/test")
         assert resp.json()["token"] is None
@@ -38,6 +39,7 @@ class TestSessionHelpers:
             set_token(request, "my-jwt-123")
             token = get_token(request)
             return JSONResponse({"token": token})
+
         client = TestClient(self._make_app(handler))
         resp = client.get("/test")
         assert resp.json()["token"] == "my-jwt-123"
@@ -46,14 +48,18 @@ class TestSessionHelpers:
         async def set_handler(request: Request):
             set_token(request, "my-jwt")
             return PlainTextResponse("ok")
+
         async def clear_handler(request: Request):
             clear_session(request)
             token = get_token(request)
             return JSONResponse({"token": token})
-        app = Starlette(routes=[
-            Route("/set", set_handler),
-            Route("/clear", clear_handler),
-        ])
+
+        app = Starlette(
+            routes=[
+                Route("/set", set_handler),
+                Route("/clear", clear_handler),
+            ]
+        )
         app.add_middleware(SessionMiddleware, secret_key="test-secret")
         client = TestClient(app)
         client.get("/set")
@@ -67,6 +73,7 @@ class TestSessionHelpers:
             messages = get_flash_messages(request)
             remaining = get_flash_messages(request)
             return JSONResponse({"messages": messages, "remaining": remaining})
+
         client = TestClient(self._make_app(handler))
         resp = client.get("/test")
         data = resp.json()
@@ -80,6 +87,7 @@ class TestRequireAuth:
         @require_auth
         async def handler(request: Request):
             return PlainTextResponse("ok")
+
         app = Starlette(routes=[Route("/test", handler)])
         app.add_middleware(SessionMiddleware, secret_key="test-secret")
         client = TestClient(app, follow_redirects=False)
@@ -91,14 +99,18 @@ class TestRequireAuth:
         @require_auth
         async def handler(request: Request):
             return PlainTextResponse("ok")
+
         async def login_handler(request: Request):
             set_token(request, "valid-jwt")
             set_role(request, "admin")
             return PlainTextResponse("logged in")
-        app = Starlette(routes=[
-            Route("/login-helper", login_handler),
-            Route("/test", handler),
-        ])
+
+        app = Starlette(
+            routes=[
+                Route("/login-helper", login_handler),
+                Route("/test", handler),
+            ]
+        )
         app.add_middleware(SessionMiddleware, secret_key="test-secret")
         client = TestClient(app)
         client.get("/login-helper")

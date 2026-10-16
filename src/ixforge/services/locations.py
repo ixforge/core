@@ -38,7 +38,9 @@ async def list_locations(
     return await paginate(session, stmt, params, Location.created_at, Location.id, LocationRead)
 
 
-async def update(session: AsyncSession, ixp_id: uuid.UUID, location_id: uuid.UUID, data: LocationUpdate) -> Location:
+async def update(
+    session: AsyncSession, ixp_id: uuid.UUID, location_id: uuid.UUID, data: LocationUpdate
+) -> Location:
     loc = await get(session, ixp_id, location_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(loc, field, value)

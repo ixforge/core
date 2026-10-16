@@ -18,7 +18,9 @@ class TestDeleteMember:
     async def test_delete_terminated_member(
         self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
     ) -> None:
-        m = Member(ixp_id=ixp.id, name="ISP", short_name="I", asn=65100, state=MemberState.terminated)
+        m = Member(
+            ixp_id=ixp.id, name="ISP", short_name="I", asn=65100, state=MemberState.terminated
+        )
         db_session.add(m)
         await db_session.flush()
         resp = await client.delete(f"/api/v1/members/{m.id}", headers=auth_headers)
@@ -27,7 +29,9 @@ class TestDeleteMember:
     async def test_delete_active_member_raises_409(
         self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
     ) -> None:
-        m = Member(ixp_id=ixp.id, name="ISP2", short_name="I2", asn=65101, state=MemberState.active)
+        m = Member(
+            ixp_id=ixp.id, name="ISP2", short_name="I2", asn=65101, state=MemberState.active
+        )
         db_session.add(m)
         await db_session.flush()
         resp = await client.delete(f"/api/v1/members/{m.id}", headers=auth_headers)
@@ -36,7 +40,9 @@ class TestDeleteMember:
     async def test_delete_member_emits_event(
         self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
     ) -> None:
-        m = Member(ixp_id=ixp.id, name="ISP3", short_name="I3", asn=65102, state=MemberState.terminated)
+        m = Member(
+            ixp_id=ixp.id, name="ISP3", short_name="I3", asn=65102, state=MemberState.terminated
+        )
         db_session.add(m)
         await db_session.flush()
         await client.delete(f"/api/v1/members/{m.id}", headers=auth_headers)
@@ -49,8 +55,12 @@ class TestDeleteUser:
         self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession
     ) -> None:
         u = User(
-            id=uuid.uuid4(), email="del@ex.com", hashed_password=hash_password("p"),
-            full_name="Del", role=UserRole.member, is_active=False
+            id=uuid.uuid4(),
+            email="del@ex.com",
+            hashed_password=hash_password("p"),
+            full_name="Del",
+            role=UserRole.member,
+            is_active=False,
         )
         db_session.add(u)
         await db_session.flush()
@@ -61,8 +71,12 @@ class TestDeleteUser:
         self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession
     ) -> None:
         u = User(
-            id=uuid.uuid4(), email="act@ex.com", hashed_password=hash_password("p"),
-            full_name="Act", role=UserRole.member, is_active=True
+            id=uuid.uuid4(),
+            email="act@ex.com",
+            hashed_password=hash_password("p"),
+            full_name="Act",
+            role=UserRole.member,
+            is_active=True,
         )
         db_session.add(u)
         await db_session.flush()
@@ -82,8 +96,12 @@ class TestDeleteUser:
         # The active-admin count guard must only apply when the target user is active,
         # so deleting an inactive admin must succeed regardless of how many active admins remain.
         other_admin = User(
-            id=uuid.uuid4(), email="other_admin@ex.com", hashed_password=hash_password("p"),
-            full_name="Other Admin", role=UserRole.admin, is_active=False,
+            id=uuid.uuid4(),
+            email="other_admin@ex.com",
+            hashed_password=hash_password("p"),
+            full_name="Other Admin",
+            role=UserRole.admin,
+            is_active=False,
         )
         db_session.add(other_admin)
         await db_session.flush()

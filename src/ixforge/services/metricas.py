@@ -156,15 +156,16 @@ async def series_de_interfaces(
     series = []
     for serie in crudo.get("data", {}).get("result", []):
         etiquetas = serie.get("metric", {})
-        series.append({
-            "connection_id": etiquetas.get("port_id") or None,
-            "member_id": etiquetas.get("member_id") or None,
-            "ifname": etiquetas.get("ifname") or None,
-            "points": [
-                {"timestamp": int(t), "value": float(v)}
-                for t, v in serie.get("values", [])
-            ],
-        })
+        series.append(
+            {
+                "connection_id": etiquetas.get("port_id") or None,
+                "member_id": etiquetas.get("member_id") or None,
+                "ifname": etiquetas.get("ifname") or None,
+                "points": [
+                    {"timestamp": int(t), "value": float(v)} for t, v in serie.get("values", [])
+                ],
+            }
+        )
     return series, True
 
 
@@ -193,17 +194,17 @@ async def series_icmp(
     for serie in crudo.get("data", {}).get("result", []):
         etiquetas = serie.get("metric", {})
         version = etiquetas.get("ip_version")
-        series.append({
-            "member_id": etiquetas.get("member_id") or None,
-            "ip": etiquetas.get("ip") or None,
-            "ip_version": int(version) if version else None,
-            "points": [
-                {"timestamp": int(t), "value": float(v)}
-                for t, v in serie.get("values", [])
-            ],
-        })
+        series.append(
+            {
+                "member_id": etiquetas.get("member_id") or None,
+                "ip": etiquetas.get("ip") or None,
+                "ip_version": int(version) if version else None,
+                "points": [
+                    {"timestamp": int(t), "value": float(v)} for t, v in serie.get("values", [])
+                ],
+            }
+        )
     return series, True
-
 
 
 async def series_de_prefijos(
@@ -224,10 +225,7 @@ async def series_de_prefijos(
         return [], True
     ventana, paso = RANGOS[rango]
 
-    consulta = (
-        "max by (af) (ixforge_bgp_session_prefixes_imported"
-        f'{{peer_asn="{int(peer_asn)}"}})'
-    )
+    consulta = f'max by (af) (ixforge_bgp_session_prefixes_imported{{peer_asn="{int(peer_asn)}"}})'
 
     try:
         crudo = await consultar_vm_rango(consulta, ventana, paso)
@@ -238,13 +236,14 @@ async def series_de_prefijos(
     series = []
     for serie in crudo.get("data", {}).get("result", []):
         af = serie.get("metric", {}).get("af")
-        series.append({
-            "af": int(af) if af else None,
-            "points": [
-                {"timestamp": int(t), "value": float(v)}
-                for t, v in serie.get("values", [])
-            ],
-        })
+        series.append(
+            {
+                "af": int(af) if af else None,
+                "points": [
+                    {"timestamp": int(t), "value": float(v)} for t, v in serie.get("values", [])
+                ],
+            }
+        )
     return series, True
 
 
@@ -262,7 +261,7 @@ async def series_agregadas(rango: str) -> tuple[list[Any], list[Any], bool]:
 
     salidas = []
     for metrica in ("ixforge_interface_traffic_in_bps", "ixforge_interface_traffic_out_bps"):
-        consulta = f'sum({metrica}{{{SELECTOR_MIEMBROS}}})'
+        consulta = f"sum({metrica}{{{SELECTOR_MIEMBROS}}})"
         try:
             crudo = await consultar_vm_rango(consulta, ventana, paso)
         except Exception as e:
@@ -286,7 +285,7 @@ async def pico_agregado(rango: str) -> tuple[float | None, float | None, bool]:
 
     picos: list[float | None] = []
     for metrica in ("ixforge_interface_traffic_in_bps", "ixforge_interface_traffic_out_bps"):
-        consulta = f'max_over_time(sum({metrica}{{{SELECTOR_MIEMBROS}}})[{ventana}:])'
+        consulta = f"max_over_time(sum({metrica}{{{SELECTOR_MIEMBROS}}})[{ventana}:])"
         try:
             crudo = await consultar_vm(consulta)
         except Exception as e:

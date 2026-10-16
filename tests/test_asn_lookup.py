@@ -14,7 +14,9 @@ from ixforge.services.asn_lookup import lookup
 
 class TestASNLookup:
     async def test_lookup_from_local_member(self, db_session, ixp: IXP) -> None:
-        m = Member(ixp_id=ixp.id, name="Local ISP", short_name="L", asn=65300, state=MemberState.active)
+        m = Member(
+            ixp_id=ixp.id, name="Local ISP", short_name="L", asn=65300, state=MemberState.active
+        )
         db_session.add(m)
         await db_session.flush()
         name = await lookup(db_session, 65300)
@@ -45,7 +47,11 @@ class TestASNLookup:
         assert cache_entry.fetched_at > old_time
 
     async def test_lookup_peeringdb_failure_returns_none(self, db_session) -> None:
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=httpx.TimeoutException("timeout")):
+        with patch(
+            "httpx.AsyncClient.get",
+            new_callable=AsyncMock,
+            side_effect=httpx.TimeoutException("timeout"),
+        ):
             name = await lookup(db_session, 99999)
         assert name is None
 
@@ -57,7 +63,9 @@ class TestASNLookup:
             name = await lookup(db_session, 11111)
         assert name is None
 
-    async def test_lookup_expired_cache_no_peeringdb_result_resets_fetched_at(self, db_session) -> None:
+    async def test_lookup_expired_cache_no_peeringdb_result_resets_fetched_at(
+        self, db_session
+    ) -> None:
         """Stale cache entry with no PeeringDB data must have fetched_at reset to avoid hammering the API."""
         old_time = datetime.now(tz=UTC) - timedelta(days=8)
         cache_entry = ASNCache(asn=64520, name="Old Name", fetched_at=old_time)

@@ -43,14 +43,18 @@ async def trunk_list(request: Request) -> Response:
 
     member_map = {m["id"]: m for m in members}
 
-    return render(request, "trunks/list.html", {
-        "trunks": trunks,
-        "members": members,
-        "member_map": member_map,
-        "filter_member_id": member_id,
-        "filter_state": state,
-        "page_title": "Trunks",
-    })
+    return render(
+        request,
+        "trunks/list.html",
+        {
+            "trunks": trunks,
+            "members": members,
+            "member_map": member_map,
+            "filter_member_id": member_id,
+            "filter_state": state,
+            "page_title": "Trunks",
+        },
+    )
 
 
 @require_auth
@@ -85,7 +89,8 @@ async def trunk_detail(request: Request) -> Response:
         tv_id = tv.get("id", "")
         try:
             ips = await api.get(
-                f"/api/v1/trunks/{trunk_id}/vlans/{tv_id}/ips", token,
+                f"/api/v1/trunks/{trunk_id}/vlans/{tv_id}/ips",
+                token,
             )
             for ip in ips:
                 ip["trunk_vlan_id"] = tv_id
@@ -131,7 +136,8 @@ async def trunk_detail(request: Request) -> Response:
     for rs in route_servers:
         try:
             bgp_data = await api.get(
-                "/api/v1/bgp-sessions", token,
+                "/api/v1/bgp-sessions",
+                token,
                 params={"route_server_id": rs["id"], "limit": 200},
             )
             for s in bgp_data.get("items", []):
@@ -151,16 +157,20 @@ async def trunk_detail(request: Request) -> Response:
     trunk["ips"] = trunk_ips
     trunk["connections"] = connections if isinstance(connections, list) else []
 
-    return render(request, "trunks/detail.html", {
-        "trunk": trunk,
-        "member": member,
-        "available_vlans": vlans_data.get("items", []),
-        "ip_pools": ip_pools,
-        "bgp_sessions": bgp_sessions,
-        "switches": switches_data.get("items", []),
-        "switch_map": switch_map,
-        "page_title": f"Trunk - {trunk.get('name', '')}",
-    })
+    return render(
+        request,
+        "trunks/detail.html",
+        {
+            "trunk": trunk,
+            "member": member,
+            "available_vlans": vlans_data.get("items", []),
+            "ip_pools": ip_pools,
+            "bgp_sessions": bgp_sessions,
+            "switches": switches_data.get("items", []),
+            "switch_map": switch_map,
+            "page_title": f"Trunk - {trunk.get('name', '')}",
+        },
+    )
 
 
 @require_auth
@@ -172,13 +182,17 @@ async def trunk_new(request: Request) -> Response:
         members_data = await api.get("/api/v1/members", token, params={"limit": 200})
         preselect_member_id = request.query_params.get("member_id", "")
 
-        return render(request, "trunks/form.html", {
-            "trunk": None,
-            "members": members_data.get("items", []),
-            "preselect_member_id": preselect_member_id,
-            "errors": {},
-            "page_title": "Nuevo Trunk",
-        })
+        return render(
+            request,
+            "trunks/form.html",
+            {
+                "trunk": None,
+                "members": members_data.get("items", []),
+                "preselect_member_id": preselect_member_id,
+                "errors": {},
+                "page_title": "Nuevo Trunk",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {
@@ -198,12 +212,16 @@ async def trunk_new(request: Request) -> Response:
         if e.status_code in (400, 409, 422):
             members_data = await api.get("/api/v1/members", token, params={"limit": 200})
 
-            return render(request, "trunks/form.html", {
-                "trunk": payload,
-                "members": members_data.get("items", []),
-                "errors": e.detail,
-                "page_title": "Nuevo Trunk",
-            })
+            return render(
+                request,
+                "trunks/form.html",
+                {
+                    "trunk": payload,
+                    "members": members_data.get("items", []),
+                    "errors": e.detail,
+                    "page_title": "Nuevo Trunk",
+                },
+            )
         raise
 
     add_flash(request, "Trunk creado", "success")
@@ -220,12 +238,16 @@ async def trunk_edit(request: Request) -> Response:
         trunk = await api.get(f"/api/v1/trunks/{trunk_id}", token)
         members_data = await api.get("/api/v1/members", token, params={"limit": 200})
 
-        return render(request, "trunks/form.html", {
-            "trunk": trunk,
-            "members": members_data.get("items", []),
-            "errors": {},
-            "page_title": "Editar Trunk",
-        })
+        return render(
+            request,
+            "trunks/form.html",
+            {
+                "trunk": trunk,
+                "members": members_data.get("items", []),
+                "errors": {},
+                "page_title": "Editar Trunk",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {}
@@ -240,12 +262,16 @@ async def trunk_edit(request: Request) -> Response:
         if e.status_code in (400, 409, 422):
             members_data = await api.get("/api/v1/members", token, params={"limit": 200})
 
-            return render(request, "trunks/form.html", {
-                "trunk": {**payload, "id": trunk_id},
-                "members": members_data.get("items", []),
-                "errors": e.detail,
-                "page_title": "Editar Trunk",
-            })
+            return render(
+                request,
+                "trunks/form.html",
+                {
+                    "trunk": {**payload, "id": trunk_id},
+                    "members": members_data.get("items", []),
+                    "errors": e.detail,
+                    "page_title": "Editar Trunk",
+                },
+            )
         raise
 
     add_flash(request, "Trunk actualizado", "success")
@@ -338,7 +364,9 @@ async def trunk_assign_ip(request: Request) -> Response:
 
     try:
         await api.post(
-            f"/api/v1/trunks/{trunk_id}/vlans/{tv_id}/ips", token, json=payload,
+            f"/api/v1/trunks/{trunk_id}/vlans/{tv_id}/ips",
+            token,
+            json=payload,
         )
         add_flash(request, "IP asignada", "success")
     except APIError as e:
@@ -357,7 +385,8 @@ async def trunk_release_ip(request: Request) -> Response:
 
     try:
         await api.delete(
-            f"/api/v1/trunks/{trunk_id}/vlans/{tv_id}/ips/{aid}", token,
+            f"/api/v1/trunks/{trunk_id}/vlans/{tv_id}/ips/{aid}",
+            token,
         )
         add_flash(request, "IP liberada", "success")
     except APIError as e:
@@ -377,7 +406,9 @@ async def trunk_add_connection(request: Request) -> Response:
         "switch_id": str(form.get("switch_id", "")),
         "name": str(form.get("name", "")),
         "type": str(form.get("type", "physical")),
-        "speed": int(str(form.get("speed", 0)) or 0) if str(form.get("speed", "")).isdigit() else 0,
+        "speed": int(str(form.get("speed", 0)) or 0)
+        if str(form.get("speed", "")).isdigit()
+        else 0,
     }
 
     try:

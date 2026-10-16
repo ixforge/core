@@ -43,8 +43,14 @@ async def login_submit(request: Request) -> Response:
         return render(request, "auth/login.html", {"error": "Email o password incorrectos"})
     except APIError as exc:
         if exc.status_code >= 500:
-            return render(request, "auth/login.html", {"error": "Error del servidor, intenta de nuevo mas tarde"})
-        return render(request, "auth/login.html", {"error": "Error de validacion, verifica tus datos"})
+            return render(
+                request,
+                "auth/login.html",
+                {"error": "Error del servidor, intenta de nuevo mas tarde"},
+            )
+        return render(
+            request, "auth/login.html", {"error": "Error de validacion, verifica tus datos"}
+        )
 
     request.session.clear()
     set_token(request, token)
@@ -54,13 +60,19 @@ async def login_submit(request: Request) -> Response:
         role = me.get("role")
         if role is None:
             clear_session(request)
-            return render(request, "auth/login.html", {"error": "Error al obtener datos del usuario"})
+            return render(
+                request, "auth/login.html", {"error": "Error al obtener datos del usuario"}
+            )
         set_role(request, role)
         set_session_member_id(request, me.get("member_id"))
     except Exception:
         _log.warning("login.get_me_failed", exc_info=True)
         clear_session(request)
-        return render(request, "auth/login.html", {"error": "Error al obtener datos del usuario, intenta de nuevo"})
+        return render(
+            request,
+            "auth/login.html",
+            {"error": "Error al obtener datos del usuario, intenta de nuevo"},
+        )
 
     add_flash(request, "Sesion iniciada", "success")
     redirect_url = "/portal/dashboard" if get_role(request) == "member" else "/admin"

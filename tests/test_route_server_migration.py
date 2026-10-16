@@ -27,9 +27,7 @@ def snapshot() -> list[dict[str, object]]:
 def test_snapshot_instala_los_once_templates(snapshot):
     from ixforge.services.default_templates import DEFAULT_TEMPLATES
 
-    assert {t["filename"] for t in snapshot} == {
-        t["filename"] for t in DEFAULT_TEMPLATES
-    }
+    assert {t["filename"] for t in snapshot} == {t["filename"] for t in DEFAULT_TEMPLATES}
 
 
 def test_snapshot_no_arrastra_el_bug_del_strip_de_communities(snapshot):

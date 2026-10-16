@@ -129,7 +129,11 @@ class TestRSTemplateSchemas:
     def test_create_valid(self):
         from ixforge.schemas.rs_template import RSTemplateCreate
 
-        data = RSTemplateCreate(filename="filters/custom.j2", content="{% block main %}{% endblock %}", description="Custom filter")
+        data = RSTemplateCreate(
+            filename="filters/custom.j2",
+            content="{% block main %}{% endblock %}",
+            description="Custom filter",
+        )
         assert data.filename == "filters/custom.j2"
 
     def test_create_filename_must_end_j2(self):
@@ -184,6 +188,7 @@ class TestRSTemplateSchemas:
 # ---------------------------------------------------------------------------
 # Service tests
 # ---------------------------------------------------------------------------
+
 
 async def _seed_template(db, ixp, filename="test.j2", **kw):
     defaults = {"ixp_id": ixp.id, "filename": filename, "content": "hello {{ name }}"}
@@ -252,7 +257,9 @@ class TestRSTemplateService:
     async def test_delete_referenced_raises(self, db_session, ixp):
         await _seed_template(db_session, ixp, filename="base.j2", content="base")
         await _seed_template(
-            db_session, ixp, filename="child.j2",
+            db_session,
+            ixp,
+            filename="child.j2",
             content='{% include "base.j2" %}',
         )
         base = (await tpl_svc.list_templates(db_session, ixp.id))[0]
@@ -260,9 +267,13 @@ class TestRSTemplateService:
             await tpl_svc.delete(db_session, ixp.id, base.id)
 
     async def test_delete_from_import_detected(self, db_session, ixp):
-        await _seed_template(db_session, ixp, filename="macros.j2", content="{% macro foo() %}{% endmacro %}")
         await _seed_template(
-            db_session, ixp, filename="user.j2",
+            db_session, ixp, filename="macros.j2", content="{% macro foo() %}{% endmacro %}"
+        )
+        await _seed_template(
+            db_session,
+            ixp,
+            filename="user.j2",
             content='{% from "macros.j2" import foo %}',
         )
         macros = (await tpl_svc.list_templates(db_session, ixp.id))[0]
@@ -304,7 +315,9 @@ class TestRSTemplateSecurity:
         from jinja2 import DictLoader, UndefinedError
         from jinja2.sandbox import SandboxedEnvironment, SecurityError
 
-        env = SandboxedEnvironment(loader=DictLoader({"t.j2": "{{ __import__('os').system('ls') }}"}))
+        env = SandboxedEnvironment(
+            loader=DictLoader({"t.j2": "{{ __import__('os').system('ls') }}"})
+        )
         t = env.get_template("t.j2")
         with pytest.raises((SecurityError, UndefinedError)):
             t.render()
@@ -318,8 +331,11 @@ class TestRSTemplateSecurity:
 # API endpoint tests
 # ---------------------------------------------------------------------------
 
+
 async def _api_seed_template(
-    client: AsyncClient, auth_headers: dict, **overrides: object,
+    client: AsyncClient,
+    auth_headers: dict,
+    **overrides: object,
 ) -> dict:
     payload = {
         "filename": "api-test.j2",
@@ -334,14 +350,20 @@ async def _api_seed_template(
 
 class TestRSTemplateAPI:
     async def test_list_templates(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
     ) -> None:
         resp = await client.get("/api/v1/rs-templates", headers=auth_headers)
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     async def test_create_template(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
     ) -> None:
         data = await _api_seed_template(client, auth_headers, filename="create.j2")
         assert data["filename"] == "create.j2"
@@ -349,17 +371,24 @@ class TestRSTemplateAPI:
         assert data["is_protected"] is False
 
     async def test_get_template(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
     ) -> None:
         created = await _api_seed_template(client, auth_headers, filename="get-test.j2")
         resp = await client.get(
-            f"/api/v1/rs-templates/{created['id']}", headers=auth_headers,
+            f"/api/v1/rs-templates/{created['id']}",
+            headers=auth_headers,
         )
         assert resp.status_code == 200
         assert resp.json()["filename"] == "get-test.j2"
 
     async def test_update_template(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
     ) -> None:
         created = await _api_seed_template(client, auth_headers, filename="patch-test.j2")
         resp = await client.patch(
@@ -374,30 +403,43 @@ class TestRSTemplateAPI:
         assert body["updated_by_id"] is not None
 
     async def test_delete_template(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
     ) -> None:
         created = await _api_seed_template(client, auth_headers, filename="del-test.j2")
         resp = await client.delete(
-            f"/api/v1/rs-templates/{created['id']}", headers=auth_headers,
+            f"/api/v1/rs-templates/{created['id']}",
+            headers=auth_headers,
         )
         assert resp.status_code == 204
 
     async def test_delete_protected_fails(
-        self, client: AsyncClient, ixp: IXP, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        ixp: IXP,
+        auth_headers: dict,
         db_session: AsyncSession,
     ) -> None:
         tpl = RouteServerTemplate(
-            ixp_id=ixp.id, filename="protected.j2", content="x", is_protected=True,
+            ixp_id=ixp.id,
+            filename="protected.j2",
+            content="x",
+            is_protected=True,
         )
         db_session.add(tpl)
         await db_session.flush()
         resp = await client.delete(
-            f"/api/v1/rs-templates/{tpl.id}", headers=auth_headers,
+            f"/api/v1/rs-templates/{tpl.id}",
+            headers=auth_headers,
         )
         assert resp.status_code == 409
 
     async def test_validate_syntax_valid(
-        self, client: AsyncClient, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
     ) -> None:
         resp = await client.post(
             "/api/v1/rs-templates/validate",
@@ -410,7 +452,9 @@ class TestRSTemplateAPI:
         assert body["errors"] == []
 
     async def test_validate_syntax_invalid(
-        self, client: AsyncClient, auth_headers: dict,
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
     ) -> None:
         resp = await client.post(
             "/api/v1/rs-templates/validate",

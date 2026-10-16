@@ -49,7 +49,9 @@ async def list_bgp_sessions(
     if user.role == UserRole.member:
         if user.member_id is None:
             raise ForbiddenError("Member user without assigned member cannot access BGP sessions")
-        return await bgp_svc.list_sessions_for_member(db, ixp_id, route_server_id, user.member_id, params)
+        return await bgp_svc.list_sessions_for_member(
+            db, ixp_id, route_server_id, user.member_id, params
+        )
 
     return await bgp_svc.list_sessions(db, ixp_id, route_server_id, params)
 

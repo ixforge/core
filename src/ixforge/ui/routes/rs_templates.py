@@ -37,10 +37,14 @@ async def template_list(request: Request) -> Response:
     except APIError:
         templates = []
 
-    return render(request, "rs_templates/list.html", {
-        "templates": templates if isinstance(templates, list) else [],
-        "page_title": "Plantillas de Route Server",
-    })
+    return render(
+        request,
+        "rs_templates/list.html",
+        {
+            "templates": templates if isinstance(templates, list) else [],
+            "page_title": "Plantillas de Route Server",
+        },
+    )
 
 
 @require_auth
@@ -50,11 +54,15 @@ async def template_new(request: Request) -> Response:
     api: APIClient = request.app.state.api
 
     if request.method == "GET":
-        return render(request, "rs_templates/new.html", {
-            "form_data": None,
-            "errors": {},
-            "page_title": "Nueva Plantilla",
-        })
+        return render(
+            request,
+            "rs_templates/new.html",
+            {
+                "form_data": None,
+                "errors": {},
+                "page_title": "Nueva Plantilla",
+            },
+        )
 
     form = await request.form()
 
@@ -70,11 +78,15 @@ async def template_new(request: Request) -> Response:
         tpl = await api.post("/api/v1/rs-templates", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "rs_templates/new.html", {
-                "form_data": payload,
-                "errors": e.detail,
-                "page_title": "Nueva Plantilla",
-            })
+            return render(
+                request,
+                "rs_templates/new.html",
+                {
+                    "form_data": payload,
+                    "errors": e.detail,
+                    "page_title": "Nueva Plantilla",
+                },
+            )
         raise
 
     add_flash(request, f"Plantilla '{tpl['filename']}' creada", "success")
@@ -101,12 +113,16 @@ async def template_edit(request: Request) -> Response:
 
     route_servers = await _load_route_servers(api, token)
 
-    return render(request, "rs_templates/edit.html", {
-        "template": tpl,
-        "route_servers": route_servers,
-        "errors": {},
-        "page_title": f"Editar {tpl.get('name', 'Plantilla')}",
-    })
+    return render(
+        request,
+        "rs_templates/edit.html",
+        {
+            "template": tpl,
+            "route_servers": route_servers,
+            "errors": {},
+            "page_title": f"Editar {tpl.get('name', 'Plantilla')}",
+        },
+    )
 
 
 @require_auth
@@ -134,12 +150,16 @@ async def template_save(request: Request) -> Response:
     except APIError as e:
         if e.status_code in (400, 409, 422):
             route_servers = await _load_route_servers(api, token)
-            return render(request, "rs_templates/edit.html", {
-                "template": {**payload, "id": tpl_id},
-                "route_servers": route_servers,
-                "errors": e.detail,
-                "page_title": "Editar Plantilla",
-            })
+            return render(
+                request,
+                "rs_templates/edit.html",
+                {
+                    "template": {**payload, "id": tpl_id},
+                    "route_servers": route_servers,
+                    "errors": e.detail,
+                    "page_title": "Editar Plantilla",
+                },
+            )
         raise
 
     add_flash(request, "Plantilla actualizada", "success")
@@ -176,10 +196,14 @@ async def template_preview(request: Request) -> Response:
     route_server_id = str(form.get("route_server_id", "")).strip()
 
     if not route_server_id:
-        return render(request, "rs_templates/_preview_fragment.html", {
-            "preview": None,
-            "error": "Debe seleccionar un Route Server",
-        })
+        return render(
+            request,
+            "rs_templates/_preview_fragment.html",
+            {
+                "preview": None,
+                "error": "Debe seleccionar un Route Server",
+            },
+        )
 
     try:
         result = await api.post(
@@ -188,12 +212,20 @@ async def template_preview(request: Request) -> Response:
             json={"route_server_id": route_server_id},
         )
     except APIError as e:
-        return render(request, "rs_templates/_preview_fragment.html", {
-            "preview": None,
-            "error": safe_detail(e),
-        })
+        return render(
+            request,
+            "rs_templates/_preview_fragment.html",
+            {
+                "preview": None,
+                "error": safe_detail(e),
+            },
+        )
 
-    return render(request, "rs_templates/_preview_fragment.html", {
-        "preview": result,
-        "error": None,
-    })
+    return render(
+        request,
+        "rs_templates/_preview_fragment.html",
+        {
+            "preview": result,
+            "error": None,
+        },
+    )

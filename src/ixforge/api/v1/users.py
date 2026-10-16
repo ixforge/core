@@ -35,8 +35,12 @@ async def list_users(
 ) -> CursorPage[UserRead]:
     stmt = select(User)
     return await paginate(
-        db, stmt, CursorParams(cursor=cursor, limit=limit),
-        User.created_at, User.id, UserRead,
+        db,
+        stmt,
+        CursorParams(cursor=cursor, limit=limit),
+        User.created_at,
+        User.id,
+        UserRead,
     )
 
 
@@ -100,7 +104,9 @@ async def update_user(
         )
     ):
         active_admin_count = await db.scalar(
-            select(func.count()).select_from(User).where(
+            select(func.count())
+            .select_from(User)
+            .where(
                 User.role == UserRole.admin,
                 User.is_active.is_(True),
             )
@@ -163,8 +169,12 @@ async def list_api_keys(
 
     stmt = select(APIKey).where(APIKey.user_id == user_id)
     return await paginate(
-        db, stmt, CursorParams(cursor=cursor, limit=limit),
-        APIKey.created_at, APIKey.id, APIKeyRead,
+        db,
+        stmt,
+        CursorParams(cursor=cursor, limit=limit),
+        APIKey.created_at,
+        APIKey.id,
+        APIKeyRead,
     )
 
 
@@ -187,9 +197,7 @@ async def revoke_api_key(
 
 
 @users_router.delete("/{user_id}", status_code=204)
-async def delete_user(
-    user_id: uuid.UUID, db: DBSession, admin: AdminUser
-) -> Response:
+async def delete_user(user_id: uuid.UUID, db: DBSession, admin: AdminUser) -> Response:
     """Hard delete an inactive user (admin only). Cannot delete self or the last admin."""
     if user_id == admin.id:
         raise ConflictError("Cannot delete your own account")

@@ -56,7 +56,12 @@ class TestVlanList:
         assert resp.status_code == 200
 
     def test_list_filter_by_type(self, authed_client, app):
-        mgmt_vlan = {**FAKE_VLAN, "id": str(uuid.uuid4()), "name": "Mgmt VLAN", "type": "management"}
+        mgmt_vlan = {
+            **FAKE_VLAN,
+            "id": str(uuid.uuid4()),
+            "name": "Mgmt VLAN",
+            "type": "management",
+        }
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_VLAN, mgmt_vlan]})
         resp = authed_client.get("/admin/vlans?type=production")
         assert resp.status_code == 200
@@ -87,7 +92,18 @@ class TestVlanForm:
         assert "/admin/vlans" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "field required"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "field required"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/vlans/new",
             data={"name": "", "vid": "0", "type": "production", "description": ""},
@@ -105,7 +121,12 @@ class TestVlanForm:
         app.state.api.patch = AsyncMock(return_value={**FAKE_VLAN})
         resp = authed_client.post(
             f"/admin/vlans/{FAKE_VLAN['id']}/edit",
-            data={"name": "Production Peering Updated", "vid": "100", "type": "production", "description": ""},
+            data={
+                "name": "Production Peering Updated",
+                "vid": "100",
+                "type": "production",
+                "description": "",
+            },
             follow_redirects=False,
         )
         assert resp.status_code == 302

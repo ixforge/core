@@ -39,9 +39,7 @@ async def create_pool(
         )
 
     # Check for overlapping pools within the same IXP
-    existing_pools_result = await session.execute(
-        select(IPPool).where(IPPool.ixp_id == ixp_id)
-    )
+    existing_pools_result = await session.execute(select(IPPool).where(IPPool.ixp_id == ixp_id))
     for existing_pool in existing_pools_result.scalars():
         existing_net = ipaddress.ip_network(existing_pool.network, strict=False)
         if network.overlaps(existing_net):
@@ -95,24 +93,16 @@ async def delete_pool(session: AsyncSession, pool_id: uuid.UUID, ixp_id: uuid.UU
     pool = await get_pool(session, pool_id, ixp_id)
 
     has_assignments = await session.scalar(
-        select(IPAssignment.id)
-        .where(IPAssignment.pool_id == pool_id)
-        .limit(1)
+        select(IPAssignment.id).where(IPAssignment.pool_id == pool_id).limit(1)
     )
     if has_assignments is not None:
-        raise ConflictError(
-            "Cannot delete pool: release all IP assignments first"
-        )
+        raise ConflictError("Cannot delete pool: release all IP assignments first")
 
     has_rs_assignments = await session.scalar(
-        select(RSIPAssignment.id)
-        .where(RSIPAssignment.pool_id == pool_id)
-        .limit(1)
+        select(RSIPAssignment.id).where(RSIPAssignment.pool_id == pool_id).limit(1)
     )
     if has_rs_assignments is not None:
-        raise ConflictError(
-            "Cannot delete pool: release all RS IP assignments first"
-        )
+        raise ConflictError("Cannot delete pool: release all RS IP assignments first")
 
     await session.delete(pool)
     await session.flush()
@@ -202,19 +192,23 @@ async def _check_global_uniqueness(
 ) -> None:
     """Ensure the address is not already assigned within the tenant."""
     existing = await session.scalar(
-        select(IPAssignment.id).where(
+        select(IPAssignment.id)
+        .where(
             IPAssignment.address == address_str,
             IPAssignment.ixp_id == ixp_id,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if existing is not None:
         raise ConflictError(f"Address {address_str} is already assigned")
 
     existing_rs = await session.scalar(
-        select(RSIPAssignment.id).where(
+        select(RSIPAssignment.id)
+        .where(
             RSIPAssignment.address == address_str,
             RSIPAssignment.ixp_id == ixp_id,
-        ).limit(1)
+        )
+        .limit(1)
     )
     if existing_rs is not None:
         raise ConflictError(f"Address {address_str} is already assigned")
@@ -323,7 +317,9 @@ async def list_assignments(
     params: CursorParams,
 ) -> CursorPage[IPAssignmentRead]:
     """List IP assignments in a pool with cursor-based pagination."""
-    stmt = select(IPAssignment).where(IPAssignment.pool_id == pool_id, IPAssignment.ixp_id == ixp_id)
+    stmt = select(IPAssignment).where(
+        IPAssignment.pool_id == pool_id, IPAssignment.ixp_id == ixp_id
+    )
     return await paginate(
         session,
         stmt,
@@ -372,13 +368,15 @@ async def get_pools_with_availability(
             next_available = str(host)
             break
 
-        pool_summaries.append({
-            "id": str(pool.id),
-            "network": pool.network,
-            "af": pool.af,
-            "total_hosts": total_hosts,
-            "used_count": used_count,
-            "next_available": next_available,
-        })
+        pool_summaries.append(
+            {
+                "id": str(pool.id),
+                "network": pool.network,
+                "af": pool.af,
+                "total_hosts": total_hosts,
+                "used_count": used_count,
+                "next_available": next_available,
+            }
+        )
 
     return pool_summaries

@@ -1,6 +1,5 @@
 """Tests for route server VLAN association service and API."""
 
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +43,9 @@ class TestRSVLANService:
         await svc.add_vlan(db_session, ixp.id, rs.id, vlan.id)
         await svc.remove_vlan(db_session, ixp.id, rs.id, vlan.id)
 
-    async def test_remove_nonexistent_vlan_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
+    async def test_remove_nonexistent_vlan_raises(
+        self, db_session: AsyncSession, ixp: IXP
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS6")
         vlan = VLAN(ixp_id=ixp.id, name="IXP6", vid=14, type=VLANType.production)
         db_session.add(rs)
@@ -65,7 +66,9 @@ class TestRSVLANService:
         with pytest.raises(NotFoundError):
             await svc.add_vlan(db_session, ixp.id, rs.id, vlan.id)
 
-    async def test_add_vlan_vlan_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP) -> None:
+    async def test_add_vlan_vlan_wrong_ixp_raises(
+        self, db_session: AsyncSession, ixp: IXP
+    ) -> None:
         other_ixp = IXP(name="Other IXP B", short_name="OTB", asn=65101, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
@@ -94,7 +97,9 @@ class TestRSVLANService:
 
 
 class TestRSVLANAPI:
-    async def test_list_rs_vlans(self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession) -> None:
+    async def test_list_rs_vlans(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS4")
         db_session.add(rs)
         await db_session.flush()
@@ -102,7 +107,9 @@ class TestRSVLANAPI:
         assert resp.status_code == 200
         assert resp.json()["items"] == []
 
-    async def test_add_vlan_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession) -> None:
+    async def test_add_vlan_api(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS5")
         vlan = VLAN(ixp_id=ixp.id, name="IXP5", vid=13, type=VLANType.production)
         db_session.add(rs)
@@ -115,7 +122,9 @@ class TestRSVLANAPI:
         )
         assert resp.status_code == 201
 
-    async def test_delete_vlan_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession) -> None:
+    async def test_delete_vlan_api(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict, db_session: AsyncSession
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS7")
         vlan = VLAN(ixp_id=ixp.id, name="IXP7", vid=15, type=VLANType.production)
         db_session.add(rs)

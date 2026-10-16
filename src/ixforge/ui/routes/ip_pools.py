@@ -33,13 +33,17 @@ async def ip_pool_list(request: Request) -> Response:
 
     vlan_map = {v["id"]: v for v in vlans}
 
-    return render(request, "ip_pools/list.html", {
-        "pools": pools,
-        "vlans": vlans,
-        "vlan_map": vlan_map,
-        "filter_vlan_id": vlan_id,
-        "page_title": "Pools de IPs",
-    })
+    return render(
+        request,
+        "ip_pools/list.html",
+        {
+            "pools": pools,
+            "vlans": vlans,
+            "vlan_map": vlan_map,
+            "filter_vlan_id": vlan_id,
+            "page_title": "Pools de IPs",
+        },
+    )
 
 
 @require_auth
@@ -59,7 +63,11 @@ async def ip_pool_detail(request: Request) -> Response:
         raise
 
     vlan_map = {v["id"]: v for v in vlans_data.get("items", [])}
-    assignments = assignments_data.get("items", []) if isinstance(assignments_data, dict) else assignments_data
+    assignments = (
+        assignments_data.get("items", [])
+        if isinstance(assignments_data, dict)
+        else assignments_data
+    )
 
     # Resolve trunk_vlan_ids to readable labels
     trunk_vlan_map: dict[str, Any] = {}
@@ -88,13 +96,17 @@ async def ip_pool_detail(request: Request) -> Response:
         except APIError:
             pass
 
-    return render(request, "ip_pools/detail.html", {
-        "pool": pool,
-        "assignments": assignments,
-        "vlan_map": vlan_map,
-        "trunk_vlan_map": trunk_vlan_map,
-        "page_title": f"Pool {pool.get('network', '')}",
-    })
+    return render(
+        request,
+        "ip_pools/detail.html",
+        {
+            "pool": pool,
+            "assignments": assignments,
+            "vlan_map": vlan_map,
+            "trunk_vlan_map": trunk_vlan_map,
+            "page_title": f"Pool {pool.get('network', '')}",
+        },
+    )
 
 
 @require_auth
@@ -106,13 +118,17 @@ async def ip_pool_new(request: Request) -> Response:
         preset_vlan_id = request.query_params.get("vlan_id", "")
         vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
 
-        return render(request, "ip_pools/form.html", {
-            "pool": None,
-            "vlans": vlans_data.get("items", []),
-            "preset_vlan_id": preset_vlan_id,
-            "errors": {},
-            "page_title": "Nuevo Pool de IPs",
-        })
+        return render(
+            request,
+            "ip_pools/form.html",
+            {
+                "pool": None,
+                "vlans": vlans_data.get("items", []),
+                "preset_vlan_id": preset_vlan_id,
+                "errors": {},
+                "page_title": "Nuevo Pool de IPs",
+            },
+        )
 
     form = await request.form()
     payload = {
@@ -127,13 +143,17 @@ async def ip_pool_new(request: Request) -> Response:
         if e.status_code in (400, 404, 409, 422):
             vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
 
-            return render(request, "ip_pools/form.html", {
-                "pool": payload,
-                "vlans": vlans_data.get("items", []),
-                "preset_vlan_id": payload["vlan_id"],
-                "errors": e.detail,
-                "page_title": "Nuevo Pool de IPs",
-            })
+            return render(
+                request,
+                "ip_pools/form.html",
+                {
+                    "pool": payload,
+                    "vlans": vlans_data.get("items", []),
+                    "preset_vlan_id": payload["vlan_id"],
+                    "errors": e.detail,
+                    "page_title": "Nuevo Pool de IPs",
+                },
+            )
         raise
 
     add_flash(request, f"Pool {payload['network']} creado", "success")

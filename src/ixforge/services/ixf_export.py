@@ -205,9 +205,7 @@ async def _load_bulk_data(session: AsyncSession, member_ids: list[uuid.UUID]) ->
         connections_by_trunk[conn.trunk_id].append(conn)
 
     # Load trunk VLANs
-    tv_result = await session.execute(
-        select(TrunkVLAN).where(TrunkVLAN.trunk_id.in_(trunk_ids))
-    )
+    tv_result = await session.execute(select(TrunkVLAN).where(TrunkVLAN.trunk_id.in_(trunk_ids)))
     all_trunk_vlans = list(tv_result.scalars().all())
 
     trunk_vlans_by_trunk: dict[uuid.UUID, list[TrunkVLAN]] = {}

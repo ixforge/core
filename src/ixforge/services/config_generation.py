@@ -234,8 +234,7 @@ async def build_peers(
         .join(Member, Trunk.member_id == Member.id)
         .join(
             ip_subq,
-            (BGPSession.trunk_vlan_id == ip_subq.c.trunk_vlan_id)
-            & (ip_subq.c.af == af),
+            (BGPSession.trunk_vlan_id == ip_subq.c.trunk_vlan_id) & (ip_subq.c.af == af),
         )
         .where(
             BGPSession.route_server_id == route_server_id,
@@ -263,12 +262,8 @@ async def build_peers(
         # lado restrictivo: un allas vacio marcaria todas sus rutas como
         # filtradas por origen. prefixes distingue NULL de lista vacia, porque
         # colapsarlos seria fail-open
-        origin_asns = (
-            tuple(pf.origin_asns) if pf is not None and pf.origin_asns else (member.asn,)
-        )
-        prefixes = (
-            tuple(pf.prefixes) if pf is not None and pf.prefixes is not None else None
-        )
+        origin_asns = tuple(pf.origin_asns) if pf is not None and pf.origin_asns else (member.asn,)
+        prefixes = tuple(pf.prefixes) if pf is not None and pf.prefixes is not None else None
         all_ips = ips_by_member_vlan.get((member.id, vlan_id), [peer_ip_str])
 
         peers.append(
@@ -339,7 +334,9 @@ async def build_rs_peers(
     return peers
 
 
-async def build_rs_context(session: AsyncSession, rs: RouteServer, ixp_asn: int) -> RouteServerContext:
+async def build_rs_context(
+    session: AsyncSession, rs: RouteServer, ixp_asn: int
+) -> RouteServerContext:
     """Build the route server template context from the model."""
     if not rs.ip_v4 and not rs.ip_v6:
         raise ValidationError(

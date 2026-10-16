@@ -22,9 +22,15 @@ async def settings_edit(request: Request) -> Response:
 
     if request.method == "GET":
         ixp = await api.get("/api/v1/ixp", token)
-        return render(request, "settings/edit.html", {
-            "ixp": ixp, "errors": {}, "page_title": "Configuración IXP",
-        })
+        return render(
+            request,
+            "settings/edit.html",
+            {
+                "ixp": ixp,
+                "errors": {},
+                "page_title": "Configuración IXP",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {}
@@ -43,9 +49,15 @@ async def settings_edit(request: Request) -> Response:
     except APIError as e:
         if e.status_code in (400, 409, 422):
             ixp = await api.get("/api/v1/ixp", token)
-            return render(request, "settings/edit.html", {
-                "ixp": {**ixp, **payload}, "errors": e.detail, "page_title": "Configuración IXP",
-            })
+            return render(
+                request,
+                "settings/edit.html",
+                {
+                    "ixp": {**ixp, **payload},
+                    "errors": e.detail,
+                    "page_title": "Configuración IXP",
+                },
+            )
         raise
 
     add_flash(request, "Configuración guardada", "success")

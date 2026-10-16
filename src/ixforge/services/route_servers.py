@@ -77,9 +77,7 @@ async def update(
     try:
         await session.flush()
     except IntegrityError as exc:
-        raise ConflictError(
-            "Route server could not be updated due to a conflict"
-        ) from exc
+        raise ConflictError("Route server could not be updated due to a conflict") from exc
     await session.refresh(rs)
 
     # Cambiar ip, passive_sessions o rpki_enabled cambia el config
@@ -96,17 +94,13 @@ async def delete(session: AsyncSession, ixp_id: uuid.UUID, route_server_id: uuid
     rs = await get(session, ixp_id, route_server_id)
 
     has_bgp = await session.scalar(
-        select(BGPSession.id)
-        .where(BGPSession.route_server_id == route_server_id)
-        .limit(1)
+        select(BGPSession.id).where(BGPSession.route_server_id == route_server_id).limit(1)
     )
     if has_bgp is not None:
         raise ConflictError("Cannot delete route server: BGP sessions are still active")
 
     has_rs_ip = await session.scalar(
-        select(RSIPAssignment.id)
-        .where(RSIPAssignment.route_server_id == route_server_id)
-        .limit(1)
+        select(RSIPAssignment.id).where(RSIPAssignment.route_server_id == route_server_id).limit(1)
     )
     if has_rs_ip is not None:
         raise ConflictError("Cannot delete route server: IP assignments are still active")

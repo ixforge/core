@@ -42,9 +42,7 @@ class TestSecurityHeaders:
 
         assert response.headers.get("x-content-type-options") == "nosniff"
         assert response.headers.get("x-frame-options") == "DENY"
-        assert "strict-origin-when-cross-origin" in response.headers.get(
-            "referrer-policy", ""
-        )
+        assert "strict-origin-when-cross-origin" in response.headers.get("referrer-policy", "")
 
     def test_security_headers_on_404(self):
         """Security headers presentes incluso en respuestas 404"""
@@ -55,9 +53,7 @@ class TestSecurityHeaders:
 
         assert response.headers.get("x-content-type-options") == "nosniff"
         assert response.headers.get("x-frame-options") == "DENY"
-        assert "strict-origin-when-cross-origin" in response.headers.get(
-            "referrer-policy", ""
-        )
+        assert "strict-origin-when-cross-origin" in response.headers.get("referrer-policy", "")
 
 
 # ---------------------------------------------------------------------------

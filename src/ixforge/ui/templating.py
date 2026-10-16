@@ -18,7 +18,9 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
-def render(request: Request, template_name: str, context: dict[str, Any] | None = None) -> HTMLResponse:
+def render(
+    request: Request, template_name: str, context: dict[str, Any] | None = None
+) -> HTMLResponse:
     """Render a template with flash messages and request injected."""
     ctx: dict[str, Any] = {"request": request}
     ctx["flash_messages"] = get_flash_messages(request)

@@ -156,7 +156,9 @@ class TestIXFExport:
         self, client: AsyncClient, db_session: AsyncSession, ixp: IXP
     ):
         """Prospect and suspended members should not appear in IX-F export."""
-        for i, state in enumerate([MemberState.prospect, MemberState.suspended, MemberState.terminated]):
+        for i, state in enumerate(
+            [MemberState.prospect, MemberState.suspended, MemberState.terminated]
+        ):
             m = Member(
                 id=uuid.uuid4(),
                 ixp_id=ixp.id,

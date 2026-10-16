@@ -41,28 +41,34 @@ async def bgp_session_new(request: Request) -> Response:
         except APIError:
             pass
 
-    trunk_vlans_json = json.dumps([
-        {
-            "id": tv["id"],
-            "trunk_name": tv.get("trunk_name", ""),
-            "member_id": tv.get("member_id", ""),
-            "vlan_name": tv.get("vlan_name", tv.get("name", "")),
-            "vid": tv.get("vid", ""),
-        }
-        for tv in trunk_vlans
-    ])
+    trunk_vlans_json = json.dumps(
+        [
+            {
+                "id": tv["id"],
+                "trunk_name": tv.get("trunk_name", ""),
+                "member_id": tv.get("member_id", ""),
+                "vlan_name": tv.get("vlan_name", tv.get("name", "")),
+                "vid": tv.get("vid", ""),
+            }
+            for tv in trunk_vlans
+        ]
+    )
 
     if request.method == "GET":
         preselect_rs_id = request.query_params.get("route_server_id", "")
-        return render(request, "bgp_sessions/form.html", {
-            "bgp_session": None,
-            "route_servers": route_servers,
-            "members": members,
-            "trunk_vlans_json": trunk_vlans_json,
-            "preselect_rs_id": preselect_rs_id,
-            "errors": {},
-            "page_title": "Nueva Sesion BGP",
-        })
+        return render(
+            request,
+            "bgp_sessions/form.html",
+            {
+                "bgp_session": None,
+                "route_servers": route_servers,
+                "members": members,
+                "trunk_vlans_json": trunk_vlans_json,
+                "preselect_rs_id": preselect_rs_id,
+                "errors": {},
+                "page_title": "Nueva Sesion BGP",
+            },
+        )
 
     form = await request.form()
     try:
@@ -86,15 +92,19 @@ async def bgp_session_new(request: Request) -> Response:
         return RedirectResponse("/admin/bgp-sessions", status_code=302)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "bgp_sessions/form.html", {
-                "bgp_session": payload,
-                "route_servers": route_servers,
-                "members": members,
-                "trunk_vlans_json": trunk_vlans_json,
-                "preselect_rs_id": "",
-                "errors": e.detail,
-                "page_title": "Nueva Sesion BGP",
-            })
+            return render(
+                request,
+                "bgp_sessions/form.html",
+                {
+                    "bgp_session": payload,
+                    "route_servers": route_servers,
+                    "members": members,
+                    "trunk_vlans_json": trunk_vlans_json,
+                    "preselect_rs_id": "",
+                    "errors": e.detail,
+                    "page_title": "Nueva Sesion BGP",
+                },
+            )
         raise
 
 
@@ -114,19 +124,24 @@ async def bgp_session_list(request: Request) -> Response:
     if route_server_id:
         try:
             data = await api.get(
-                "/api/v1/bgp-sessions", token,
+                "/api/v1/bgp-sessions",
+                token,
                 params={"route_server_id": route_server_id, "limit": 200},
             )
             sessions = data.get("items", [])
         except APIError:
             pass
 
-    return render(request, "bgp_sessions/list.html", {
-        "sessions": sessions,
-        "route_servers": route_servers,
-        "filter_route_server_id": route_server_id,
-        "page_title": "BGP Sessions",
-    })
+    return render(
+        request,
+        "bgp_sessions/list.html",
+        {
+            "sessions": sessions,
+            "route_servers": route_servers,
+            "filter_route_server_id": route_server_id,
+            "page_title": "BGP Sessions",
+        },
+    )
 
 
 @require_auth
@@ -175,13 +190,17 @@ async def bgp_session_detail(request: Request) -> Response:
         except APIError:
             pass
 
-    return render(request, "bgp_sessions/detail.html", {
-        "session": session,
-        "rs_name": rs_name,
-        "trunk_label": trunk_label,
-        "trunk_id": trunk_id,
-        "page_title": f"BGP Session - {session.get('peer_ip', '')}",
-    })
+    return render(
+        request,
+        "bgp_sessions/detail.html",
+        {
+            "session": session,
+            "rs_name": rs_name,
+            "trunk_label": trunk_label,
+            "trunk_id": trunk_id,
+            "page_title": f"BGP Session - {session.get('peer_ip', '')}",
+        },
+    )
 
 
 @require_auth
@@ -194,7 +213,8 @@ async def bgp_session_toggle(request: Request) -> Response:
         session = await api.get(f"/api/v1/bgp-sessions/{session_id}", token)
         new_state = "down" if session.get("admin_state") == "up" else "up"
         await api.patch(
-            f"/api/v1/bgp-sessions/{session_id}", token,
+            f"/api/v1/bgp-sessions/{session_id}",
+            token,
             json={"admin_state": new_state},
         )
         add_flash(request, f"Admin state cambiado a {new_state}", "success")

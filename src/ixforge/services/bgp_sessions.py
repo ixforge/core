@@ -285,5 +285,7 @@ async def update_admin_state(
 
     from ixforge.tasks.config import defer_rs_config_regeneration
 
-    await defer_rs_config_regeneration(bgp_session.route_server_id, "bgp_session.admin_state_changed")
+    await defer_rs_config_regeneration(
+        bgp_session.route_server_id, "bgp_session.admin_state_changed"
+    )
     return bgp_session

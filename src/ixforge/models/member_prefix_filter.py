@@ -43,9 +43,7 @@ class MemberPrefixFilter(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    af: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Address family: 4 o 6"
-    )
+    af: Mapped[int] = mapped_column(Integer, nullable=False, comment="Address family: 4 o 6")
     origin_asns: Mapped[list[int] | None] = mapped_column(
         ARRAY(BigInteger),
         nullable=True,

@@ -18,7 +18,8 @@ from ixforge.services.template_filters import (
 
 
 async def build_template_env(
-    session: AsyncSession, ixp_id: uuid.UUID,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
 ) -> SandboxedEnvironment:
     """Build a SandboxedEnvironment with templates loaded from DB"""
     templates = await get_all_templates(session, ixp_id)

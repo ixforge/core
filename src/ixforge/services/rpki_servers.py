@@ -76,18 +76,14 @@ async def list_servers(
     )
 
 
-async def get(
-    session: AsyncSession, ixp_id: uuid.UUID, server_id: uuid.UUID
-) -> RPKIServer:
+async def get(session: AsyncSession, ixp_id: uuid.UUID, server_id: uuid.UUID) -> RPKIServer:
     srv = await session.get(RPKIServer, server_id)
     if srv is None or srv.ixp_id != ixp_id:
         raise NotFoundError("RPKIServer", str(server_id))
     return srv
 
 
-async def create(
-    session: AsyncSession, ixp_id: uuid.UUID, data: RPKIServerCreate
-) -> RPKIServer:
+async def create(session: AsyncSession, ixp_id: uuid.UUID, data: RPKIServerCreate) -> RPKIServer:
     _reject_unsupported_transport(data.transport)
     await _assert_route_server(session, ixp_id, data.route_server_id)
 
@@ -96,9 +92,7 @@ async def create(
     try:
         await session.flush()
     except IntegrityError as exc:
-        raise ConflictError(
-            f"Ya existe un servidor RPKI llamado {data.name} en este IXP"
-        ) from exc
+        raise ConflictError(f"Ya existe un servidor RPKI llamado {data.name} en este IXP") from exc
 
     await _defer_affected(session, ixp_id, data.route_server_id, "rpki_server.created")
     return srv
@@ -128,9 +122,7 @@ async def update(
     return srv
 
 
-async def delete(
-    session: AsyncSession, ixp_id: uuid.UUID, server_id: uuid.UUID
-) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, server_id: uuid.UUID) -> None:
     srv = await get(session, ixp_id, server_id)
     route_server_id = srv.route_server_id
     await session.delete(srv)

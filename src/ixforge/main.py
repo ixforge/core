@@ -100,11 +100,13 @@ class SecurityHeadersMiddleware:
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
-                headers.extend([
-                    (b"x-content-type-options", b"nosniff"),
-                    (b"x-frame-options", b"DENY"),
-                    (b"referrer-policy", b"strict-origin-when-cross-origin"),
-                ])
+                headers.extend(
+                    [
+                        (b"x-content-type-options", b"nosniff"),
+                        (b"x-frame-options", b"DENY"),
+                        (b"referrer-policy", b"strict-origin-when-cross-origin"),
+                    ]
+                )
                 message = {**message, "headers": headers}
             await send(message)
 
@@ -154,24 +156,26 @@ class CommitBeforeResponse:
                             "commit.failed", path=scope.get("path"), exc_info=True
                         )
                         fallo_commit = True
-                        await send({
-                            "type": "http.response.start",
-                            "status": 500,
-                            "headers": [(b"content-type", b"application/json")],
-                        })
+                        await send(
+                            {
+                                "type": "http.response.start",
+                                "status": 500,
+                                "headers": [(b"content-type", b"application/json")],
+                            }
+                        )
                         return
 
             if fallo_commit:
-                if message["type"] == "http.response.body" and not message.get(
-                    "more_body", False
-                ):
-                    await send({
-                        "type": "http.response.body",
-                        "body": (
-                            b'{"error":{"code":"INTERNAL_ERROR",'
-                            b'"message":"No se pudo guardar el cambio","details":{}}}'
-                        ),
-                    })
+                if message["type"] == "http.response.body" and not message.get("more_body", False):
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": (
+                                b'{"error":{"code":"INTERNAL_ERROR",'
+                                b'"message":"No se pudo guardar el cambio","details":{}}}'
+                            ),
+                        }
+                    )
                 return
 
             await send(message)

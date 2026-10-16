@@ -280,7 +280,9 @@ class TestMemberCRUD:
 
 
 async def _create_active_trunk_setup(
-    db_session: AsyncSession, ixp: IXP, member: Member,
+    db_session: AsyncSession,
+    ixp: IXP,
+    member: Member,
 ) -> tuple[Trunk, TrunkVLAN, Connection, VLAN, IPPool, IPAssignment]:
     """Create a complete active trunk with VLAN, connection, and IP assignment."""
     trunk = Trunk(
@@ -557,7 +559,9 @@ class TestMemberStateMachine:
         await db_session.flush()
 
         trunk, _trunk_vlan, _conn, _vlan, _pool, _ip_assignment = await _create_active_trunk_setup(
-            db_session, ixp, member,
+            db_session,
+            ixp,
+            member,
         )
 
         # Activate the member (has active trunk)

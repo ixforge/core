@@ -73,7 +73,9 @@ class TestConfigHistory:
 
     def test_history_404_redirects(self, authed_client, app):
         app.state.api.get = AsyncMock(side_effect=APIError(404))
-        resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}/config/history", follow_redirects=False)
+        resp = authed_client.get(
+            f"/admin/route-servers/{FAKE_RS['id']}/config/history", follow_redirects=False
+        )
         assert resp.status_code == 302
 
 
@@ -121,9 +123,7 @@ class TestConfigDiff:
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get(
-            f"/admin/route-servers/{FAKE_RS['id']}/config/{version_id}/view"
-        )
+        resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}/config/{version_id}/view")
         assert resp.status_code == 200
         assert "protocol device" in resp.text
         assert "scan time 10" in resp.text
@@ -146,9 +146,7 @@ class TestConfigDiff:
             return {}
 
         app.state.api.get = AsyncMock(side_effect=fake_get)
-        resp = authed_client.get(
-            f"/admin/route-servers/{FAKE_RS['id']}/config/{version_id}/view"
-        )
+        resp = authed_client.get(f"/admin/route-servers/{FAKE_RS['id']}/config/{version_id}/view")
         assert resp.status_code == 200
         assert "BIRD rechazo esta config" in resp.text
         assert "linea 2" in resp.text

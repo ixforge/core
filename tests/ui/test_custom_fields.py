@@ -52,7 +52,12 @@ class TestCustomFieldList:
         assert resp.status_code == 302
 
     def test_list_grouped_by_entity_type(self, authed_client, app):
-        conn_field = {**FAKE_FIELD, "id": str(uuid.uuid4()), "entity_type": "connection", "field_name": "sla_level"}
+        conn_field = {
+            **FAKE_FIELD,
+            "id": str(uuid.uuid4()),
+            "entity_type": "connection",
+            "field_name": "sla_level",
+        }
         app.state.api.get = AsyncMock(return_value={"items": [FAKE_FIELD, conn_field]})
         resp = authed_client.get("/admin/custom-fields")
         assert resp.status_code == 200
@@ -82,7 +87,18 @@ class TestCustomFieldForm:
         assert "/admin/custom-fields" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "field required"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "field required"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/custom-fields/new",
             data={"entity_type": "", "field_name": "", "field_type": "string"},
@@ -96,7 +112,11 @@ class TestCustomFieldEdit:
         app.state.api.patch = AsyncMock(return_value={**FAKE_FIELD})
         resp = authed_client.post(
             f"/admin/custom-fields/{FAKE_FIELD['id']}/edit",
-            data={"field_name": "updated_field", "field_type": "integer", "description": "Updated"},
+            data={
+                "field_name": "updated_field",
+                "field_type": "integer",
+                "description": "Updated",
+            },
             follow_redirects=False,
         )
         assert resp.status_code == 302

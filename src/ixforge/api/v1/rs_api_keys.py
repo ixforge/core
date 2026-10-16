@@ -25,10 +25,16 @@ async def _get_rs(db: DBSession, ixp_id: uuid.UUID, rs_id: uuid.UUID) -> RouteSe
 
 
 @rs_api_keys_router.post(
-    "/{rs_id}/api-keys", response_model=APIKeyCreateResponse, status_code=201,
+    "/{rs_id}/api-keys",
+    response_model=APIKeyCreateResponse,
+    status_code=201,
 )
 async def create_rs_api_key(
-    rs_id: uuid.UUID, body: RSAPIKeyCreate, db: DBSession, ixp_id: IXPId, _admin: AdminUser,
+    rs_id: uuid.UUID,
+    body: RSAPIKeyCreate,
+    db: DBSession,
+    ixp_id: IXPId,
+    _admin: AdminUser,
 ) -> dict[str, Any]:
     """Create an agent API key bound to a route server.
 
@@ -62,7 +68,10 @@ async def create_rs_api_key(
 
 @rs_api_keys_router.get("/{rs_id}/api-keys", response_model=list[APIKeyRead])
 async def list_rs_api_keys(
-    rs_id: uuid.UUID, db: DBSession, ixp_id: IXPId, _admin: AdminUser,
+    rs_id: uuid.UUID,
+    db: DBSession,
+    ixp_id: IXPId,
+    _admin: AdminUser,
 ) -> list[APIKey]:
     """List agent API keys for a route server (without raw keys)."""
     await _get_rs(db, ixp_id, rs_id)
@@ -74,7 +83,11 @@ async def list_rs_api_keys(
 
 @rs_api_keys_router.delete("/{rs_id}/api-keys/{key_id}", status_code=204)
 async def revoke_rs_api_key(
-    rs_id: uuid.UUID, key_id: uuid.UUID, db: DBSession, ixp_id: IXPId, _admin: AdminUser,
+    rs_id: uuid.UUID,
+    key_id: uuid.UUID,
+    db: DBSession,
+    ixp_id: IXPId,
+    _admin: AdminUser,
 ) -> Response:
     """Revoke an agent API key."""
     await _get_rs(db, ixp_id, rs_id)

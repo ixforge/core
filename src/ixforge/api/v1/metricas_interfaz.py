@@ -58,9 +58,7 @@ async def series_icmp(
     _user: CurrentUser,
     member_id: uuid.UUID | None = Query(default=None),
     range: Annotated[Literal["1h", "6h", "24h", "7d"], Query()] = "1h",
-    metric: Annotated[
-        Literal["rtt", "rtt_min", "rtt_max", "packet_loss"], Query()
-    ] = "rtt",
+    metric: Annotated[Literal["rtt", "rtt_min", "rtt_max", "packet_loss"], Query()] = "rtt",
 ) -> dict[str, Any]:
     """Latencia y perdida de paquetes por IP de miembro"""
     series, disponible = await metricas.series_icmp(range, metric, member_id)

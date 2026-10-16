@@ -10,9 +10,7 @@ from ixforge.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKe
 
 class VLANMember(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     __tablename__ = "vlan_members"
-    __table_args__ = (
-        UniqueConstraint("vlan_id", "member_id", name="uq_vlan_members"),
-    )
+    __table_args__ = (UniqueConstraint("vlan_id", "member_id", name="uq_vlan_members"),)
 
     vlan_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("vlans.id", ondelete="CASCADE"), nullable=False, index=True

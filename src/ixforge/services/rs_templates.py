@@ -23,11 +23,16 @@ logger = structlog.get_logger()
 
 
 async def create(
-    session: AsyncSession, ixp_id: uuid.UUID, data: RSTemplateCreate,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    data: RSTemplateCreate,
 ) -> RouteServerTemplate:
     """Create a new template"""
     tpl = RouteServerTemplate(
-        ixp_id=ixp_id, filename=data.filename, content=data.content, description=data.description,
+        ixp_id=ixp_id,
+        filename=data.filename,
+        content=data.content,
+        description=data.description,
     )
     session.add(tpl)
     try:
@@ -39,7 +44,9 @@ async def create(
 
 
 async def get(
-    session: AsyncSession, ixp_id: uuid.UUID, template_id: uuid.UUID,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    template_id: uuid.UUID,
 ) -> RouteServerTemplate:
     """Get a template by ID or raise NotFoundError"""
     tpl = await session.get(RouteServerTemplate, template_id)
@@ -49,7 +56,8 @@ async def get(
 
 
 async def list_templates(
-    session: AsyncSession, ixp_id: uuid.UUID,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
 ) -> list[RouteServerTemplate]:
     """List all templates for an IXP ordered by filename"""
     stmt = (
@@ -62,8 +70,11 @@ async def list_templates(
 
 
 async def update(
-    session: AsyncSession, ixp_id: uuid.UUID, template_id: uuid.UUID,
-    data: RSTemplateUpdate, user_id: uuid.UUID | None = None,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    template_id: uuid.UUID,
+    data: RSTemplateUpdate,
+    user_id: uuid.UUID | None = None,
 ) -> RouteServerTemplate:
     """Update a template's content and/or description"""
     tpl = await get(session, ixp_id, template_id)
@@ -81,7 +92,9 @@ async def update(
 
 
 async def delete(
-    session: AsyncSession, ixp_id: uuid.UUID, template_id: uuid.UUID,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    template_id: uuid.UUID,
 ) -> None:
     """Delete a template after checking protection and references"""
     tpl = await get(session, ixp_id, template_id)
@@ -97,7 +110,9 @@ async def delete(
 
 
 async def check_template_references(
-    session: AsyncSession, ixp_id: uuid.UUID, filename: str,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    filename: str,
 ) -> list[str]:
     """Check which templates reference the given filename via include/from-import.
     Uses Jinja2 AST parsing for robustness (ignores comments, raw blocks)."""
@@ -133,7 +148,8 @@ def validate_syntax(content: str) -> RSTemplateValidateResponse:
 
 
 async def get_all_templates(
-    session: AsyncSession, ixp_id: uuid.UUID,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
 ) -> dict[str, str]:
     """Return {filename: content} dict for all templates of an IXP. Used by DictLoader."""
     templates = await list_templates(session, ixp_id)
@@ -141,8 +157,10 @@ async def get_all_templates(
 
 
 async def render_preview(
-    session: AsyncSession, ixp_id: uuid.UUID,
-    template_id: uuid.UUID, route_server_id: uuid.UUID,
+    session: AsyncSession,
+    ixp_id: uuid.UUID,
+    template_id: uuid.UUID,
+    route_server_id: uuid.UUID,
 ) -> dict[str, Any]:
     """Render a config preview using the entry-point template with real RS data.
     Always renders from bird_v4/v6 (not partials).
@@ -171,6 +189,7 @@ async def render_preview(
     env = await build_template_env(session, ixp_id)
 
     from datetime import UTC, datetime
+
     template = env.get_template(entry_point)
     context = {
         "route_server": rs_context,

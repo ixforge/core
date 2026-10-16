@@ -72,13 +72,14 @@ async def test_migraciones_concurrentes_no_se_pisan(base_vacia):
 
     fallidas = [r for r in resultados if r.returncode != 0]
     assert not fallidas, "\n\n".join(
-        f"exit={r.returncode}\nstdout:\n{r.stdout}\nstderr:\n{r.stderr}"
-        for r in fallidas
+        f"exit={r.returncode}\nstdout:\n{r.stdout}\nstderr:\n{r.stderr}" for r in fallidas
     )
 
     engine = create_async_engine(base_vacia)
     async with engine.connect() as conn:
-        version = (await conn.execute(text("SELECT version_num FROM alembic_version"))).scalar_one()
+        version = (
+            await conn.execute(text("SELECT version_num FROM alembic_version"))
+        ).scalar_one()
         tablas = (
             await conn.execute(
                 text(

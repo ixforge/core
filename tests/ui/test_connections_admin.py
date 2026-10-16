@@ -15,11 +15,16 @@ from ixforge.ui.api_client import APIError
 from ixforge.ui.app import create_ui_app
 
 MIEMBRO = {
-    "id": str(uuid.uuid4()), "name": "Acme Networks", "short_name": "ACME",
-    "asn": 64512, "state": "active",
+    "id": str(uuid.uuid4()),
+    "name": "Acme Networks",
+    "short_name": "ACME",
+    "asn": 64512,
+    "state": "active",
 }
 TRUNK = {
-    "id": str(uuid.uuid4()), "member_id": MIEMBRO["id"], "name": "ae0",
+    "id": str(uuid.uuid4()),
+    "member_id": MIEMBRO["id"],
+    "name": "ae0",
     "state": "active",
 }
 SWITCH = {"id": str(uuid.uuid4()), "name": "sw-peering-1"}
@@ -42,16 +47,14 @@ CONEXION = {
 def app():
     app = create_ui_app()
     app.state.api.login = AsyncMock(return_value="test-jwt")
-    app.state.api.get = AsyncMock(
-        return_value={"id": "abc", "role": "admin", "member_id": None})
+    app.state.api.get = AsyncMock(return_value={"id": "abc", "role": "admin", "member_id": None})
     return app
 
 
 @pytest.fixture
 def authed_client(app):
     client = TestClient(app, base_url="https://testserver")
-    client.post("/login", data={"email": "a@b.com", "password": "p"},
-                follow_redirects=False)
+    client.post("/login", data={"email": "a@b.com", "password": "p"}, follow_redirects=False)
     return client
 
 
@@ -84,9 +87,15 @@ class TestEdicionDeConexion:
         app.state.api.patch = AsyncMock(return_value={**CONEXION, "name": "10GE1/0/5"})
         resp = authed_client.post(
             f"/admin/connections/{CONEXION['id']}/edit",
-            data={"puerto": "10GE1/0/5", "type": "physical", "speed": "10000",
-                  "switch_id": SWITCH["id"], "notes": "puerto del hipervisor"},
-            follow_redirects=False)
+            data={
+                "puerto": "10GE1/0/5",
+                "type": "physical",
+                "speed": "10000",
+                "switch_id": SWITCH["id"],
+                "notes": "puerto del hipervisor",
+            },
+            follow_redirects=False,
+        )
         assert resp.status_code == 302
         assert resp.headers["location"] == "/admin/connections"
         ruta, _token = app.state.api.patch.call_args[0][:2]
@@ -104,27 +113,39 @@ class TestEdicionDeConexion:
         app.state.api.patch = AsyncMock(return_value=dict(CONEXION))
         authed_client.post(
             f"/admin/connections/{CONEXION['id']}/edit",
-            data={"puerto": "Eth-Trunk2", "type": "physical", "speed": "1000",
-                  "switch_id": SWITCH["id"], "notes": "   "},
-            follow_redirects=False)
+            data={
+                "puerto": "Eth-Trunk2",
+                "type": "physical",
+                "speed": "1000",
+                "switch_id": SWITCH["id"],
+                "notes": "   ",
+            },
+            follow_redirects=False,
+        )
         assert app.state.api.patch.call_args[1]["json"]["notes"] is None
 
     def test_error_de_validacion_vuelve_al_formulario(self, authed_client, app):
         app.state.api.get = AsyncMock(side_effect=_get_falso)
         app.state.api.patch = AsyncMock(
-            side_effect=APIError(422, {"error": {"message": "speed invalido"}}))
+            side_effect=APIError(422, {"error": {"message": "speed invalido"}})
+        )
         resp = authed_client.post(
             f"/admin/connections/{CONEXION['id']}/edit",
-            data={"puerto": "Eth-Trunk2", "type": "physical", "speed": "0",
-                  "switch_id": SWITCH["id"], "notes": ""},
-            follow_redirects=False)
+            data={
+                "puerto": "Eth-Trunk2",
+                "type": "physical",
+                "speed": "0",
+                "switch_id": SWITCH["id"],
+                "notes": "",
+            },
+            follow_redirects=False,
+        )
         assert resp.status_code == 200
         assert "speed invalido" in resp.text
 
     def test_requiere_autenticacion(self, app):
         cliente = TestClient(app, base_url="https://testserver")
-        resp = cliente.get(f"/admin/connections/{CONEXION['id']}/edit",
-                           follow_redirects=False)
+        resp = cliente.get(f"/admin/connections/{CONEXION['id']}/edit", follow_redirects=False)
         assert resp.status_code == 302
         assert "/login" in resp.headers["location"]
 

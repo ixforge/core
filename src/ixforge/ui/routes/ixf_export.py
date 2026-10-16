@@ -24,6 +24,7 @@ async def ixf_export_view(request: Request) -> Response:
     try:
         ixf_data = await api.get("/api/v1/ixf/member-export", token)
         import json
+
         ixf_json = json.dumps(ixf_data, indent=2, ensure_ascii=False)
     except APIError:
         pass
@@ -31,9 +32,13 @@ async def ixf_export_view(request: Request) -> Response:
     # Build the public URL for the API endpoint
     api_url = f"{api.base_url}/api/v1/ixf/member-export"
 
-    return render(request, "ixf_export/view.html", {
-        "ixf_data": ixf_data,
-        "ixf_json": ixf_json,
-        "api_url": api_url,
-        "page_title": "IX-F Member Export",
-    })
+    return render(
+        request,
+        "ixf_export/view.html",
+        {
+            "ixf_data": ixf_data,
+            "ixf_json": ixf_json,
+            "api_url": api_url,
+            "page_title": "IX-F Member Export",
+        },
+    )

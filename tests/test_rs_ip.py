@@ -41,29 +41,48 @@ async def pool_v4(db_session: AsyncSession, ixp: IXP) -> IPPool:
 
 
 class TestRSIPService:
-    async def test_assign_ip_sequential(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool) -> None:
-        result = await svc.assign(db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id))
+    async def test_assign_ip_sequential(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool
+    ) -> None:
+        result = await svc.assign(
+            db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id)
+        )
         assert result.address.startswith("192.0.2.")
         assert result.af == 4
         await db_session.refresh(rs)
         assert rs.ip_v4 == result.address
 
-    async def test_assign_ip_manual(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool) -> None:
-        result = await svc.assign(db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id, address="192.0.2.100"))
+    async def test_assign_ip_manual(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool
+    ) -> None:
+        result = await svc.assign(
+            db_session,
+            ixp.id,
+            rs.id,
+            RSIPAssignmentCreate(pool_id=pool_v4.id, address="192.0.2.100"),
+        )
         assert result.address == "192.0.2.100"
 
-    async def test_assign_duplicate_af_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool) -> None:
+    async def test_assign_duplicate_af_raises(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool
+    ) -> None:
         await svc.assign(db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id))
         with pytest.raises(ConflictError):
             await svc.assign(db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id))
 
-    async def test_release_clears_rs_ip(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool) -> None:
-        result = await svc.assign(db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id))
+    async def test_release_clears_rs_ip(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool
+    ) -> None:
+        result = await svc.assign(
+            db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id)
+        )
         await svc.release(db_session, ixp.id, rs.id, result.id)
         await db_session.refresh(rs)
         assert rs.ip_v4 is None
 
-    async def test_assign_wrong_pool_ixp_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer) -> None:
+    async def test_assign_wrong_pool_ixp_raises(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer
+    ) -> None:
         other_ixp = IXP(name="Other IXP", short_name="OTH", asn=65200, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
@@ -90,18 +109,27 @@ class TestRSIPService:
         db_session.add(member)
         await db_session.flush()
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-test", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-test",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
         switch = Switch(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-test", location_id=location.id,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="sw-test",
+            location_id=location.id,
         )
         db_session.add(switch)
         await db_session.flush()
         trunk = Trunk(ixp_id=ixp.id, member_id=member.id, name="ae0", state=TrunkState.active)
         db_session.add(trunk)
-        vlan = VLAN(id=uuid.uuid4(), ixp_id=ixp.id, name="Peering", vid=100, type=VLANType.production)
+        vlan = VLAN(
+            id=uuid.uuid4(), ixp_id=ixp.id, name="Peering", vid=100, type=VLANType.production
+        )
         db_session.add(vlan)
         await db_session.flush()
         trunk_vlan = TrunkVLAN(ixp_id=ixp.id, trunk_id=trunk.id, vlan_id=vlan.id)
@@ -124,27 +152,41 @@ class TestRSIPService:
         )
         db_session.add(member_assign)
         await db_session.flush()
-        result = await svc.assign(db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id))
+        result = await svc.assign(
+            db_session, ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id)
+        )
         assert result.address != "192.0.2.1"
         assert result.address.startswith("192.0.2.")
 
-    async def test_release_nonexistent_assignment_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer) -> None:
+    async def test_release_nonexistent_assignment_raises(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer
+    ) -> None:
         with pytest.raises(NotFoundError):
             await svc.release(db_session, ixp.id, rs.id, uuid.uuid4())
 
-    async def test_assign_rs_not_found_raises(self, db_session: AsyncSession, ixp: IXP, pool_v4: IPPool) -> None:
+    async def test_assign_rs_not_found_raises(
+        self, db_session: AsyncSession, ixp: IXP, pool_v4: IPPool
+    ) -> None:
         with pytest.raises(NotFoundError):
-            await svc.assign(db_session, ixp.id, uuid.uuid4(), RSIPAssignmentCreate(pool_id=pool_v4.id))
+            await svc.assign(
+                db_session, ixp.id, uuid.uuid4(), RSIPAssignmentCreate(pool_id=pool_v4.id)
+            )
 
-    async def test_assign_rs_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool) -> None:
+    async def test_assign_rs_wrong_ixp_raises(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer, pool_v4: IPPool
+    ) -> None:
         """Assigning an IP to a RS that belongs to a different IXP should raise NotFoundError"""
         other_ixp = IXP(name="Other IXP RS", short_name="ORS", asn=65300, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
         with pytest.raises(NotFoundError):
-            await svc.assign(db_session, other_ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id))
+            await svc.assign(
+                db_session, other_ixp.id, rs.id, RSIPAssignmentCreate(pool_id=pool_v4.id)
+            )
 
-    async def test_list_assignments_rs_wrong_ixp_raises(self, db_session: AsyncSession, ixp: IXP, rs: RouteServer) -> None:
+    async def test_list_assignments_rs_wrong_ixp_raises(
+        self, db_session: AsyncSession, ixp: IXP, rs: RouteServer
+    ) -> None:
         """Listing assignments for a RS that belongs to a different IXP should raise NotFoundError"""
         other_ixp = IXP(name="Other IXP List", short_name="ORL", asn=65301, country="CL", city="X")
         db_session.add(other_ixp)
@@ -177,12 +219,19 @@ class TestRSIPGlobalUniqueness:
         db_session.add(member)
         await db_session.flush()
         location = Location(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="DC-gu", city="Test", country="US",
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="DC-gu",
+            city="Test",
+            country="US",
         )
         db_session.add(location)
         await db_session.flush()
         switch = Switch(
-            id=uuid.uuid4(), ixp_id=ixp.id, name="sw-gu", location_id=location.id,
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            name="sw-gu",
+            location_id=location.id,
         )
         db_session.add(switch)
         await db_session.flush()
@@ -218,7 +267,9 @@ class TestRSIPGlobalUniqueness:
 
 
 class TestRSIPAPI:
-    async def test_list_rs_ips_empty(self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession) -> None:
+    async def test_list_rs_ips_empty(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS-api")
         db_session.add(rs)
         await db_session.flush()
@@ -226,7 +277,9 @@ class TestRSIPAPI:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_assign_rs_ip_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession) -> None:
+    async def test_assign_rs_ip_api(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS-api2")
         vlan = VLAN(ixp_id=ixp.id, name="IXP-api", vid=30, type=VLANType.production)
         db_session.add(rs)
@@ -245,7 +298,9 @@ class TestRSIPAPI:
         assert data["af"] == 4
         assert data["address"].startswith("198.51.100.")
 
-    async def test_release_rs_ip_api(self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession) -> None:
+    async def test_release_rs_ip_api(
+        self, client: AsyncClient, ixp: IXP, auth_headers: dict[str, str], db_session: AsyncSession
+    ) -> None:
         rs = RouteServer(ixp_id=ixp.id, name="RS-api3")
         vlan = VLAN(ixp_id=ixp.id, name="IXP-api3", vid=40, type=VLANType.production)
         db_session.add(rs)

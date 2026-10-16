@@ -3,8 +3,14 @@ from ixforge.enums import ContractType, MemberType, VLANType
 
 def test_member_type_values():
     assert set(MemberType) == {
-        "isp", "cdn", "ixp", "academico", "gobierno",
-        "corporativo", "infraestructura_critica", "otro",
+        "isp",
+        "cdn",
+        "ixp",
+        "academico",
+        "gobierno",
+        "corporativo",
+        "infraestructura_critica",
+        "otro",
     }
 
 

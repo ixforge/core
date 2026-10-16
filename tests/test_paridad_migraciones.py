@@ -48,10 +48,12 @@ async def _leer_schema(url: str) -> dict[str, dict[str, dict]]:
 @pytest.fixture(scope="module")
 def schema_de_migraciones():
     """Una base aparte con las migraciones aplicadas de cero"""
-    asyncio.run(_sql_de_admin(
-        f"DROP DATABASE IF EXISTS {_NOMBRE}",
-        f"CREATE DATABASE {_NOMBRE}",
-    ))
+    asyncio.run(
+        _sql_de_admin(
+            f"DROP DATABASE IF EXISTS {_NOMBRE}",
+            f"CREATE DATABASE {_NOMBRE}",
+        )
+    )
 
     url = f"{_BASE_URL}/{_NOMBRE}"
 

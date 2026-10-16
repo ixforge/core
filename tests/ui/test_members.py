@@ -43,9 +43,13 @@ def authed_client(app):
 
 class TestMembersList:
     def test_list_renders(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "items": [FAKE_MEMBER], "next_cursor": None, "has_more": False,
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "items": [FAKE_MEMBER],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
         resp = authed_client.get("/admin/members")
         assert resp.status_code == 200
         assert "Acme Networks" in resp.text
@@ -57,20 +61,26 @@ class TestMembersList:
         assert resp.status_code == 302
 
     def test_list_empty_shows_empty_state(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "items": [], "next_cursor": None, "has_more": False,
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "items": [],
+                "next_cursor": None,
+                "has_more": False,
+            }
+        )
         resp = authed_client.get("/admin/members")
         assert resp.status_code == 200
 
 
 class TestMemberDetail:
     def test_detail_renders(self, authed_client, app):
-        app.state.api.get = AsyncMock(side_effect=[
-            FAKE_MEMBER,
-            {"items": [], "next_cursor": None, "has_more": False},
-            {"items": []},  # contacts
-        ])
+        app.state.api.get = AsyncMock(
+            side_effect=[
+                FAKE_MEMBER,
+                {"items": [], "next_cursor": None, "has_more": False},
+                {"items": []},  # contacts
+            ]
+        )
         resp = authed_client.get(f"/admin/members/{FAKE_MEMBER['id']}")
         assert resp.status_code == 200
         assert "Acme Networks" in resp.text
@@ -98,7 +108,18 @@ class TestMemberForm:
         assert resp.status_code == 302
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "required"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "required"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/members/new",
             data={"name": "", "short_name": "", "asn": "0", "peering_policy": "open"},
@@ -147,9 +168,12 @@ class TestAsnNameFragment:
         assert "&lt;script&gt;" in resp.text
 
     def test_xss_in_api_name_is_escaped(self, authed_client, app):
-        app.state.api.get = AsyncMock(return_value={
-            "asn": 64512, "name": '<img src=x onerror="alert(1)">',
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "asn": 64512,
+                "name": '<img src=x onerror="alert(1)">',
+            }
+        )
         resp = authed_client.get("/admin/asn-name?asn=64512")
         assert resp.status_code == 200
         assert "<img" not in resp.text
@@ -180,10 +204,12 @@ class TestMemberAsnName:
 
     def test_xss_in_api_response_is_escaped(self, authed_client, app):
         member_id = FAKE_MEMBER["id"]
-        app.state.api.get = AsyncMock(return_value={
-            "asn": "<script>alert(1)</script>",
-            "name": '<img src=x onerror="alert(1)">',
-        })
+        app.state.api.get = AsyncMock(
+            return_value={
+                "asn": "<script>alert(1)</script>",
+                "name": '<img src=x onerror="alert(1)">',
+            }
+        )
         resp = authed_client.get(f"/admin/members/{member_id}/asn-name")
         assert resp.status_code == 200
         assert "<script>" not in resp.text

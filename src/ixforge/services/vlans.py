@@ -76,7 +76,9 @@ async def update(
     vlan = await get(session, ixp_id, vlan_id)
     update_fields = data.model_dump(exclude_unset=True)
     if "extra_data" in update_fields and update_fields["extra_data"] is not None:
-        await custom_fields.validate_extra_data(session, ixp_id, "vlan", update_fields["extra_data"])
+        await custom_fields.validate_extra_data(
+            session, ixp_id, "vlan", update_fields["extra_data"]
+        )
     for field, value in update_fields.items():
         setattr(vlan, field, value)
     await session.flush()
@@ -88,9 +90,7 @@ async def delete(session: AsyncSession, ixp_id: uuid.UUID, vlan_id: uuid.UUID) -
     """Delete a VLAN."""
     vlan = await get(session, ixp_id, vlan_id)
 
-    has_pool = await session.scalar(
-        select(IPPool.id).where(IPPool.vlan_id == vlan_id).limit(1)
-    )
+    has_pool = await session.scalar(select(IPPool.id).where(IPPool.vlan_id == vlan_id).limit(1))
     if has_pool is not None:
         raise ConflictError("Cannot delete VLAN: IP pools are still associated")
 
@@ -104,7 +104,9 @@ async def delete(session: AsyncSession, ixp_id: uuid.UUID, vlan_id: uuid.UUID) -
         select(RouteServerVLAN.id).where(RouteServerVLAN.vlan_id == vlan_id).limit(1)
     )
     if has_rs_vlan is not None:
-        raise ConflictError("Cannot delete VLAN: route servers are still associated. Remove RS-VLAN associations first")
+        raise ConflictError(
+            "Cannot delete VLAN: route servers are still associated. Remove RS-VLAN associations first"
+        )
 
     await session.delete(vlan)
     await session.flush()

@@ -49,7 +49,9 @@ async def create(
     return definition
 
 
-async def get(session: AsyncSession, ixp_id: uuid.UUID, definition_id: uuid.UUID) -> CustomFieldDefinition:
+async def get(
+    session: AsyncSession, ixp_id: uuid.UUID, definition_id: uuid.UUID
+) -> CustomFieldDefinition:
     """Get a custom field definition by id or raise NotFoundError."""
     definition = await session.get(CustomFieldDefinition, definition_id)
     if definition is None or definition.ixp_id != ixp_id:

@@ -42,7 +42,9 @@ async def list_connections(
     member_id = None
     if user.role == UserRole.member:
         member_id = user.member_id
-    return await conn_svc.list_connections(db, ixp_id, params, switch_id=switch_id, member_id=member_id)
+    return await conn_svc.list_connections(
+        db, ixp_id, params, switch_id=switch_id, member_id=member_id
+    )
 
 
 @connections_router.get("/{connection_id}", response_model=ConnectionRead)

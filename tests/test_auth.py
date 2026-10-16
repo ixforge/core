@@ -168,15 +168,21 @@ class TestAPIKeyAuth:
         raw_key = "ixf_membersread567890abcdef1234567890abcdef1234567890abcdef1234567890"
         await self._make_key(db_session, admin_user, ["members:read"], raw_key)
 
-        assert (await client.get(
-            "/api/v1/members", headers={"X-API-Key": raw_key})).status_code == 200
+        assert (
+            await client.get("/api/v1/members", headers={"X-API-Key": raw_key})
+        ).status_code == 200
         # sin members:write no puede crear
-        assert (await client.post(
-            "/api/v1/members", headers={"X-API-Key": raw_key},
-            json={"name": "X", "short_name": "X", "asn": 65001})).status_code == 403
+        assert (
+            await client.post(
+                "/api/v1/members",
+                headers={"X-API-Key": raw_key},
+                json={"name": "X", "short_name": "X", "asn": 65001},
+            )
+        ).status_code == 403
         # sin trunks:read no puede leer otro recurso
-        assert (await client.get(
-            "/api/v1/trunks", headers={"X-API-Key": raw_key})).status_code == 403
+        assert (
+            await client.get("/api/v1/trunks", headers={"X-API-Key": raw_key})
+        ).status_code == 403
 
     async def test_scoped_key_writes_with_write_scope(
         self,
@@ -190,7 +196,8 @@ class TestAPIKeyAuth:
         await self._make_key(db_session, admin_user, ["members:write"], raw_key)
 
         resp = await client.post(
-            "/api/v1/members", headers={"X-API-Key": raw_key},
+            "/api/v1/members",
+            headers={"X-API-Key": raw_key},
             json={"name": "ConScope", "short_name": "CS", "asn": 65002},
         )
         assert resp.status_code == 201
@@ -208,7 +215,8 @@ class TestAPIKeyAuth:
         await self._make_key(db_session, member_user, ["members:write"], raw_key)
 
         resp = await client.post(
-            "/api/v1/members", headers={"X-API-Key": raw_key},
+            "/api/v1/members",
+            headers={"X-API-Key": raw_key},
             json={"name": "Y", "short_name": "Y", "asn": 65003},
         )
         assert resp.status_code == 403

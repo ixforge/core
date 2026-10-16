@@ -71,7 +71,11 @@ def test_la_imagen_crea_media_antes_de_darsela_al_usuario():
     """
     dockerfile = (_DOCKER / "Dockerfile").read_text()
     linea_chown = next(
-        (i for i, linea in enumerate(dockerfile.splitlines()) if "chown" in linea and "/app" in linea),
+        (
+            i
+            for i, linea in enumerate(dockerfile.splitlines())
+            if "chown" in linea and "/app" in linea
+        ),
         None,
     )
     assert linea_chown is not None

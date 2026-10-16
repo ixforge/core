@@ -28,7 +28,7 @@ def ipaddr(value: str, fmt: str = "") -> str:
 
 def bird_str(value: str) -> str:
     """Sanitize a string for safe use in BIRD config"""
-    return re.sub(r'[^\w \t\-.]', '', value)[:255]
+    return re.sub(r"[^\w \t\-.]", "", value)[:255]
 
 
 def prefixlist(prefixes: list[str], name: str = "pfxlist") -> str:
@@ -109,7 +109,6 @@ def intervalos_como_set(conservados: tuple[tuple[int, int], ...]) -> str:
     partes = []
     for lo, hi in sorted(set(conservados)):
         partes.append(
-            f"( routeserverasn, {lo} )" if lo == hi
-            else f"( routeserverasn, {lo}..{hi} )"
+            f"( routeserverasn, {lo} )" if lo == hi else f"( routeserverasn, {lo}..{hi} )"
         )
     return ", ".join(partes)

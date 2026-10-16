@@ -40,9 +40,7 @@ def _validate_prefix_family(prefixes: list[str] | None, af: int) -> None:
             )
 
 
-async def _assert_member(
-    session: AsyncSession, ixp_id: uuid.UUID, member_id: uuid.UUID
-) -> Member:
+async def _assert_member(session: AsyncSession, ixp_id: uuid.UUID, member_id: uuid.UUID) -> Member:
     member = await session.get(Member, member_id)
     if member is None or member.ixp_id != ixp_id:
         raise NotFoundError("Member", str(member_id))
@@ -121,9 +119,7 @@ async def upsert(
     return pf
 
 
-async def delete(
-    session: AsyncSession, ixp_id: uuid.UUID, member_id: uuid.UUID, af: int
-) -> None:
+async def delete(session: AsyncSession, ixp_id: uuid.UUID, member_id: uuid.UUID, af: int) -> None:
     pf = await get(session, ixp_id, member_id, af)
     await session.delete(pf)
     await session.flush()

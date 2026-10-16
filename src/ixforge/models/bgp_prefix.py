@@ -31,7 +31,9 @@ class BGPSessionPrefix(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "bgp_session_prefixes"
     __table_args__ = (
-        UniqueConstraint("bgp_session_id", "prefix", name="uq_bgp_session_prefixes_sesion_prefijo"),
+        UniqueConstraint(
+            "bgp_session_id", "prefix", name="uq_bgp_session_prefixes_sesion_prefijo"
+        ),
         UniqueConstraint(
             "route_server_peer_id", "prefix", name="uq_bgp_session_prefixes_peer_prefijo"
         ),
@@ -61,19 +63,27 @@ class BGPSessionPrefix(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     # el valor viene validado como red desde el schema
     prefix: Mapped[str] = mapped_column(String(43), nullable=False)
     as_path: Mapped[list[int]] = mapped_column(
-        ARRAY(Integer), nullable=False, default=list,
+        ARRAY(Integer),
+        nullable=False,
+        default=list,
         comment="Vacio si la ruta no trae el atributo, que no es lo mismo que no anunciarla",
     )
     # Estandar y grandes juntas como texto: "64166:65012" y "64166:1001:1". Es
     # donde el miembro ve por que su prefijo quedo como quedo
     communities: Mapped[list[str]] = mapped_column(
-        ARRAY(String(64)), nullable=False, default=list,
+        ARRAY(String(64)),
+        nullable=False,
+        default=list,
     )
     first_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
     last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
 
 
@@ -108,18 +118,24 @@ class BGPPrefixEvent(UUIDPrimaryKey, TenantMixin, Base):
     )
     prefix: Mapped[str] = mapped_column(String(43), nullable=False)
     event_type: Mapped[PrefixEventType] = mapped_column(
-        Enum(PrefixEventType, name="prefix_event_type"), nullable=False,
+        Enum(PrefixEventType, name="prefix_event_type"),
+        nullable=False,
     )
     as_path: Mapped[list[int]] = mapped_column(ARRAY(Integer), nullable=False, default=list)
     previous_as_path: Mapped[list[int] | None] = mapped_column(
-        ARRAY(Integer), nullable=True,
+        ARRAY(Integer),
+        nullable=True,
         comment="Solo en updated: con que camino venia antes",
     )
     communities: Mapped[list[str]] = mapped_column(ARRAY(String(64)), nullable=False, default=list)
     previous_communities: Mapped[list[str] | None] = mapped_column(
-        ARRAY(String(64)), nullable=True,
+        ARRAY(String(64)),
+        nullable=True,
         comment="Solo en updated: con que communities venia antes",
     )
     occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True,
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
     )

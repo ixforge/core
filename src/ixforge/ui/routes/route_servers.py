@@ -34,7 +34,8 @@ async def _load_pools_for_vlan(api: APIClient, token: str, vlan_id: str) -> list
     """Load pools with availability info for a specific VLAN."""
     try:
         pools: list[dict[str, Any]] = await api.get(
-            "/api/v1/ip-pools/available", token,
+            "/api/v1/ip-pools/available",
+            token,
             params={"vlan_id": vlan_id},
         )
         return pools
@@ -61,11 +62,15 @@ async def route_server_list(request: Request) -> Response:
     is_htmx = request.headers.get("hx-request") == "true"
     template = "route_servers/list_rows.html" if is_htmx else "route_servers/list.html"
 
-    return render(request, template, {
-        "route_servers": items,
-        "filter_is_active": is_active,
-        "page_title": "Route Servers",
-    })
+    return render(
+        request,
+        template,
+        {
+            "route_servers": items,
+            "filter_is_active": is_active,
+            "page_title": "Route Servers",
+        },
+    )
 
 
 @require_auth
@@ -86,7 +91,8 @@ async def route_server_detail(request: Request) -> Response:
     bgp_sessions: list[Any] = []
     try:
         sessions_data = await api.get(
-            "/api/v1/bgp-sessions", token,
+            "/api/v1/bgp-sessions",
+            token,
             params={"route_server_id": rs_id, "limit": 200},
         )
         bgp_sessions = sessions_data.get("items", [])
@@ -112,7 +118,9 @@ async def route_server_detail(request: Request) -> Response:
     rs_vlans: list[Any] = []
     all_vlans: list[Any] = []
     with contextlib.suppress(APIError):
-        rs_vlans_data = await api.get(f"/api/v1/route-servers/{rs_id}/vlans", token, params={"limit": 200})
+        rs_vlans_data = await api.get(
+            f"/api/v1/route-servers/{rs_id}/vlans", token, params={"limit": 200}
+        )
         rs_vlans = rs_vlans_data.get("items", [])
     with contextlib.suppress(APIError):
         all_vlans_data = await api.get("/api/v1/vlans", token, params={"limit": 200})
@@ -142,7 +150,8 @@ async def route_server_detail(request: Request) -> Response:
     for vlan in all_vlans:
         with contextlib.suppress(APIError):
             pools_data = await api.get(
-                "/api/v1/ip-pools", token,
+                "/api/v1/ip-pools",
+                token,
                 params={"vlan_id": vlan["id"], "limit": 200},
             )
             for pool in pools_data.get("items", []):
@@ -163,19 +172,23 @@ async def route_server_detail(request: Request) -> Response:
         except APIError:
             pass
 
-    return render(request, "route_servers/detail.html", {
-        "rs": rs,
-        "bgp_sessions": bgp_sessions,
-        "config_current": config_current,
-        "config_pending": config_pending,
-        "agent_alive": agent_alive,
-        "rs_vlans": rs_vlans_enriched,
-        "available_vlans": available_vlans,
-        "rs_ips": rs_ips,
-        "all_pools": all_pools,
-        "trunk_vlans": trunk_vlans,
-        "page_title": rs.get("name", "Route Server"),
-    })
+    return render(
+        request,
+        "route_servers/detail.html",
+        {
+            "rs": rs,
+            "bgp_sessions": bgp_sessions,
+            "config_current": config_current,
+            "config_pending": config_pending,
+            "agent_alive": agent_alive,
+            "rs_vlans": rs_vlans_enriched,
+            "available_vlans": available_vlans,
+            "rs_ips": rs_ips,
+            "all_pools": all_pools,
+            "trunk_vlans": trunk_vlans,
+            "page_title": rs.get("name", "Route Server"),
+        },
+    )
 
 
 @require_auth
@@ -185,14 +198,18 @@ async def route_server_new(request: Request) -> Response:
 
     if request.method == "GET":
         vlans = await _load_vlans(api, token)
-        return render(request, "route_servers/form.html", {
-            "rs": None,
-            "errors": {},
-            "vlans": vlans,
-            "pools": [],
-            "selected_vlan_id": "",
-            "page_title": "Nuevo Route Server",
-        })
+        return render(
+            request,
+            "route_servers/form.html",
+            {
+                "rs": None,
+                "errors": {},
+                "vlans": vlans,
+                "pools": [],
+                "selected_vlan_id": "",
+                "page_title": "Nuevo Route Server",
+            },
+        )
 
     form = await request.form()
 
@@ -219,14 +236,18 @@ async def route_server_new(request: Request) -> Response:
             pools = []
             if vlan_id:
                 pools = await _load_pools_for_vlan(api, token, vlan_id)
-            return render(request, "route_servers/form.html", {
-                "rs": payload,
-                "errors": e.detail,
-                "vlans": vlans,
-                "pools": pools,
-                "selected_vlan_id": vlan_id,
-                "page_title": "Nuevo Route Server",
-            })
+            return render(
+                request,
+                "route_servers/form.html",
+                {
+                    "rs": payload,
+                    "errors": e.detail,
+                    "vlans": vlans,
+                    "pools": pools,
+                    "selected_vlan_id": vlan_id,
+                    "page_title": "Nuevo Route Server",
+                },
+            )
         raise
 
     rs_id = rs["id"]
@@ -235,7 +256,9 @@ async def route_server_new(request: Request) -> Response:
     # Associate VLAN
     if vlan_id:
         try:
-            await api.post(f"/api/v1/route-servers/{rs_id}/vlans", token, json={"vlan_id": vlan_id})
+            await api.post(
+                f"/api/v1/route-servers/{rs_id}/vlans", token, json={"vlan_id": vlan_id}
+            )
         except APIError as e:
             warnings.append(f"VLAN: {safe_detail(e)}")
 
@@ -272,11 +295,15 @@ async def route_server_edit(request: Request) -> Response:
 
     if request.method == "GET":
         rs = await api.get(f"/api/v1/route-servers/{rs_id}", token)
-        return render(request, "route_servers/edit_form.html", {
-            "rs": rs,
-            "errors": {},
-            "page_title": f"Editar {rs.get('name', 'Route Server')}",
-        })
+        return render(
+            request,
+            "route_servers/edit_form.html",
+            {
+                "rs": rs,
+                "errors": {},
+                "page_title": f"Editar {rs.get('name', 'Route Server')}",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {}
@@ -292,11 +319,15 @@ async def route_server_edit(request: Request) -> Response:
         rs = await api.patch(f"/api/v1/route-servers/{rs_id}", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "route_servers/edit_form.html", {
-                "rs": {**payload, "id": rs_id},
-                "errors": e.detail,
-                "page_title": "Editar Route Server",
-            })
+            return render(
+                request,
+                "route_servers/edit_form.html",
+                {
+                    "rs": {**payload, "id": rs_id},
+                    "errors": e.detail,
+                    "page_title": "Editar Route Server",
+                },
+            )
         raise
 
     add_flash(request, "Route Server actualizado", "success")
@@ -364,11 +395,15 @@ async def route_server_config_history(request: Request) -> Response:
 
     items = history.get("items", []) if isinstance(history, dict) else history
 
-    return render(request, "route_servers/config_history.html", {
-        "rs": rs,
-        "configs": items,
-        "page_title": f"Config Historial - {rs.get('name', '')}",
-    })
+    return render(
+        request,
+        "route_servers/config_history.html",
+        {
+            "rs": rs,
+            "configs": items,
+            "page_title": f"Config Historial - {rs.get('name', '')}",
+        },
+    )
 
 
 @require_auth
@@ -399,13 +434,17 @@ async def route_server_config_view(request: Request) -> Response:
         if match:
             error_line = int(match.group(1))
 
-    return render(request, "route_servers/config_view.html", {
-        "rs": rs,
-        "config": config,
-        "lines": lines,
-        "error_line": error_line,
-        "page_title": f"Config generada - {rs.get('name', '')}",
-    })
+    return render(
+        request,
+        "route_servers/config_view.html",
+        {
+            "rs": rs,
+            "config": config,
+            "lines": lines,
+            "error_line": error_line,
+            "page_title": f"Config generada - {rs.get('name', '')}",
+        },
+    )
 
 
 @require_auth
@@ -428,14 +467,20 @@ async def route_server_config_diff(request: Request) -> Response:
     except APIError as e:
         if e.status_code == 404:
             add_flash(request, "Diff no disponible", "error")
-            return RedirectResponse(f"/admin/route-servers/{rs_id}/config/history", status_code=302)
+            return RedirectResponse(
+                f"/admin/route-servers/{rs_id}/config/history", status_code=302
+            )
         raise
 
-    return render(request, "route_servers/config_diff.html", {
-        "rs": rs,
-        "diff": diff,
-        "page_title": f"Config Diff - {rs.get('name', '')}",
-    })
+    return render(
+        request,
+        "route_servers/config_diff.html",
+        {
+            "rs": rs,
+            "diff": diff,
+            "page_title": f"Config Diff - {rs.get('name', '')}",
+        },
+    )
 
 
 @require_auth

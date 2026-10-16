@@ -117,7 +117,18 @@ class TestUserForm:
         assert f"/admin/users/{FAKE_USER['id']}" in resp.headers["location"]
 
     def test_create_validation_error_shows_form(self, authed_client, app):
-        app.state.api.post = AsyncMock(side_effect=APIError(422, {"error": {"code": "VALIDATION_ERROR", "message": "Validation error", "details": [{"msg": "invalid email"}]}}))
+        app.state.api.post = AsyncMock(
+            side_effect=APIError(
+                422,
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation error",
+                        "details": [{"msg": "invalid email"}],
+                    }
+                },
+            )
+        )
         resp = authed_client.post(
             "/admin/users/new",
             data={"email": "", "password": "", "role": "admin"},
@@ -144,7 +155,9 @@ class TestUserEdit:
 
 class TestUserAPIKeys:
     def test_create_api_key_redirects(self, authed_client, app):
-        app.state.api.post = AsyncMock(return_value={"raw_key": "ixf_secret_key_123", **FAKE_API_KEY})
+        app.state.api.post = AsyncMock(
+            return_value={"raw_key": "ixf_secret_key_123", **FAKE_API_KEY}
+        )
         resp = authed_client.post(
             f"/admin/users/{FAKE_USER['id']}/api-keys",
             data={"name": "ci-deploy"},
@@ -175,9 +188,7 @@ class TestUserAPIKeys:
         app.state.api.get = AsyncMock(side_effect=fake_get)
         resp = authed_client.get(f"/admin/users/{FAKE_USER['id']}")
         assert resp.status_code == 200
-        assert (
-            f"/admin/users/{FAKE_USER['id']}/api-keys/{FAKE_API_KEY['id']}/delete" in resp.text
-        )
+        assert f"/admin/users/{FAKE_USER['id']}/api-keys/{FAKE_API_KEY['id']}/delete" in resp.text
 
     def test_revoke_api_key_calls_api_and_redirects(self, authed_client, app):
         app.state.api.delete = AsyncMock(return_value=None)

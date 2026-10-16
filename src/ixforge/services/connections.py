@@ -56,14 +56,14 @@ async def list_connections(
     from ixforge.models.trunk import Trunk
 
     stmt = (
-        select(Connection)
-        .where(Connection.ixp_id == ixp_id)
-        .options(joinedload(Connection.trunk))
+        select(Connection).where(Connection.ixp_id == ixp_id).options(joinedload(Connection.trunk))
     )
     if switch_id is not None:
         stmt = stmt.where(Connection.switch_id == switch_id)
     if member_id is not None:
-        stmt = stmt.join(Trunk, Connection.trunk_id == Trunk.id).where(Trunk.member_id == member_id)
+        stmt = stmt.join(Trunk, Connection.trunk_id == Trunk.id).where(
+            Trunk.member_id == member_id
+        )
     return await paginate(
         session,
         stmt,
@@ -104,17 +104,14 @@ async def update(
         # Validate type consistency: all connections in the same trunk must have the same type
         new_type = update_fields["type"]
         other_connections = await session.execute(
-            select(Connection.type)
-            .where(
+            select(Connection.type).where(
                 Connection.trunk_id == connection.trunk_id,
                 Connection.id != connection_id,
             )
         )
         for (other_type,) in other_connections.all():
             if other_type != new_type:
-                raise ValidationError(
-                    "All connections in a trunk must have the same type"
-                )
+                raise ValidationError("All connections in a trunk must have the same type")
 
     for field, value in update_fields.items():
         setattr(connection, field, value)

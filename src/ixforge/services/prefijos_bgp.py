@@ -126,9 +126,7 @@ async def eventos(
     stmt = (
         select(BGPPrefixEvent, RouteServer.name)
         .outerjoin(BGPSession, BGPSession.id == BGPPrefixEvent.bgp_session_id)
-        .outerjoin(
-            RouteServerPeer, RouteServerPeer.id == BGPPrefixEvent.route_server_peer_id
-        )
+        .outerjoin(RouteServerPeer, RouteServerPeer.id == BGPPrefixEvent.route_server_peer_id)
         .join(
             RouteServer,
             RouteServer.id

@@ -25,7 +25,9 @@ from ixforge.models.vlan import VLAN
 
 
 async def _make_trunk_vlan(
-    db_session: AsyncSession, ixp: IXP, trunk: Trunk,
+    db_session: AsyncSession,
+    ixp: IXP,
+    trunk: Trunk,
 ) -> TrunkVLAN:
     """Create a TrunkVLAN instance with a unique VLAN"""
     tag = uuid.uuid4().hex[:6]

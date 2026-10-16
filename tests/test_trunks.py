@@ -54,9 +54,7 @@ async def _create_member(db: AsyncSession, ixp: IXP, **overrides) -> Member:
     return member
 
 
-async def _create_trunk(
-    db: AsyncSession, ixp: IXP, member: Member, **overrides
-) -> Trunk:
+async def _create_trunk(db: AsyncSession, ixp: IXP, member: Member, **overrides) -> Trunk:
     defaults = {
         "id": uuid.uuid4(),
         "ixp_id": ixp.id,
@@ -109,9 +107,7 @@ async def _create_vlan(db: AsyncSession, ixp: IXP, **overrides) -> VLAN:
     return vlan
 
 
-async def _create_trunk_vlan(
-    db: AsyncSession, ixp: IXP, trunk: Trunk, vlan: VLAN
-) -> TrunkVLAN:
+async def _create_trunk_vlan(db: AsyncSession, ixp: IXP, trunk: Trunk, vlan: VLAN) -> TrunkVLAN:
     tv = TrunkVLAN(
         id=uuid.uuid4(),
         ixp_id=ixp.id,
@@ -190,9 +186,7 @@ class TestTrunkCRUD:
         assert trunk.member_id == member.id
         assert trunk.member.name == member.name
 
-    async def test_create_trunk_with_mac_and_notes(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_create_trunk_with_mac_and_notes(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         data = TrunkCreate(
             member_id=member.id,
@@ -226,9 +220,7 @@ class TestTrunkCRUD:
     async def test_create_trunk_member_from_other_ixp_rejected(
         self, db_session: AsyncSession, ixp: IXP
     ):
-        other_ixp = IXP(
-            name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X"
-        )
+        other_ixp = IXP(name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
 
@@ -256,15 +248,11 @@ class TestTrunkCRUD:
         for i in range(3):
             await _create_trunk(db_session, ixp, member, name=f"Trunk-{i}")
 
-        result = await trunks.list_trunks(
-            db_session, ixp.id, CursorParams(limit=10)
-        )
+        result = await trunks.list_trunks(db_session, ixp.id, CursorParams(limit=10))
 
         assert len(result.items) >= 3
 
-    async def test_list_trunks_filter_by_member(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_list_trunks_filter_by_member(self, db_session: AsyncSession, ixp: IXP):
         member_a = await _create_member(db_session, ixp)
         member_b = await _create_member(db_session, ixp)
         await _create_trunk(db_session, ixp, member_a, name="Trunk-A")
@@ -286,38 +274,26 @@ class TestTrunkCRUD:
         assert result.name == "New Name"
         assert result.notes == "Updated notes"
 
-    async def test_update_decommissioned_trunk_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_update_decommissioned_trunk_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.decommissioned
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.decommissioned)
 
         data = TrunkUpdate(name="Nope")
         with pytest.raises(ValidationError, match="decommissioned"):
             await trunks.update(db_session, ixp.id, trunk.id, data)
 
-    async def test_delete_decommissioned_trunk(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_delete_decommissioned_trunk(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.decommissioned
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.decommissioned)
 
         await trunks.delete(db_session, ixp.id, trunk.id)
 
         with pytest.raises(NotFoundError):
             await trunks.get(db_session, ixp.id, trunk.id)
 
-    async def test_delete_active_trunk_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_delete_active_trunk_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.active
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.active)
 
         with pytest.raises(ValidationError, match="decommissioned"):
             await trunks.delete(db_session, ixp.id, trunk.id)
@@ -329,9 +305,7 @@ class TestTrunkCRUD:
 
 
 class TestTrunkStateMachine:
-    async def test_draft_to_provisioning(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_draft_to_provisioning(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
 
@@ -347,9 +321,7 @@ class TestTrunkStateMachine:
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.provisioning
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.provisioning)
 
         # Add connection
         await _create_connection(db_session, ixp, trunk, switch)
@@ -361,9 +333,7 @@ class TestTrunkStateMachine:
         pool = await _create_pool(db_session, ixp, vlan)
         await _create_ip_assignment(db_session, ixp, pool, tv, "198.51.100.1")
 
-        result = await trunks.transition(
-            db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-        )
+        result = await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
         assert result.state == TrunkState.active
 
@@ -371,29 +341,21 @@ class TestTrunkStateMachine:
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.provisioning
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.provisioning)
 
         with pytest.raises(ValidationError, match="connection"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
     async def test_provisioning_to_active_without_vlan_rejected(
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.provisioning
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.provisioning)
         await _create_connection(db_session, ixp, trunk, switch)
 
         with pytest.raises(ValidationError, match="VLAN"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
     async def test_provisioning_to_active_production_vlan_without_ip_rejected(
         self, db_session: AsyncSession, ixp: IXP
@@ -401,16 +363,12 @@ class TestTrunkStateMachine:
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.provisioning
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.provisioning)
         await _create_connection(db_session, ixp, trunk, switch)
         await _create_trunk_vlan(db_session, ixp, trunk, vlan)
 
         with pytest.raises(ValidationError, match="IP"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
     async def test_provisioning_to_active_quarantine_vlan_no_ip_ok(
         self, db_session: AsyncSession, ixp: IXP
@@ -419,25 +377,17 @@ class TestTrunkStateMachine:
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp, type=VLANType.quarantine)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.provisioning
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.provisioning)
         await _create_connection(db_session, ixp, trunk, switch)
         await _create_trunk_vlan(db_session, ixp, trunk, vlan)
 
-        result = await trunks.transition(
-            db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-        )
+        result = await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
         assert result.state == TrunkState.active
 
-    async def test_provisioning_to_decommissioned(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_provisioning_to_decommissioned(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.provisioning
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.provisioning)
 
         result = await trunks.transition(
             db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id
@@ -447,43 +397,29 @@ class TestTrunkStateMachine:
 
     async def test_active_to_disabled(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.active
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.active)
 
-        result = await trunks.transition(
-            db_session, trunk.id, TrunkState.disabled, ixp_id=ixp.id
-        )
+        result = await trunks.transition(db_session, trunk.id, TrunkState.disabled, ixp_id=ixp.id)
 
         assert result.state == TrunkState.disabled
 
-    async def test_disabled_to_active_with_setup(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_disabled_to_active_with_setup(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
         vlan = await _create_vlan(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
         await _create_connection(db_session, ixp, trunk, switch)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
         pool = await _create_pool(db_session, ixp, vlan)
         await _create_ip_assignment(db_session, ixp, pool, tv, "198.51.100.1")
 
-        result = await trunks.transition(
-            db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-        )
+        result = await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
         assert result.state == TrunkState.active
 
-    async def test_disabled_to_decommissioned_clean(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_disabled_to_decommissioned_clean(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
 
         result = await trunks.transition(
             db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id
@@ -491,37 +427,27 @@ class TestTrunkStateMachine:
 
         assert result.state == TrunkState.decommissioned
 
-    async def test_invalid_transition_draft_to_active(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_invalid_transition_draft_to_active(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
 
         with pytest.raises(ValidationError, match="Cannot transition"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.active, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.active, ixp_id=ixp.id)
 
     async def test_invalid_transition_active_to_provisioning(
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.active
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.active)
 
         with pytest.raises(ValidationError, match="Cannot transition"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.provisioning, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.provisioning, ixp_id=ixp.id)
 
     async def test_decommission_with_bgp_sessions_rejected(
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
 
@@ -542,58 +468,38 @@ class TestTrunkStateMachine:
         await db_session.flush()
 
         with pytest.raises(ValidationError, match="BGP"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id)
 
-    async def test_decommission_with_ips_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_decommission_with_ips_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
         pool = await _create_pool(db_session, ixp, vlan)
         await _create_ip_assignment(db_session, ixp, pool, tv, "198.51.100.1")
 
         with pytest.raises(ValidationError, match="IP"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id)
 
-    async def test_decommission_with_vlans_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_decommission_with_vlans_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
         vlan = await _create_vlan(db_session, ixp)
         await _create_trunk_vlan(db_session, ixp, trunk, vlan)
 
         with pytest.raises(ValidationError, match="VLAN"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id)
 
     async def test_decommission_with_non_decommissioned_connections_rejected(
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
-        await _create_connection(
-            db_session, ixp, trunk, switch, state=ConnectionState.draft
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
+        await _create_connection(db_session, ixp, trunk, switch, state=ConnectionState.draft)
 
         with pytest.raises(ValidationError, match="connections"):
-            await trunks.transition(
-                db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id
-            )
+            await trunks.transition(db_session, trunk.id, TrunkState.decommissioned, ixp_id=ixp.id)
 
 
 # ---------------------------------------------------------------------------
@@ -613,9 +519,7 @@ class TestTrunkVLAN:
         assert tv.vlan_id == vlan.id
         assert tv.vlan.name == vlan.name
 
-    async def test_assign_duplicate_vlan_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_assign_duplicate_vlan_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
@@ -629,9 +533,7 @@ class TestTrunkVLAN:
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.decommissioned
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.decommissioned)
         vlan = await _create_vlan(db_session, ixp)
 
         with pytest.raises(ValidationError, match="decommissioned"):
@@ -641,20 +543,14 @@ class TestTrunkVLAN:
         self, db_session: AsyncSession, ixp: IXP
     ):
         member = await _create_member(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.disabled
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.disabled)
         vlan = await _create_vlan(db_session, ixp)
 
         with pytest.raises(ValidationError, match="disabled"):
             await trunks.assign_vlan(db_session, ixp.id, trunk.id, vlan.id)
 
-    async def test_assign_vlan_from_other_ixp_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
-        other_ixp = IXP(
-            name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X"
-        )
+    async def test_assign_vlan_from_other_ixp_rejected(self, db_session: AsyncSession, ixp: IXP):
+        other_ixp = IXP(name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
 
@@ -665,9 +561,7 @@ class TestTrunkVLAN:
         with pytest.raises(NotFoundError):
             await trunks.assign_vlan(db_session, ixp.id, trunk.id, foreign_vlan.id)
 
-    async def test_assign_private_vlan_authorized(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_assign_private_vlan_authorized(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp, type=VLANType.private)
@@ -707,20 +601,14 @@ class TestTrunkVLAN:
         vlans = await trunks.list_vlans(db_session, ixp.id, trunk.id)
         assert len(vlans) == 0
 
-    async def test_unassign_vlan_not_found(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_unassign_vlan_not_found(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
 
         with pytest.raises(NotFoundError):
-            await trunks.unassign_vlan(
-                db_session, ixp.id, trunk.id, uuid.uuid4()
-            )
+            await trunks.unassign_vlan(db_session, ixp.id, trunk.id, uuid.uuid4())
 
-    async def test_unassign_vlan_wrong_trunk_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_unassign_vlan_wrong_trunk_rejected(self, db_session: AsyncSession, ixp: IXP):
         """Unassigning a TrunkVLAN with wrong trunk_id should fail (ownership check)"""
         member = await _create_member(db_session, ixp)
         trunk_a = await _create_trunk(db_session, ixp, member, name="Trunk-A")
@@ -731,9 +619,7 @@ class TestTrunkVLAN:
         with pytest.raises(NotFoundError):
             await trunks.unassign_vlan(db_session, ixp.id, trunk_b.id, tv.id)
 
-    async def test_unassign_vlan_with_ips_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_unassign_vlan_with_ips_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
@@ -744,9 +630,7 @@ class TestTrunkVLAN:
         with pytest.raises(ConflictError, match="IP"):
             await trunks.unassign_vlan(db_session, ixp.id, trunk.id, tv.id)
 
-    async def test_unassign_vlan_with_bgp_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_unassign_vlan_with_bgp_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
@@ -794,34 +678,24 @@ class TestTrunkVLAN:
 
 
 class TestTrunkIP:
-    async def test_assign_ip_sequential(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_assign_ip_sequential(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
-        pool = await _create_pool(
-            db_session, ixp, vlan, network="203.0.113.0/24"
-        )
+        pool = await _create_pool(db_session, ixp, vlan, network="203.0.113.0/24")
 
-        assignment = await trunks.assign_ip(
-            db_session, ixp.id, tv.id, pool.id
-        )
+        assignment = await trunks.assign_ip(db_session, ixp.id, tv.id, pool.id)
 
         assert assignment.address == "203.0.113.1"
         assert assignment.trunk_vlan_id == tv.id
 
-    async def test_assign_ip_manual(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_assign_ip_manual(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
-        pool = await _create_pool(
-            db_session, ixp, vlan, network="203.0.113.0/24"
-        )
+        pool = await _create_pool(db_session, ixp, vlan, network="203.0.113.0/24")
 
         assignment = await trunks.assign_ip(
             db_session, ixp.id, tv.id, pool.id, address="203.0.113.50"
@@ -829,25 +703,17 @@ class TestTrunkIP:
 
         assert assignment.address == "203.0.113.50"
 
-    async def test_assign_ip_duplicate_rejected(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_assign_ip_duplicate_rejected(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
-        pool = await _create_pool(
-            db_session, ixp, vlan, network="203.0.113.0/24"
-        )
+        pool = await _create_pool(db_session, ixp, vlan, network="203.0.113.0/24")
 
-        await trunks.assign_ip(
-            db_session, ixp.id, tv.id, pool.id, address="203.0.113.50"
-        )
+        await trunks.assign_ip(db_session, ixp.id, tv.id, pool.id, address="203.0.113.50")
 
         with pytest.raises(ConflictError, match="already assigned"):
-            await trunks.assign_ip(
-                db_session, ixp.id, tv.id, pool.id, address="203.0.113.50"
-            )
+            await trunks.assign_ip(db_session, ixp.id, tv.id, pool.id, address="203.0.113.50")
 
     async def test_release_ip(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
@@ -855,26 +721,20 @@ class TestTrunkIP:
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
         pool = await _create_pool(db_session, ixp, vlan)
-        assignment = await _create_ip_assignment(
-            db_session, ixp, pool, tv, "198.51.100.1"
-        )
+        assignment = await _create_ip_assignment(db_session, ixp, pool, tv, "198.51.100.1")
 
         await trunks.release_ip(db_session, ixp.id, assignment.id)
 
         ips = await trunks.list_ips(db_session, ixp.id, tv.id)
         assert len(ips) == 0
 
-    async def test_release_ip_blocked_by_bgp(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_release_ip_blocked_by_bgp(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
         tv = await _create_trunk_vlan(db_session, ixp, trunk, vlan)
         pool = await _create_pool(db_session, ixp, vlan)
-        assignment = await _create_ip_assignment(
-            db_session, ixp, pool, tv, "198.51.100.1"
-        )
+        assignment = await _create_ip_assignment(db_session, ixp, pool, tv, "198.51.100.1")
 
         rs = RouteServer(id=uuid.uuid4(), ixp_id=ixp.id, name="rs-test")
         db_session.add(rs)
@@ -895,9 +755,7 @@ class TestTrunkIP:
         with pytest.raises(ConflictError, match="BGP session"):
             await trunks.release_ip(db_session, ixp.id, assignment.id)
 
-    async def test_release_ip_not_found(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_release_ip_not_found(self, db_session: AsyncSession, ixp: IXP):
         with pytest.raises(NotFoundError):
             await trunks.release_ip(db_session, ixp.id, uuid.uuid4())
 
@@ -932,9 +790,7 @@ class TestTrunkConnection:
             type=ConnectionType.physical,
             speed=10000,
         )
-        conn = await trunks.add_connection(
-            db_session, ixp.id, trunk.id, data
-        )
+        conn = await trunks.add_connection(db_session, ixp.id, trunk.id, data)
 
         assert conn.trunk_id == trunk.id
         assert conn.state == ConnectionState.draft
@@ -946,9 +802,7 @@ class TestTrunkConnection:
     ):
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
-        trunk = await _create_trunk(
-            db_session, ixp, member, state=TrunkState.decommissioned
-        )
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.decommissioned)
 
         data = ConnectionCreate(
             switch_id=switch.id,
@@ -957,13 +811,9 @@ class TestTrunkConnection:
             speed=10000,
         )
         with pytest.raises(ValidationError, match="decommissioned"):
-            await trunks.add_connection(
-                db_session, ixp.id, trunk.id, data
-            )
+            await trunks.add_connection(db_session, ixp.id, trunk.id, data)
 
-    async def test_add_connection_type_consistency(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_add_connection_type_consistency(self, db_session: AsyncSession, ixp: IXP):
         """All connections in a trunk must have the same type"""
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
@@ -971,8 +821,12 @@ class TestTrunkConnection:
 
         # Add a physical connection
         await _create_connection(
-            db_session, ixp, trunk, switch,
-            name="Ethernet1", type=ConnectionType.physical,
+            db_session,
+            ixp,
+            trunk,
+            switch,
+            name="Ethernet1",
+            type=ConnectionType.physical,
         )
 
         # Try to add a virtual connection -> should fail
@@ -983,21 +837,21 @@ class TestTrunkConnection:
             speed=10000,
         )
         with pytest.raises(ValidationError, match="Type mismatch"):
-            await trunks.add_connection(
-                db_session, ixp.id, trunk.id, data
-            )
+            await trunks.add_connection(db_session, ixp.id, trunk.id, data)
 
-    async def test_add_connection_same_type_ok(
-        self, db_session: AsyncSession, ixp: IXP
-    ):
+    async def test_add_connection_same_type_ok(self, db_session: AsyncSession, ixp: IXP):
         """Adding a connection with the same type should succeed"""
         member = await _create_member(db_session, ixp)
         switch = await _create_switch(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
 
         await _create_connection(
-            db_session, ixp, trunk, switch,
-            name="Ethernet1", type=ConnectionType.physical,
+            db_session,
+            ixp,
+            trunk,
+            switch,
+            name="Ethernet1",
+            type=ConnectionType.physical,
         )
 
         data = ConnectionCreate(
@@ -1006,18 +860,14 @@ class TestTrunkConnection:
             type=ConnectionType.physical,
             speed=10000,
         )
-        conn = await trunks.add_connection(
-            db_session, ixp.id, trunk.id, data
-        )
+        conn = await trunks.add_connection(db_session, ixp.id, trunk.id, data)
 
         assert conn.type == ConnectionType.physical
 
     async def test_add_connection_switch_from_other_ixp_rejected(
         self, db_session: AsyncSession, ixp: IXP
     ):
-        other_ixp = IXP(
-            name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X"
-        )
+        other_ixp = IXP(name="Other IXP", short_name="OIXP", asn=65999, country="CL", city="X")
         db_session.add(other_ixp)
         await db_session.flush()
 
@@ -1032,6 +882,4 @@ class TestTrunkConnection:
             speed=10000,
         )
         with pytest.raises(NotFoundError):
-            await trunks.add_connection(
-                db_session, ixp.id, trunk.id, data
-            )
+            await trunks.add_connection(db_session, ixp.id, trunk.id, data)

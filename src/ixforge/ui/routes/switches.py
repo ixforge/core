@@ -32,11 +32,15 @@ async def switch_list(request: Request) -> Response:
     is_htmx = request.headers.get("hx-request") == "true"
     template = "switches/list_rows.html" if is_htmx else "switches/list.html"
 
-    return render(request, template, {
-        "switches": items,
-        "filter_is_active": is_active,
-        "page_title": "Switches",
-    })
+    return render(
+        request,
+        template,
+        {
+            "switches": items,
+            "filter_is_active": is_active,
+            "page_title": "Switches",
+        },
+    )
 
 
 @require_auth
@@ -47,7 +51,9 @@ async def switch_detail(request: Request) -> Response:
 
     try:
         switch = await api.get(f"/api/v1/switches/{switch_id}", token)
-        connections_data = await api.get("/api/v1/connections", token, params={"switch_id": switch_id, "limit": 200})
+        connections_data = await api.get(
+            "/api/v1/connections", token, params={"switch_id": switch_id, "limit": 200}
+        )
     except APIError as e:
         if e.status_code == 404:
             add_flash(request, "Switch no encontrado", "error")
@@ -69,11 +75,15 @@ async def switch_detail(request: Request) -> Response:
         c["member_name"] = trunk.get("member_name", "")
         c["member_id"] = trunk.get("member_id", "")
 
-    return render(request, "switches/detail.html", {
-        "switch": switch,
-        "connections": conn_items,
-        "page_title": switch.get("name", "Switch"),
-    })
+    return render(
+        request,
+        "switches/detail.html",
+        {
+            "switch": switch,
+            "connections": conn_items,
+            "page_title": switch.get("name", "Switch"),
+        },
+    )
 
 
 @require_auth
@@ -84,12 +94,16 @@ async def switch_new(request: Request) -> Response:
     locations = locations_data.get("items", [])
 
     if request.method == "GET":
-        return render(request, "switches/form.html", {
-            "switch": None,
-            "locations": locations,
-            "errors": {},
-            "page_title": "Nuevo Switch",
-        })
+        return render(
+            request,
+            "switches/form.html",
+            {
+                "switch": None,
+                "locations": locations,
+                "errors": {},
+                "page_title": "Nuevo Switch",
+            },
+        )
 
     form = await request.form()
 
@@ -108,12 +122,16 @@ async def switch_new(request: Request) -> Response:
         switch = await api.post("/api/v1/switches", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "switches/form.html", {
-                "switch": payload,
-                "locations": locations,
-                "errors": e.detail,
-                "page_title": "Nuevo Switch",
-            })
+            return render(
+                request,
+                "switches/form.html",
+                {
+                    "switch": payload,
+                    "locations": locations,
+                    "errors": e.detail,
+                    "page_title": "Nuevo Switch",
+                },
+            )
         raise
 
     add_flash(request, f"Switch '{switch['name']}' creado", "success")
@@ -130,12 +148,16 @@ async def switch_edit(request: Request) -> Response:
 
     if request.method == "GET":
         switch = await api.get(f"/api/v1/switches/{switch_id}", token)
-        return render(request, "switches/form.html", {
-            "switch": switch,
-            "locations": locations,
-            "errors": {},
-            "page_title": f"Editar {switch.get('name', 'Switch')}",
-        })
+        return render(
+            request,
+            "switches/form.html",
+            {
+                "switch": switch,
+                "locations": locations,
+                "errors": {},
+                "page_title": f"Editar {switch.get('name', 'Switch')}",
+            },
+        )
 
     form = await request.form()
     payload: dict[str, Any] = {}
@@ -151,12 +173,16 @@ async def switch_edit(request: Request) -> Response:
         switch = await api.patch(f"/api/v1/switches/{switch_id}", token, json=payload)
     except APIError as e:
         if e.status_code in (400, 409, 422):
-            return render(request, "switches/form.html", {
-                "switch": {**payload, "id": switch_id},
-                "locations": locations,
-                "errors": e.detail,
-                "page_title": "Editar Switch",
-            })
+            return render(
+                request,
+                "switches/form.html",
+                {
+                    "switch": {**payload, "id": switch_id},
+                    "locations": locations,
+                    "errors": e.detail,
+                    "page_title": "Editar Switch",
+                },
+            )
         raise
 
     add_flash(request, "Switch actualizado", "success")
