@@ -85,7 +85,6 @@ def test_updated_by_id_foreign_key():
     assert fk.target_fullname == "users.id"
 
 
-@pytest.mark.anyio
 async def test_create_route_server_template(db_session, ixp):
     template = RouteServerTemplate(
         ixp_id=ixp.id,
@@ -107,7 +106,6 @@ async def test_create_route_server_template(db_session, ixp):
     assert saved.ixp_id == ixp.id
 
 
-@pytest.mark.anyio
 async def test_unique_filename_per_ixp(db_session, ixp):
     t1 = RouteServerTemplate(
         ixp_id=ixp.id,
@@ -197,7 +195,6 @@ async def _seed_template(db, ixp, filename="test.j2", **kw):
 
 
 class TestRSTemplateService:
-    @pytest.mark.anyio
     async def test_create_template(self, db_session, ixp):
         data = RSTemplateCreate(filename="new.j2", content="{% block x %}{% endblock %}")
         tpl = await tpl_svc.create(db_session, ixp.id, data)
@@ -205,14 +202,12 @@ class TestRSTemplateService:
         assert tpl.content == "{% block x %}{% endblock %}"
         assert tpl.ixp_id == ixp.id
 
-    @pytest.mark.anyio
     async def test_create_duplicate_filename_raises(self, db_session, ixp):
         data = RSTemplateCreate(filename="dup.j2", content="a")
         await tpl_svc.create(db_session, ixp.id, data)
         with pytest.raises(ConflictError):
             await tpl_svc.create(db_session, ixp.id, data)
 
-    @pytest.mark.anyio
     async def test_list_templates_ordered_by_filename(self, db_session, ixp):
         await _seed_template(db_session, ixp, filename="zebra.j2")
         await _seed_template(db_session, ixp, filename="alpha.j2")
@@ -220,47 +215,40 @@ class TestRSTemplateService:
         filenames = [t.filename for t in result]
         assert filenames == ["alpha.j2", "zebra.j2"]
 
-    @pytest.mark.anyio
     async def test_get_template(self, db_session, ixp):
         tpl = await _seed_template(db_session, ixp)
         fetched = await tpl_svc.get(db_session, ixp.id, tpl.id)
         assert fetched.id == tpl.id
 
-    @pytest.mark.anyio
     async def test_get_nonexistent_raises(self, db_session, ixp):
         import uuid
 
         with pytest.raises(NotFoundError):
             await tpl_svc.get(db_session, ixp.id, uuid.uuid4())
 
-    @pytest.mark.anyio
     async def test_update_template(self, db_session, ixp):
         tpl = await _seed_template(db_session, ixp)
         data = RSTemplateUpdate(content="updated content")
         updated = await tpl_svc.update(db_session, ixp.id, tpl.id, data)
         assert updated.content == "updated content"
 
-    @pytest.mark.anyio
     async def test_update_tracks_user_id(self, db_session, ixp, admin_user):
         tpl = await _seed_template(db_session, ixp)
         data = RSTemplateUpdate(description="edited")
         updated = await tpl_svc.update(db_session, ixp.id, tpl.id, data, user_id=admin_user.id)
         assert updated.updated_by_id == admin_user.id
 
-    @pytest.mark.anyio
     async def test_delete_template(self, db_session, ixp):
         tpl = await _seed_template(db_session, ixp)
         await tpl_svc.delete(db_session, ixp.id, tpl.id)
         with pytest.raises(NotFoundError):
             await tpl_svc.get(db_session, ixp.id, tpl.id)
 
-    @pytest.mark.anyio
     async def test_delete_protected_raises(self, db_session, ixp):
         tpl = await _seed_template(db_session, ixp, is_protected=True)
         with pytest.raises(ConflictError, match="protected"):
             await tpl_svc.delete(db_session, ixp.id, tpl.id)
 
-    @pytest.mark.anyio
     async def test_delete_referenced_raises(self, db_session, ixp):
         await _seed_template(db_session, ixp, filename="base.j2", content="base")
         await _seed_template(
@@ -271,7 +259,6 @@ class TestRSTemplateService:
         with pytest.raises(ConflictError, match="referenced"):
             await tpl_svc.delete(db_session, ixp.id, base.id)
 
-    @pytest.mark.anyio
     async def test_delete_from_import_detected(self, db_session, ixp):
         await _seed_template(db_session, ixp, filename="macros.j2", content="{% macro foo() %}{% endmacro %}")
         await _seed_template(
@@ -292,7 +279,6 @@ class TestRSTemplateService:
         assert result.valid is False
         assert len(result.errors) == 1
 
-    @pytest.mark.anyio
     async def test_get_all_templates_dict(self, db_session, ixp):
         await _seed_template(db_session, ixp, filename="a.j2", content="aaa")
         await _seed_template(db_session, ixp, filename="b.j2", content="bbb")
