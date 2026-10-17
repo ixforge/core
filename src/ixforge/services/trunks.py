@@ -464,6 +464,9 @@ async def add_connection(
     if switch is None or switch.ixp_id != ixp_id:
         raise NotFoundError("Switch", str(data.switch_id))
 
+    if data.extra_data is not None:
+        await custom_fields.validate_extra_data(session, ixp_id, "connection", data.extra_data)
+
     # Check type consistency
     existing_type_result = await session.execute(
         select(Connection.type).where(Connection.trunk_id == trunk_id).limit(1)

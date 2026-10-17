@@ -387,8 +387,7 @@ Member, Trunk, Connection, Switch y VLAN tienen una columna JSONB `extra_data`
 (`ExtraDataMixin`). Las definiciones (`CustomFieldDefinition`) fijan por tipo de
 entidad qué claves se esperan y de qué tipo (`string`, `integer`, `boolean`,
 `url`, `email`), y los servicios validan `extra_data` contra ellas al crear y al
-actualizar. En conexiones solo se valida al actualizar:
-`POST /trunks/{id}/connections` no las valida.
+actualizar.
 
 ### Secretos derivados de `IXFORGE_SECRET_KEY`
 

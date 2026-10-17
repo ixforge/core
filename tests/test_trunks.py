@@ -839,6 +839,34 @@ class TestTrunkConnection:
         assert conn.name == "Ethernet1"
         assert conn.type == ConnectionType.physical
 
+    async def test_add_connection_validates_custom_fields(
+        self, db_session: AsyncSession, ixp: IXP
+    ):
+        from ixforge.enums import CustomFieldEntityType, CustomFieldType
+        from ixforge.models.custom_field import CustomFieldDefinition
+
+        db_session.add(
+            CustomFieldDefinition(
+                ixp_id=ixp.id,
+                entity_type=CustomFieldEntityType.connection,
+                field_name="circuit_id",
+                field_type=CustomFieldType.integer,
+            )
+        )
+        member = await _create_member(db_session, ixp)
+        switch = await _create_switch(db_session, ixp)
+        trunk = await _create_trunk(db_session, ixp, member)
+        data = ConnectionCreate(
+            switch_id=switch.id,
+            name="Ethernet1",
+            type=ConnectionType.physical,
+            speed=10000,
+            extra_data={"circuit_id": "not-a-number"},
+        )
+
+        with pytest.raises(ValidationError):
+            await trunks.add_connection(db_session, ixp.id, trunk.id, data)
+
     async def test_add_connection_to_decommissioned_trunk_rejected(
         self, db_session: AsyncSession, ixp: IXP
     ):
