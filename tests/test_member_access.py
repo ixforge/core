@@ -162,6 +162,37 @@ class TestMemberConnectionAccess:
         assert resp.status_code == 200
         assert resp.json()["id"] == str(conn.id)
 
+    async def test_member_list_excludes_other_members_connections(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        member = await _create_member(db_session, ixp)
+        other = await _create_member(db_session, ixp, asn=64500)
+        _user, headers = await _create_member_user(db_session, member_id=member.id)
+        own = await _create_connection(db_session, ixp, member)
+        await _create_connection(db_session, ixp, other)
+
+        resp = await client.get("/api/v1/connections", headers=headers)
+
+        assert resp.status_code == 200
+        assert [item["id"] for item in resp.json()["items"]] == [str(own.id)]
+
+    async def test_member_without_member_id_cannot_list_connections(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        other = await _create_member(db_session, ixp)
+        await _create_connection(db_session, ixp, other)
+        _user, headers = await _create_member_user(db_session, member_id=None)
+
+        resp = await client.get("/api/v1/connections", headers=headers)
+
+        assert resp.status_code == 403
+
 
 class TestMemberBGPSessionAccess:
     async def test_member_can_list_own_bgp_sessions(

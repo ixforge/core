@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 
 from ixforge.api.deps import AdminUser, CurrentUser, DBSession, IXPId
-from ixforge.exceptions import NotFoundError
+from ixforge.exceptions import ForbiddenError, NotFoundError
 from ixforge.models.connection import Connection
 from ixforge.models.user import UserRole
 from ixforge.schemas.common import CursorPage, CursorParams
@@ -41,6 +41,8 @@ async def list_connections(
     # Member users: filter connections to only those belonging to their trunks
     member_id = None
     if user.role == UserRole.member:
+        if user.member_id is None:
+            raise ForbiddenError("Member user without assigned member cannot access connections")
         member_id = user.member_id
     return await conn_svc.list_connections(
         db, ixp_id, params, switch_id=switch_id, member_id=member_id
