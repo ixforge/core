@@ -19,7 +19,7 @@ endpoints están en [api.md](api.md); los templates BIRD, en
 - **Portal admin y de miembros**: Starlette + Jinja2 + Tailwind + HTMX, renderizado
   en servidor, consume la API REST
 - **Métricas**: prometheus-client en `/metrics`; tráfico e ICMP se leen de VictoriaMetrics
-- **Rate limiting**: slowapi, por IP
+- **Rate limiting**: slowapi, por IP de la conexión (ver [api.md](api.md#rate-limiting))
 - **Logging**: structlog (JSON en producción, consola con `IXFORGE_DEBUG=true`)
 
 ## Ecosistema y contratos

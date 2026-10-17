@@ -110,9 +110,13 @@ Dos respuestas no usan este formato: una ruta o método inexistente devuelve el
 
 ## Rate limiting
 
-Por IP de origen. El límite general es `IXFORGE_RATE_LIMIT_PER_MINUTE` por
+Por IP de la conexión. El límite general es `IXFORGE_RATE_LIMIT_PER_MINUTE` por
 minuto (60 por defecto). `POST /auth/login` tiene 10 por minuto y `/metrics`, 60
 por minuto.
+
+Detrás de un proxy, uvicorn toma la IP real de `X-Forwarded-For` solo si el
+proxy está en `FORWARDED_ALLOW_IPS` (por defecto `127.0.0.1`). Sin eso, todos los
+clientes comparten la IP del proxy y el mismo límite.
 
 ## Convenciones
 
