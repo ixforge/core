@@ -152,6 +152,46 @@ class TestBGPSessionEndpoints:
         assert len(items) >= 1
         assert items[0]["peer_asn"] == 64600
 
+    async def test_list_bgp_sessions_follows_cursor_to_second_page(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        db_session: AsyncSession,
+        ixp: IXP,
+    ):
+        rs, first = await _setup_bgp_session(db_session, ixp)
+        await _add_ip_assignment(
+            db_session,
+            ixp,
+            await db_session.get(TrunkVLAN, first.trunk_vlan_id),
+            address="2001:db8::10",
+            af=6,
+        )
+        second = BGPSession(
+            id=uuid.uuid4(),
+            ixp_id=ixp.id,
+            route_server_id=rs.id,
+            trunk_vlan_id=first.trunk_vlan_id,
+            admin_state=BGPAdminState.up,
+            oper_state=BGPOperState.up,
+            af=6,
+            max_prefixes=100,
+        )
+        db_session.add(second)
+        await db_session.flush()
+        params = {"route_server_id": str(rs.id), "limit": 1}
+
+        page1 = await client.get("/api/v1/bgp-sessions", headers=auth_headers, params=params)
+        page2 = await client.get(
+            "/api/v1/bgp-sessions",
+            headers=auth_headers,
+            params={**params, "cursor": page1.json()["next_cursor"]},
+        )
+
+        assert page2.status_code == 200, page2.text
+        ids = [item["id"] for page in (page1, page2) for item in page.json()["items"]]
+        assert sorted(ids) == sorted([str(first.id), str(second.id)])
+
     async def test_get_bgp_session(
         self,
         client: AsyncClient,

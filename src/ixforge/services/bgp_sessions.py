@@ -3,7 +3,7 @@
 import uuid
 from typing import Any, cast
 
-from sqlalchemy import Select, asc, literal, nulls_last, select, tuple_
+from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +15,8 @@ from ixforge.models.member import Member
 from ixforge.models.route_server import RouteServer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.schemas.bgp_session import BGPSessionCreate, BGPSessionRead
-from ixforge.schemas.common import CursorPage, CursorParams, decode_cursor, encode_cursor
+from ixforge.schemas.common import CursorPage, CursorParams, encode_cursor
+from ixforge.services.base import order_after_cursor
 
 _VALID_ADMIN_VALUES = {s.value for s in BGPAdminState}
 
@@ -86,15 +87,7 @@ async def _paginate_with_peers(
     sort_column = BGPSession.created_at
     id_column = BGPSession.id
 
-    stmt = stmt.order_by(nulls_last(asc(sort_column)), asc(id_column))
-
-    if params.cursor is not None:
-        cursor_value, cursor_id = decode_cursor(params.cursor)
-        stmt = stmt.where(
-            tuple_(sort_column, id_column) > tuple_(literal(cursor_value), literal(cursor_id))
-        )
-
-    stmt = stmt.limit(params.limit + 1)
+    stmt = order_after_cursor(stmt, params, sort_column, id_column).limit(params.limit + 1)
 
     result = await session.execute(stmt)
     rows = list(result.scalars().all())
