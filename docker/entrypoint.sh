@@ -6,9 +6,10 @@
 # porque solo chequea que la conexion abra, y el Core responde 500 en cada
 # request con relation "ixps" does not exist.
 #
-# Los tres servicios (core, worker, ui) arrancan a la vez y todos pasan por
-# aca. La concurrencia la resuelve el pg_advisory_xact_lock de alembic/env.py:
-# el primero migra y los otros esperan y no encuentran nada que aplicar.
+# Los tres servicios (core, worker, ui) arrancan a la vez y pasan por aca, y
+# core y worker migran. La concurrencia la resuelve el pg_advisory_lock de
+# alembic/env.py: el primero migra y el otro espera y no encuentra nada que
+# aplicar.
 #
 # IXFORGE_AUTO_MIGRATE=false lo desactiva, para quien prefiera controlar
 # cuando se migra.
