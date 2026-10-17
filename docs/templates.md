@@ -402,15 +402,13 @@ templates condicionan esas formas a `route_server.asn <= 65535`:
   ASN del IXP
 - La community de tipo de miembro va en forma large, `(rsasn, 1002, valor)`
 - La community de tipo de los peers que no son miembros no se emite
+- Con RPKI encendido no se emiten las etiquetas de válido `(rsasn, 65012)` ni de
+  desconocido `(rsasn, 65023)`; la ruta inválida se sigue marcando con
+  `IXP_LC_FILTERED_RPKI_INVALID` y se descarta igual
 - El export borra todas las large `(rsasn, *, *)`, así que el miembro no recibe
   la de tipo: en estos IXPs no hay bloque público
 
 Hay que documentárselo a los miembros.
-
-Las etiquetas RPKI `(rsasn, 65012)` y `(rsasn, 65023)` no tienen ese
-condicionamiento ni forma large. Con un ASN de 4 bytes y `rpki_enabled`, BIRD
-rechaza el config generado con `Can't operate with value out of bounds in pair
-constructor`.
 
 ## Validar cambios
 

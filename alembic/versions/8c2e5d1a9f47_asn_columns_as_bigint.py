@@ -11,8 +11,9 @@ mirror full upstream tables
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "8c2e5d1a9f47"
 down_revision: str | None = "f3c81a4d267e"

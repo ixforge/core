@@ -1681,6 +1681,35 @@ async def test_full_config_with_rpki_and_upstream_parses(db_session, ixp):
     assert_bird_parses(cv.content)
 
 
+@requires_bird
+async def test_rpki_config_parses_when_the_ixp_asn_needs_four_bytes(db_session, ixp):
+    from ixforge.enums import RouteServerPeerType
+    from ixforge.services.config_generation import generate_config
+
+    ixp.asn = 4200000000
+    rs = await _setup_route_server(db_session, ixp)
+    rs.rpki_enabled = True
+    db_session.add_all(
+        [
+            RPKIServer(ixp_id=ixp.id, name="routinator", host="10.0.0.1"),
+            RouteServerPeer(
+                ixp_id=ixp.id,
+                route_server_id=rs.id,
+                name="Upstream v4",
+                peer_ip="192.0.2.5",
+                peer_asn=64166,
+                peer_type=RouteServerPeerType.upstream,
+            ),
+        ]
+    )
+    await _setup_member_peer(db_session, ixp, rs, asn=273973, ipv4="192.0.2.11")
+    await db_session.flush()
+    cv = await generate_config(db_session, rs.id, ixp.id)
+
+    assert_bird_parses(cv.content)
+    assert "bgp_large_community.add( IXP_LC_FILTERED_RPKI_INVALID );" in cv.content
+
+
 # ---------------------------------------------------------------------------
 # Golden file
 # ---------------------------------------------------------------------------

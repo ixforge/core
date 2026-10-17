@@ -437,7 +437,7 @@ int set allas;
         accept;
     }
 
-{% if route_server.rpki_enabled %}
+{% if route_server.rpki_enabled and route_server.asn <= 65535 %}
     # solo se etiquetan los dos estados que el miembro puede llegar a ver: una
     # ruta invalida se descarta, asi que no hay a quien informarle
     if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_VALID ) then {
@@ -448,6 +448,12 @@ int set allas;
         } else {
             bgp_community.add( (routeserverasn, {{ rpki_communities['unknown'] }}) );
         }
+    }
+{% elif route_server.rpki_enabled %}
+    # el ASN del IXP no entra en una community estandar, asi que no hay
+    # etiqueta de valido ni de desconocido: solo se marca la ruta invalida
+    if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_INVALID ) then {
+        bgp_large_community.add( IXP_LC_FILTERED_RPKI_INVALID );
     }
 {% endif %}
 
@@ -561,7 +567,7 @@ protocol bgp pb_{{ peer.slug }} {
 {% if peer.mark_community %}
             bgp_community.add( ({{ peer.mark_community | bird_community }}) );
 {% endif %}
-{% if route_server.rpki_enabled %}
+{% if route_server.rpki_enabled and route_server.asn <= 65535 %}
             if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_VALID ) then {
                 bgp_community.add( (routeserverasn, {{ rpki_communities['valid'] }}) );
             } else {
@@ -570,6 +576,10 @@ protocol bgp pb_{{ peer.slug }} {
                 } else {
                     bgp_community.add( (routeserverasn, {{ rpki_communities['unknown'] }}) );
                 }
+            }
+{% elif route_server.rpki_enabled %}
+            if ( roa_check(roa_v{{ af }}, net, bgp_path.last) = ROA_INVALID ) then {
+                bgp_large_community.add( IXP_LC_FILTERED_RPKI_INVALID );
             }
 {% endif %}
             accept;
