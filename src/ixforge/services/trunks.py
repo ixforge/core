@@ -10,7 +10,7 @@ from ixforge.enums import ConnectionState, MemberState, TrunkState, VLANType
 from ixforge.exceptions import ConflictError, NotFoundError, ValidationError
 from ixforge.models.bgp_session import BGPSession
 from ixforge.models.connection import Connection
-from ixforge.models.ip import IPAssignment, IPPool
+from ixforge.models.ip import IPAssignment
 from ixforge.models.member import Member
 from ixforge.models.trunk import Trunk, TrunkVLAN
 from ixforge.models.vlan import VLAN
@@ -414,33 +414,10 @@ async def release_ip(
     ixp_id: uuid.UUID,
     assignment_id: uuid.UUID,
 ) -> None:
-    """Release an IP assignment.
+    """Release an IP assignment unless a BGP session of its family still uses it"""
+    from ixforge.services import ipam
 
-    Blocks release if a BGP session uses this IP.
-    """
-    assignment = await session.get(IPAssignment, assignment_id)
-    if assignment is None or assignment.ixp_id != ixp_id:
-        raise NotFoundError("IPAssignment", str(assignment_id))
-
-    ip_pool = await session.get(IPPool, assignment.pool_id)
-    if ip_pool is None:
-        raise NotFoundError("IPPool", str(assignment.pool_id))
-    has_bgp = await session.scalar(
-        select(BGPSession.id)
-        .where(
-            BGPSession.trunk_vlan_id == assignment.trunk_vlan_id,
-            BGPSession.af == ip_pool.af,
-        )
-        .limit(1)
-    )
-    if has_bgp is not None:
-        raise ConflictError(
-            f"Cannot release IP {assignment.address}: has an active BGP session. "
-            "Delete the BGP session first."
-        )
-
-    await session.delete(assignment)
-    await session.flush()
+    await ipam.release(session, assignment_id, ixp_id)
 
 
 async def list_ips(

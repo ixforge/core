@@ -30,7 +30,7 @@ from ixforge.models.vlan_member import VLANMember
 from ixforge.schemas.common import CursorParams
 from ixforge.schemas.connection import ConnectionCreate
 from ixforge.schemas.trunk import TrunkCreate, TrunkUpdate
-from ixforge.services import trunks
+from ixforge.services import ipam, trunks
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -762,7 +762,15 @@ class TestTrunkIP:
         ips = await trunks.list_ips(db_session, ixp.id, tv.id)
         assert len(ips) == 0
 
-    async def test_release_ip_blocked_by_bgp(self, db_session: AsyncSession, ixp: IXP):
+    @pytest.mark.parametrize(
+        "release",
+        [
+            lambda db, ixp_id, assignment_id: trunks.release_ip(db, ixp_id, assignment_id),
+            lambda db, ixp_id, assignment_id: ipam.release(db, assignment_id, ixp_id),
+        ],
+        ids=["trunk_route", "ip_assignment_route"],
+    )
+    async def test_release_ip_blocked_by_bgp(self, db_session: AsyncSession, ixp: IXP, release):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)
         vlan = await _create_vlan(db_session, ixp)
@@ -787,7 +795,7 @@ class TestTrunkIP:
         await db_session.flush()
 
         with pytest.raises(ConflictError, match="BGP session"):
-            await trunks.release_ip(db_session, ixp.id, assignment.id)
+            await release(db_session, ixp.id, assignment.id)
 
     async def test_release_ip_not_found(self, db_session: AsyncSession, ixp: IXP):
         with pytest.raises(NotFoundError):
