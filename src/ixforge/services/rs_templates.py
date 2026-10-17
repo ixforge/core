@@ -5,7 +5,7 @@ import uuid
 from typing import Any
 
 import structlog
-from jinja2 import TemplateSyntaxError, nodes
+from jinja2 import TemplateError, TemplateSyntaxError, nodes
 from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -162,15 +162,17 @@ async def render_preview(
     template_id: uuid.UUID,
     route_server_id: uuid.UUID,
 ) -> dict[str, Any]:
-    """Render a config preview using the entry-point template with real RS data.
-    Always renders from bird_v4/v6 (not partials).
-    Uses asyncio.to_thread + wait_for for timeout on sync Jinja2 render."""
+    """Render the full config of a route server as generation would, without storing it
+
+    The render runs in a thread with a timeout because templates are user-editable
+    """
+    from datetime import UTC, datetime
+
     from ixforge.models.ixp import IXP
     from ixforge.models.route_server import RouteServer
-    from ixforge.services.config_generation import build_peers, build_rs_context
-    from ixforge.services.template_env import build_template_env
+    from ixforge.services.config_generation import prepare_config_render
 
-    tpl = await get(session, ixp_id, template_id)
+    await get(session, ixp_id, template_id)
     rs = await session.get(RouteServer, route_server_id)
     if rs is None or rs.ixp_id != ixp_id:
         raise NotFoundError("RouteServer", str(route_server_id))
@@ -178,25 +180,12 @@ async def render_preview(
     if ixp is None:
         raise NotFoundError("IXP", str(ixp_id))
 
-    entry_point = tpl.filename
-    if tpl.filename not in ("bird_v4.conf.j2", "bird_v6.conf.j2"):
-        entry_point = "bird_v4.conf.j2" if rs.ip_v4 else "bird_v6.conf.j2"
-
-    af = 4 if "v4" in entry_point else 6
-    rs_context = await build_rs_context(session, rs, ixp.asn)
-    peers = await build_peers(session, rs.id, af=af)
-
-    env = await build_template_env(session, ixp_id)
-
-    from datetime import UTC, datetime
-
-    template = env.get_template(entry_point)
-    context = {
-        "route_server": rs_context,
-        "peers": peers,
-        "generated_at": datetime.now(UTC).isoformat(),
-        "config_hash": "",
-    }
+    try:
+        template, context = await prepare_config_render(
+            session, rs, ixp, datetime.now(UTC).isoformat()
+        )
+    except TemplateError as exc:
+        return {"output": "", "errors": [str(exc)]}
 
     try:
         output = await asyncio.wait_for(

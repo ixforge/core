@@ -2217,3 +2217,55 @@ class TestMiembroSinSesionBGP:
         assert sin_encabezado(despues.content) == sin_encabezado(antes.content), (
             "crear el miembro cambio la config de BIRD, que es justo lo que no puede pasar"
         )
+
+
+class TestTemplatePreview:
+    async def test_preview_renders_the_config_that_generation_stores(
+        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP
+    ):
+        from ixforge.models.rs_template import RouteServerTemplate
+
+        rs = await _setup_route_server(db_session, ixp)
+        await _setup_active_peer(db_session, ixp, rs)
+        entry = await db_session.scalar(
+            select(RouteServerTemplate).where(
+                RouteServerTemplate.ixp_id == ixp.id,
+                RouteServerTemplate.filename == "bird.conf.j2",
+            )
+        )
+
+        resp = await client.post(
+            f"/api/v1/rs-templates/{entry.id}/preview",
+            headers=auth_headers,
+            json={"route_server_id": str(rs.id)},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["errors"] is None
+        stored = await generar(db_session, rs.id, ixp.id)
+        assert _normalize(resp.json()["output"]) == _normalize(stored.content)
+
+    async def test_preview_reports_template_errors_instead_of_failing(
+        self, client: AsyncClient, auth_headers: dict, db_session: AsyncSession, ixp: IXP
+    ):
+        from ixforge.models.rs_template import RouteServerTemplate
+
+        rs = await _setup_route_server(db_session, ixp)
+        entry = await db_session.scalar(
+            select(RouteServerTemplate).where(
+                RouteServerTemplate.ixp_id == ixp.id,
+                RouteServerTemplate.filename == "bird.conf.j2",
+            )
+        )
+        entry.content = "{% if %}"
+        await db_session.flush()
+
+        resp = await client.post(
+            f"/api/v1/rs-templates/{entry.id}/preview",
+            headers=auth_headers,
+            json={"route_server_id": str(rs.id)},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["output"] == ""
+        assert resp.json()["errors"]

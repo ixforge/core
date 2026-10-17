@@ -420,17 +420,11 @@ config. El set por defecto se instala en el setup del IXP. Detalle en
 | GET | `/rs-templates/{id}` | Admin | Obtener template |
 | PATCH | `/rs-templates/{id}` | Admin | Modificar `content` y/o `description`; `filename` no se cambia |
 | DELETE | `/rs-templates/{id}` | Admin | Borrar template. `409` si está protegido o lo referencia otro template con `include` o `import` |
-| POST | `/rs-templates/{id}/preview` | Admin | Preview contra un route server (`{"route_server_id"}`) |
+| POST | `/rs-templates/{id}/preview` | Admin | Renderiza el config completo de un route server (`{"route_server_id"}`) con los templates actuales, sin guardar una versión. Un error de template vuelve en `errors` con `200` |
 
 Solo `bird.conf.j2` está protegido. Editar un template no regenera los configs:
 hay que generarlos con `POST /route-servers/{id}/config/generate` o desde el
 portal.
-
-**Preview:** la implementación todavía renderiza `bird_v4.conf.j2` o
-`bird_v6.conf.j2` como punto de entrada (`services/rs_templates.py`). Esos
-templates ya no existen en el set actual, así que con los templates por defecto
-el preview responde `500`. Para ver el resultado real, generar una versión con
-`POST /route-servers/{id}/config/generate`.
 
 ### Sesiones BGP
 

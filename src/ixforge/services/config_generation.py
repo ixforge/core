@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from jinja2 import Template
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -434,6 +435,39 @@ async def build_rs_context(
     )
 
 
+async def prepare_config_render(
+    session: AsyncSession, rs: RouteServer, ixp: IXP, generated_at: str
+) -> tuple[Template, dict[str, Any]]:
+    """Return the bird.conf.j2 entry point and the context it renders with"""
+    rs_context = await build_rs_context(session, rs, ixp.asn)
+    env = await build_template_env(session, ixp.id)
+
+    # Un solo render con las dos familias adentro. Coordinar dos renders con una
+    # variable include_globals que los templates tienen que respetar por
+    # convencion es la misma clase de bug que produjo el protocol device
+    # duplicado en produccion
+    v4_peers, v6_peers, v4_rs_peers, v6_rs_peers = _deduplicate_slugs(
+        [
+            await build_peers(session, rs.id, af=4),
+            await build_peers(session, rs.id, af=6),
+            await build_rs_peers(session, rs.id, af=4),
+            await build_rs_peers(session, rs.id, af=6),
+        ]
+    )
+
+    context = {
+        "route_server": rs_context,
+        "peers_v4": v4_peers,
+        "peers_v6": v6_peers,
+        "rs_peers_v4": v4_rs_peers,
+        "rs_peers_v6": v6_rs_peers,
+        "generated_at": generated_at,
+        "rpki_communities": RPKI_COMMUNITIES,
+        "config_hash": "",
+    }
+    return env.get_template("bird.conf.j2"), context
+
+
 async def generate_config(
     session: AsyncSession,
     route_server_id: uuid.UUID,
@@ -453,36 +487,9 @@ async def generate_config(
     if ixp is None:
         raise NotFoundError("IXP", str(ixp_id))
 
-    rs_context = await build_rs_context(session, rs, ixp.asn)
     generated_at = datetime.now(UTC)
-    generated_at_str = generated_at.isoformat()
-
-    env = await build_template_env(session, ixp_id)
-
-    # Un solo render con las dos familias adentro. Coordinar dos renders con una
-    # variable include_globals que los templates tienen que respetar por
-    # convencion es la misma clase de bug que produjo el protocol device
-    # duplicado en produccion
-    v4_peers, v6_peers, v4_rs_peers, v6_rs_peers = _deduplicate_slugs(
-        [
-            await build_peers(session, route_server_id, af=4),
-            await build_peers(session, route_server_id, af=6),
-            await build_rs_peers(session, route_server_id, af=4),
-            await build_rs_peers(session, route_server_id, af=6),
-        ]
-    )
-
-    template = env.get_template("bird.conf.j2")
-    combined = template.render(
-        route_server=rs_context,
-        peers_v4=v4_peers,
-        peers_v6=v6_peers,
-        rs_peers_v4=v4_rs_peers,
-        rs_peers_v6=v6_rs_peers,
-        generated_at=generated_at_str,
-        rpki_communities=RPKI_COMMUNITIES,
-        config_hash="",
-    )
+    template, context = await prepare_config_render(session, rs, ixp, generated_at.isoformat())
+    combined = template.render(context)
     config_hash = hashlib.sha256(combined.encode()).hexdigest()
 
     # El hash se calcula sobre el render con el campo vacio y despues se rellena.
