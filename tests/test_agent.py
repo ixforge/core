@@ -1100,6 +1100,32 @@ class TestReporteDePrefijos:
         assert {f.prefix for f in filas} == {"45.238.179.0/24", "45.170.100.0/24"}
         assert next(f.as_path for f in filas if f.prefix == "45.170.100.0/24") == [64500, 64600]
 
+    async def test_stores_as_paths_with_asns_above_the_signed_32_bit_range(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        ixp: IXP,
+        admin_user: User,
+    ):
+        rs = await _setup_route_server(db_session, ixp)
+        raw_key = await _setup_agent_key(db_session, rs)
+        session = await self._sesion(db_session, ixp, rs, 64600, "192.0.2.50", 320)
+        as_path = [64600, 4200000001, 4294967294]
+
+        resp = await self._reportar(
+            client,
+            rs,
+            raw_key,
+            "192.0.2.50",
+            [{"prefix": "45.238.179.0/24", "as_path": as_path}],
+        )
+
+        assert resp.status_code == 200, resp.text
+        stored = await db_session.scalar(
+            select(BGPSessionPrefix.as_path).where(BGPSessionPrefix.bgp_session_id == session.id)
+        )
+        assert stored == as_path
+
     async def test_el_prefijo_nuevo_deja_un_evento_de_anuncio(
         self,
         client: AsyncClient,

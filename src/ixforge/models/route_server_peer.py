@@ -3,6 +3,7 @@
 import uuid
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Enum,
     ForeignKey,
@@ -49,9 +50,9 @@ class RouteServerPeer(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     peer_ip: Mapped[str] = mapped_column(INET, nullable=False)
-    peer_asn: Mapped[int] = mapped_column(Integer, nullable=False)
+    peer_asn: Mapped[int] = mapped_column(BigInteger, nullable=False)
     local_asn: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, comment="NULL usa el ASN del IXP"
+        BigInteger, nullable=True, comment="NULL usa el ASN del IXP"
     )
     passive: Mapped[bool] = mapped_column(nullable=False, default=True)
     peer_type: Mapped[RouteServerPeerType] = mapped_column(

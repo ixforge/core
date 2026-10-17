@@ -43,6 +43,20 @@ async def test_create_peer_returns_201(
     assert body["mark_community"] == "64166:9999"
 
 
+async def test_create_peer_with_asns_above_signed_32_bit_range(
+    client: AsyncClient, auth_headers: dict, route_server: RouteServer
+):
+    resp = await client.post(
+        f"/api/v1/route-servers/{route_server.id}/peers",
+        headers=auth_headers,
+        json=_body(peer_asn=4200000000, local_asn=4294967294),
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["peer_asn"] == 4200000000
+    assert resp.json()["local_asn"] == 4294967294
+
+
 async def test_create_peer_rejects_duplicate_ip(
     client: AsyncClient, auth_headers: dict, route_server: RouteServer
 ):

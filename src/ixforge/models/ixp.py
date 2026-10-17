@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Integer, String
+from sqlalchemy import BigInteger, CheckConstraint, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,7 +15,7 @@ class IXP(UUIDPrimaryKey, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     short_name: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    asn: Mapped[int] = mapped_column(Integer, nullable=False)
+    asn: Mapped[int] = mapped_column(BigInteger, nullable=False)
     website: Mapped[str | None] = mapped_column(String(512), nullable=True)
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)

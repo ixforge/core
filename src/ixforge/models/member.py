@@ -3,6 +3,7 @@
 from datetime import date
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -38,7 +39,7 @@ class Member(UUIDPrimaryKey, TenantMixin, TimestampMixin, ExtraDataMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     short_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    asn: Mapped[int] = mapped_column(Integer, nullable=False)
+    asn: Mapped[int] = mapped_column(BigInteger, nullable=False)
     state: Mapped[MemberState] = mapped_column(
         Enum(MemberState, name="member_state"),
         nullable=False,

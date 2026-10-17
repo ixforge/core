@@ -4,12 +4,12 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
     Index,
-    Integer,
     String,
     UniqueConstraint,
     Uuid,
@@ -63,7 +63,7 @@ class BGPSessionPrefix(UUIDPrimaryKey, TenantMixin, TimestampMixin, Base):
     # el valor viene validado como red desde el schema
     prefix: Mapped[str] = mapped_column(String(43), nullable=False)
     as_path: Mapped[list[int]] = mapped_column(
-        ARRAY(Integer),
+        ARRAY(BigInteger),
         nullable=False,
         default=list,
         comment="Vacio si la ruta no trae el atributo, que no es lo mismo que no anunciarla",
@@ -121,9 +121,9 @@ class BGPPrefixEvent(UUIDPrimaryKey, TenantMixin, Base):
         Enum(PrefixEventType, name="prefix_event_type"),
         nullable=False,
     )
-    as_path: Mapped[list[int]] = mapped_column(ARRAY(Integer), nullable=False, default=list)
+    as_path: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), nullable=False, default=list)
     previous_as_path: Mapped[list[int] | None] = mapped_column(
-        ARRAY(Integer),
+        ARRAY(BigInteger),
         nullable=True,
         comment="Solo en updated: con que camino venia antes",
     )

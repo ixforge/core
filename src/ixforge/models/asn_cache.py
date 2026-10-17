@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import BigInteger, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ixforge.models.base import Base
@@ -18,7 +18,7 @@ class ASNCache(Base):
 
     __tablename__ = "asn_cache"
 
-    asn: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asn: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -54,6 +54,18 @@ class TestMemberCRUD:
         assert body["state"] == "prospect"
         assert body["ixp_id"] == str(ixp.id)
 
+    async def test_create_member_with_asn_above_signed_32_bit_range(
+        self, client: AsyncClient, auth_headers: dict, ixp: IXP
+    ):
+        resp = await client.post(
+            "/api/v1/members",
+            headers=auth_headers,
+            json={"name": "Private Four Byte", "short_name": "P4B", "asn": 4200000000},
+        )
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["asn"] == 4200000000
+
     async def test_get_member(
         self,
         client: AsyncClient,
