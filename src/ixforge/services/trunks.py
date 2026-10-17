@@ -245,6 +245,14 @@ async def transition(
         resource_id=trunk.id,
         data={"old_state": old_state, "new_state": target_state},
     )
+
+    # Only sessions on active trunks enter the config, so entering or leaving
+    # active changes what every route server with sessions here must announce
+    if TrunkState.active in (old_state, target_state):
+        from ixforge.tasks.config import defer_trunk_config_regeneration
+
+        await defer_trunk_config_regeneration(trunk.id, "trunk.state_changed")
+
     return await get(session, ixp_id, trunk_id)
 
 

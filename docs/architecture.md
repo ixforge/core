@@ -303,11 +303,11 @@ Procrastinate usa PostgreSQL como cola. `ixforge worker` escucha todas las colas
   (30 días) y `cleanup_config_versions` los domingos a las 04:00 (conserva las
   últimas 100 por route server y nunca borra una versión aplicada)
 
-Encolan regeneración: el cambio de estado de un miembro o de una conexión desde
-o hacia `active`; crear, borrar o cambiar `admin_state` de una sesión BGP;
-editar un route server; crear, editar o borrar un peer de route server, un
-servidor RPKI o un filtro de prefijos. No encolan: el cambio de estado de un
-trunk, la edición de templates ni la asignación de IPs al route server. En esos
+Encolan regeneración: el cambio de estado de un miembro, de un trunk o de una
+conexión desde o hacia `active`; crear, borrar o cambiar `admin_state` de una
+sesión BGP; editar un route server; crear, editar o borrar un peer de route
+server, un servidor RPKI o un filtro de prefijos. No encolan: la edición de
+templates ni la asignación de IPs al route server. En esos
 casos, o si la cola no está disponible (queda un warning
 `config_regeneration.defer_failed` en el log), se regenera a mano con
 `POST /route-servers/{id}/config/generate` o desde el portal.

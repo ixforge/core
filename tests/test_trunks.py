@@ -305,6 +305,40 @@ class TestTrunkCRUD:
 
 
 class TestTrunkStateMachine:
+    @pytest.fixture
+    def regeneration_calls(self, monkeypatch) -> list[dict]:
+        from ixforge.tasks.config import regenerate_configs_for_trunk
+
+        calls: list[dict] = []
+
+        async def fake_defer(**kwargs):
+            calls.append(kwargs)
+
+        monkeypatch.setattr(regenerate_configs_for_trunk, "defer_async", fake_defer)
+        return calls
+
+    async def test_leaving_active_defers_config_regeneration(
+        self, db_session: AsyncSession, ixp: IXP, regeneration_calls: list[dict]
+    ):
+        member = await _create_member(db_session, ixp)
+        trunk = await _create_trunk(db_session, ixp, member, state=TrunkState.active)
+
+        await trunks.transition(db_session, trunk.id, TrunkState.disabled, ixp_id=ixp.id)
+
+        assert regeneration_calls == [
+            {"trunk_id": str(trunk.id), "triggered_by": "trunk.state_changed"}
+        ]
+
+    async def test_transition_away_from_active_states_skips_regeneration(
+        self, db_session: AsyncSession, ixp: IXP, regeneration_calls: list[dict]
+    ):
+        member = await _create_member(db_session, ixp)
+        trunk = await _create_trunk(db_session, ixp, member)
+
+        await trunks.transition(db_session, trunk.id, TrunkState.provisioning, ixp_id=ixp.id)
+
+        assert regeneration_calls == []
+
     async def test_draft_to_provisioning(self, db_session: AsyncSession, ixp: IXP):
         member = await _create_member(db_session, ixp)
         trunk = await _create_trunk(db_session, ixp, member)

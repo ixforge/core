@@ -90,6 +90,24 @@ async def defer_rs_config_regeneration(
         )
 
 
+async def defer_trunk_config_regeneration(trunk_id: uuid.UUID, triggered_by: str) -> None:
+    """Queue regeneration for every route server with sessions on the trunk
+
+    Errors are logged and swallowed, like defer_rs_config_regeneration
+    """
+    try:
+        await regenerate_configs_for_trunk.defer_async(
+            trunk_id=str(trunk_id),
+            triggered_by=triggered_by,
+        )
+    except Exception:
+        logger.warning(
+            "config_regeneration.defer_failed",
+            trunk_id=str(trunk_id),
+            exc_info=True,
+        )
+
+
 @app.task(name="regenerate_configs_for_member", queue="config")
 async def regenerate_configs_for_member(
     member_id: str,

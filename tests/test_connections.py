@@ -197,6 +197,26 @@ class TestConnectionStateMachine:
 
         assert result.state == ConnectionState.active
 
+    async def test_activation_defers_regeneration_for_the_trunk(
+        self, db_session: AsyncSession, ixp: IXP, monkeypatch
+    ) -> None:
+        from ixforge.tasks.config import regenerate_configs_for_trunk
+
+        calls: list[dict] = []
+
+        async def fake_defer(**kwargs):
+            calls.append(kwargs)
+
+        monkeypatch.setattr(regenerate_configs_for_trunk, "defer_async", fake_defer)
+        _member, trunk, switch = await _setup(db_session, ixp)
+        conn = await _make_connection(
+            db_session, ixp, trunk, switch, state=ConnectionState.provisioning
+        )
+
+        await conn_svc.transition(db_session, conn.id, ConnectionState.active, ixp_id=ixp.id)
+
+        assert calls == [{"trunk_id": str(trunk.id), "triggered_by": "connection.state_changed"}]
+
     async def test_transition_provisioning_to_decommissioned(
         self, db_session: AsyncSession, ixp: IXP
     ) -> None:
