@@ -1,10 +1,15 @@
 """Access tokens keep their wire format across JWT libraries and reject tampering"""
 
+from types import SimpleNamespace
+
 import pytest
 
 from ixforge.exceptions import UnauthorizedError
 from ixforge.services.auth import create_access_token, decode_access_token
 
+# The fixtures below were signed with this key, so they must not depend on the
+# IXFORGE_SECRET_KEY of the environment that runs the suite
+FIXTURE_SECRET = "test-secret-key-not-for-production-at-least-32-chars"
 SUBJECT = "00000000-0000-4000-8000-000000000001"
 PAYLOAD = (
     "eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDEiLCJleHAiOjQwNzA5MDg4MDAs"
@@ -38,6 +43,13 @@ ANOTHER_ALGORITHM = (
     + ".03SAC9vumryDVnEEHP2-yswxSCq8wm99yi7cZM4_MRcBHqzWSYDY5FZkZq4HpSpfOICBZjwc5V5MLOa0350LgQ"
 )
 UNSIGNED = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0." + PAYLOAD + "."
+
+
+@pytest.fixture(autouse=True)
+def fixture_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "ixforge.services.auth.get_settings", lambda: SimpleNamespace(secret_key=FIXTURE_SECRET)
+    )
 
 
 def test_token_issued_before_the_library_switch_is_still_valid():
