@@ -58,3 +58,11 @@ class UnauthorizedError(IXForgeError):
 
     def __init__(self, message: str = "Not authenticated"):
         super().__init__(message=message)
+
+
+class RateLimitedError(IXForgeError):
+    status_code = 429
+    error_code = "RATE_LIMITED"
+
+    def __init__(self, message: str = "Rate limit exceeded"):
+        super().__init__(message=message)

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=list)
 
     # Rate limiting
-    rate_limit_per_minute: int = 60
+    rate_limit_per_minute: int = Field(default=60, gt=0)
 
     # UI: cookies de sesion solo via HTTPS. Deshabilitar explicitamente
     # cuando el portal se sirve por HTTP en una red interna de confianza

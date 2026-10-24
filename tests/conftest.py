@@ -89,6 +89,37 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     test_app.dependency_overrides.clear()
 
 
+RATE_LIMIT_FOR_TESTS = 5
+"""General per minute limit of rate_limited_client, low so tests stay fast"""
+
+
+@pytest.fixture
+async def rate_limited_client(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> AsyncGenerator[AsyncClient]:
+    """Like client, with rate limiting on and a general limit of RATE_LIMIT_FOR_TESTS"""
+    from ixforge.api.deps import get_db_session
+    from ixforge.config import get_settings
+    from ixforge.main import create_app
+    from ixforge.rate_limit import limiter
+
+    monkeypatch.setattr(get_settings(), "rate_limit_per_minute", RATE_LIMIT_FOR_TESTS)
+    limiter.reset()
+    test_app = create_app(enable_rate_limit=True)
+
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession]:
+        yield db_session
+
+    test_app.dependency_overrides[get_db_session] = _override_get_db_session
+
+    transport = ASGITransport(app=test_app)  # type: ignore[arg-type]
+    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+        yield ac
+
+    test_app.dependency_overrides.clear()
+    limiter.reset()
+
+
 # ---------------------------------------------------------------------------
 # Seed fixtures
 # ---------------------------------------------------------------------------

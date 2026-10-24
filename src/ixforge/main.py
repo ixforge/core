@@ -226,18 +226,30 @@ def create_app(*, enable_rate_limit: bool = True) -> FastAPI:
             allow_headers=["*"],
         )
 
-    # Rate limiting (SlowAPIMiddleware uses BaseHTTPMiddleware internally,
-    # which breaks asyncpg in tests; disable via enable_rate_limit=False)
+    # Rate limiting. The limits are dependencies of the API routers and slowapi
+    # decorators, never SlowAPIMiddleware: since FastAPI includes routers lazily,
+    # the middleware cannot find the handler of an /api/v1 route and skips it
     if enable_rate_limit:
-        from slowapi import _rate_limit_exceeded_handler
         from slowapi.errors import RateLimitExceeded
-        from slowapi.middleware import SlowAPIMiddleware
 
         from ixforge.rate_limit import limiter
 
         app.state.limiter = limiter
-        app.add_middleware(SlowAPIMiddleware)
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
+        @app.exception_handler(RateLimitExceeded)
+        async def rate_limit_exceeded_handler(
+            request: Request, exc: RateLimitExceeded
+        ) -> JSONResponse:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": {
+                        "code": "RATE_LIMITED",
+                        "message": f"Rate limit exceeded: {exc.detail}",
+                        "details": {},
+                    }
+                },
+            )
 
     # Pure ASGI middlewares (no BaseHTTPMiddleware, safe with asyncpg)
     app.add_middleware(RequestIDMiddleware)

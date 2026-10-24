@@ -1,6 +1,6 @@
 """v1 router aggregator."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from ixforge.api.v1.agent import agent_router
 from ixforge.api.v1.auth import auth_router
@@ -34,37 +34,44 @@ from ixforge.api.v1.trunks import trunks_router
 from ixforge.api.v1.users import users_router
 from ixforge.api.v1.vlan_members import vlan_members_router
 from ixforge.api.v1.vlans import vlans_router
+from ixforge.rate_limit import enforce_default_rate_limit
+
+# Every router gets the general limit, which runs before any auth dependency
+_GENERAL_LIMIT = [Depends(enforce_default_rate_limit)]
 
 v1_router = APIRouter()
-v1_router.include_router(agent_router)
-v1_router.include_router(health_router)
-v1_router.include_router(setup_router)
-v1_router.include_router(auth_router)
-v1_router.include_router(users_router)
-v1_router.include_router(config_router)
-v1_router.include_router(ixf_router)
-v1_router.include_router(members_router)
-v1_router.include_router(member_prefix_filters_router)
-v1_router.include_router(prefijos_bgp_router)
-v1_router.include_router(logo_router)
-v1_router.include_router(metricas_router)
-v1_router.include_router(contacts_router)
-v1_router.include_router(locations_router)
-v1_router.include_router(switches_router)
-v1_router.include_router(vlans_router)
-v1_router.include_router(vlan_members_router)
-v1_router.include_router(ip_pools_router)
-v1_router.include_router(ixp_router)
-v1_router.include_router(trunks_router)
-v1_router.include_router(connections_router)
-v1_router.include_router(route_servers_router)
-v1_router.include_router(route_server_peers_router)
-v1_router.include_router(rpki_servers_router)
-v1_router.include_router(rs_vlans_router)
-v1_router.include_router(rs_api_keys_router)
-v1_router.include_router(rs_ip_router)
-v1_router.include_router(rs_templates_router)
-v1_router.include_router(bgp_sessions_router)
-v1_router.include_router(events_router)
-v1_router.include_router(custom_fields_router)
-v1_router.include_router(monitoring_router)
+for _router in (
+    agent_router,
+    health_router,
+    setup_router,
+    auth_router,
+    users_router,
+    config_router,
+    ixf_router,
+    members_router,
+    member_prefix_filters_router,
+    prefijos_bgp_router,
+    logo_router,
+    metricas_router,
+    contacts_router,
+    locations_router,
+    switches_router,
+    vlans_router,
+    vlan_members_router,
+    ip_pools_router,
+    ixp_router,
+    trunks_router,
+    connections_router,
+    route_servers_router,
+    route_server_peers_router,
+    rpki_servers_router,
+    rs_vlans_router,
+    rs_api_keys_router,
+    rs_ip_router,
+    rs_templates_router,
+    bgp_sessions_router,
+    events_router,
+    custom_fields_router,
+    monitoring_router,
+):
+    v1_router.include_router(_router, dependencies=_GENERAL_LIMIT)
