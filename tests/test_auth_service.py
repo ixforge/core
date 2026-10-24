@@ -3,8 +3,8 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import jwt as pyjwt
 import pytest
-from jose import jwt as jose_jwt
 
 from ixforge.config import get_settings
 from ixforge.exceptions import UnauthorizedError
@@ -15,7 +15,7 @@ class TestJWTIssuerValidation:
     def test_decode_token_with_wrong_issuer_rejected(self):
         """Token con iss diferente debe ser rechazado"""
         settings = get_settings()
-        token = jose_jwt.encode(
+        token = pyjwt.encode(
             {
                 "sub": str(uuid.uuid4()),
                 "exp": datetime.now(UTC) + timedelta(minutes=5),
@@ -30,7 +30,7 @@ class TestJWTIssuerValidation:
     def test_decode_token_without_issuer_rejected(self):
         """Token sin iss debe ser rechazado"""
         settings = get_settings()
-        token = jose_jwt.encode(
+        token = pyjwt.encode(
             {
                 "sub": str(uuid.uuid4()),
                 "exp": datetime.now(UTC) + timedelta(minutes=5),

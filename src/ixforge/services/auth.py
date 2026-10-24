@@ -4,10 +4,9 @@ import hashlib
 import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import cast
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
 
 from ixforge.config import get_settings
 from ixforge.exceptions import UnauthorizedError
@@ -30,7 +29,7 @@ def create_access_token(subject: str) -> str:
     settings = get_settings()
     expire = datetime.now(UTC) + timedelta(minutes=_TOKEN_EXPIRE_MINUTES)
     payload: dict[str, str | datetime] = {"sub": subject, "exp": expire, "iss": _ISSUER}
-    return cast("str", jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM))
+    return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
 
 def decode_access_token(token: str) -> str:
@@ -43,7 +42,7 @@ def decode_access_token(token: str) -> str:
             algorithms=[_ALGORITHM],
             issuer=_ISSUER,
         )
-    except JWTError as exc:
+    except jwt.InvalidTokenError as exc:
         raise UnauthorizedError("Invalid or expired token") from exc
 
     subject: str | None = payload.get("sub")
