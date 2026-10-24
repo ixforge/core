@@ -8,10 +8,22 @@ class FakeSchemaManager:
 
     def __init__(self, app: "FakeApp") -> None:
         self._app = app
+        self.applied = False
         self.applied_while_open = False
 
     async def apply_schema_async(self) -> None:
+        self.applied = True
         self.applied_while_open = self._app.opened
+
+
+class FakeConnector:
+    """Connector stub that answers whether the procrastinate tables exist"""
+
+    def __init__(self, schema_present: bool) -> None:
+        self.schema_present = schema_present
+
+    async def execute_query_one_async(self, query: str, **arguments: object) -> dict[str, object]:
+        return {"present": self.schema_present}
 
 
 class FakeApp:
@@ -22,6 +34,7 @@ class FakeApp:
         self.worker_ran_while_open = False
         self.received_kwargs: dict[str, object] | None = None
         self.schema_manager = FakeSchemaManager(self)
+        self.connector = FakeConnector(schema_present=False)
 
     def open_async(self):
         fake = self
@@ -89,3 +102,18 @@ def test_apply_procrastinate_schema_abre_la_app(monkeypatch):
     cli._apply_procrastinate_schema()
 
     assert fake.schema_manager.applied_while_open
+
+
+def test_apply_procrastinate_schema_skips_an_existing_schema(monkeypatch, capsys):
+    # Applying the schema twice fails on the existing types, and every restart
+    # of an installed IXP used to print a warning that hid real failures
+    fake = FakeApp()
+    fake.connector = FakeConnector(schema_present=True)
+    monkeypatch.setattr("ixforge.tasks.app", fake)
+
+    cli._apply_procrastinate_schema()
+
+    assert not fake.schema_manager.applied
+    output = capsys.readouterr().out
+    assert "already present" in output
+    assert "Warning" not in output

@@ -64,17 +64,27 @@ def _run_upgrade() -> None:
 
 
 def _apply_procrastinate_schema() -> None:
-    """Apply the procrastinate job queue schema (idempotent)."""
+    """Apply the procrastinate job queue schema unless it is already installed"""
     try:
         from ixforge.tasks import app as procrastinate_app
 
-        async def _apply() -> None:
+        async def _apply() -> bool:
             # procrastinate 3.x exige abrir la app antes de aplicar el schema
             async with procrastinate_app.open_async():
+                # The schema script is not idempotent: a second run fails on the
+                # types it already created
+                row = await procrastinate_app.connector.execute_query_one_async(
+                    "SELECT to_regclass('procrastinate_jobs') IS NOT NULL AS present"
+                )
+                if row["present"]:
+                    return False
                 await procrastinate_app.schema_manager.apply_schema_async()
+                return True
 
-        asyncio.run(_apply())
-        print("Procrastinate schema applied successfully.")
+        if asyncio.run(_apply()):
+            print("Procrastinate schema applied successfully.")
+        else:
+            print("Procrastinate schema already present.")
     except Exception as exc:
         print(f"Warning: could not apply procrastinate schema: {exc}")
         print("The worker may not start correctly without the procrastinate tables.")
