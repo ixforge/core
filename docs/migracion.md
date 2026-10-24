@@ -29,7 +29,7 @@ v0.3 son estos commits de `main`:
 
 | Repositorio | Commit |
 |---|---|
-| `core` | `9ae5fa15c83378fcce52e6162ae9c4cc44d6e49a` |
+| `core` | `530b2044e6d48cdc509f428ba3405419a7e93c6c` |
 | `agent` | `f3caf8c2f6fe3f6c4102f79304fe12c522ba7160` |
 | `collector` | `770c0820ffbbb53ed266ee49fcf8557d13bb11c9` |
 
@@ -57,6 +57,14 @@ v0.3 son estos commits de `main`:
   existe. En v0.2, cada arranque sobre una base instalada imprimía
   `Warning: could not apply procrastinate schema: Database error`, que no
   significaba nada pero tapaba los errores reales
+- **Las limpiezas periódicas corren por primera vez.** En v0.2 fallaban siempre,
+  porque no aceptaban el `timestamp` que procrastinate les pasa a las tareas
+  periódicas. Desde v0.3 se ejecutan, en hora UTC: todos los días a las 03:00
+  borran los eventos de auditoría de más de 90 días, a las 03:30 los eventos de
+  prefijos de más de 30 días, y los domingos a las 04:00 las versiones de config
+  que nunca se aplicaron, conservando las últimas 100 de cada route server. La
+  primera corrida se lleva todo lo acumulado desde la instalación. Si hace falta
+  conservar algo de eso, exportarlo antes de actualizar
 - Correcciones que cambian respuestas de la API (ver
   [Cambios en la API](#cambios-en-la-api)). Activar o desactivar un trunk ahora
   regenera el config de sus route servers, como ya pasaba con las conexiones
@@ -259,7 +267,7 @@ entorno a por lo menos la cantidad de sesiones del route server más grande más
 ```bash
 cd <directorio del core>
 git fetch origin
-git checkout 9ae5fa15c83378fcce52e6162ae9c4cc44d6e49a
+git checkout 530b2044e6d48cdc509f428ba3405419a7e93c6c
 cd docker
 docker compose build
 docker compose up -d
