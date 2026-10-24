@@ -1,10 +1,371 @@
-# Migrar un IXP ya desplegado
+# Actualizar un IXP ya desplegado
+
+Cada sección cubre un salto de versión. Ejecutarla **una vez por IXP**, con una
+persona mirando cada paso. Una versión de IXForge son los tres componentes en el
+mismo tag: `core`, `agent` y `collector` en `v0.3`.
+
+## Qué versión corre hoy
+
+Hasta v0.2, los tres componentes reportan la versión `0.1.0`. La versión real
+sale de la revisión de Alembic del core:
+
+```bash
+cd <directorio del core>/docker
+docker compose exec core uv run alembic current
+```
+
+| Revisión | Versión | Qué seguir |
+|---|---|---|
+| `b7d3f2a9c615 (head)` | v0.3 | Nada, ya está al día |
+| `f3c81a4d267e` | v0.2 | [De v0.2 a v0.3](#de-v02-a-v03) |
+| Cualquier otra | Anterior a v0.2 | [Desde los templates anteriores a v0.2](#desde-los-templates-anteriores-a-v02) y después [De v0.2 a v0.3](#de-v02-a-v03), en un solo despliegue: el core aplica todas las migraciones pendientes de una vez |
+
+Desde v0.3, la versión real aparece en `GET /api/v1/health` del core, en
+`GET /health` del agent y en el `agent_version` de cada route server.
+
+## De v0.2 a v0.3
+
+### Qué cambia
+
+**Core**
+
+- **Migración `8c2e5d1a9f47`: los ASN pasan a `BIGINT`.** Hasta v0.2, un ASN
+  mayor que 2147483647 no se podía guardar y la API respondía 500. Ahora se
+  acepta todo el rango de 32 bits sin signo, hasta 4294967295. El cambio de tipo
+  reescribe cada tabla con ASN y la bloquea mientras dura. La más grande suele ser
+  `bgp_session_prefixes`, sobre todo si un route server recibe la tabla completa
+  de un upstream
+- **Migración `b7d3f2a9c615`: RPKI con ASN de 4 bytes.** Con RPKI encendido y un
+  ASN de IXP mayor que 65535, el config no compilaba, porque una community
+  estándar lleva solo 16 bits. Ahora esos IXPs marcan solo las rutas inválidas.
+  **Con un ASN de 2 bytes el config generado no cambia.** Solo se actualizan los
+  templates que siguen iguales a los de v0.2; los editados quedan como están y se
+  avisa (ver [Actualizar el core](#3-actualizar-el-core))
+- **El rate limit usa la IP de la conexión**, no la que declara el cliente en
+  `X-Forwarded-For`, que cualquiera podía falsificar para saltarse el límite.
+  **Requiere acción si hay un proxy inverso delante del core** (ver
+  [Antes de empezar](#2-proxy-inverso-y-rate-limit))
+- **`ixforge upgrade` ya no intenta reaplicar el schema de procrastinate** si ya
+  existe. En v0.2, cada arranque sobre una base instalada imprimía
+  `Warning: could not apply procrastinate schema: Database error`, que no
+  significaba nada pero tapaba los errores reales
+- Correcciones que cambian respuestas de la API (ver
+  [Cambios en la API](#cambios-en-la-api)). Activar o desactivar un trunk ahora
+  regenera el config de sus route servers, como ya pasaba con las conexiones
+
+**Agent**
+
+- Si BIRD aplica el config pero falla la confirmación al core, el agent la
+  reintenta en cada ciclo sin volver a aplicar. En v0.2 la confirmación se perdía
+  y la versión quedaba como pendiente para siempre
+- La métrica de errores de poll se expone como `ixforge_agent_poll_errors_total`.
+  En v0.2 salía como `ixforge_agent_poll_errors_total_total`: hay que actualizar
+  cualquier dashboard o alerta que la use
+- `config.toml` y la unit de systemd no cambian
+
+**Collector**
+
+- El health refleja los fallos y las recuperaciones reales de cada componente.
+  Puede mostrar `degraded` en casos que en v0.2 figuraban como `ok`. Sigue
+  respondiendo 503 solo con `error`
+- Se retira `polling.icmp.max_concurrency`, que no tenía efecto. Un config que
+  lo tenga sigue cargando
+
+**Compatibilidad entre componentes.** El contrato entre agent y core no cambia:
+un agent v0.2 funciona con un core v0.3 y al revés. Por eso se actualiza primero
+el core y después cada route server por separado, sin una ventana conjunta.
+
+**Corte.** Mientras el core migra, la API y el portal no responden. BIRD sigue
+enrutando con el config que tiene, y los agents reintentan hasta que el core
+vuelve. **El peering no se corta en ningún paso.** En un ensayo con 200 mil filas
+en `bgp_session_prefixes` (151 MB), la migración y el arranque tomaron unos 20
+segundos.
+
+### 1. Antes de empezar
+
+**Confirmar la versión.** `docker compose exec core uv run alembic current` tiene
+que mostrar `f3c81a4d267e (head)`. Si muestra otra cosa, volver a
+[Qué versión corre hoy](#qué-versión-corre-hoy).
+
+**Respaldar la base y sacarla del servidor.** Es la única vuelta atrás
+garantizada (ver [Volver a v0.2](#volver-a-v02)):
+
+```bash
+cd <directorio del core>/docker
+docker compose exec -T postgres pg_dump -U ixforge -Fc ixforge \
+  > ixforge-v0.2-$(date +%F).dump
+```
+
+`-U` y el nombre de la base son los de `POSTGRES_USER` y `POSTGRES_DB` en
+`docker/.env` (`ixforge` por defecto). Con `deploy.sh`, el paso de backup de
+`/opt/ixforge/backup.sh` también sirve, siempre que el archivo se pueda restaurar
+con `pg_restore`.
+
+**Medir las tablas que se reescriben:**
+
+```bash
+docker compose exec -T postgres psql -U ixforge -d ixforge -c "
+  SELECT relname, n_live_tup, pg_size_pretty(pg_total_relation_size(relid))
+  FROM pg_stat_user_tables
+  WHERE relname IN ('bgp_session_prefixes', 'bgp_prefix_events')
+  ORDER BY pg_total_relation_size(relid) DESC"
+```
+
+Postgres escribe la copia nueva de cada tabla antes de borrar la vieja, así que
+hace falta espacio libre en disco al menos igual a la tabla más grande
+(`df -h` sobre el disco donde vive el volumen de Docker). Con millones de filas,
+la migración puede superar el minuto que `deploy.sh` espera al health check: en
+ese caso el script falla en la verificación, pero la migración sigue. Esperar a
+que termine (`docker compose logs -f core worker`) antes de concluir nada.
+
+**Respaldar el binario del agent en cada route server:**
+
+```bash
+sudo cp /usr/local/bin/ixforge-agent /usr/local/bin/ixforge-agent.v0.2
+```
+
+**Tomar una foto de cada route server**, para comparar al final:
+
+```bash
+birdc show protocols > protocolos-antes.txt
+birdc show route count
+```
+
+Anotar las sesiones que **ya estaban caídas**, para que nadie se las atribuya a la
+actualización.
+
+### 2. Proxy inverso y rate limit
+
+El rate limit es por IP de la conexión y **por path**: cada ruta tiene su propio
+contador de `IXFORGE_RATE_LIMIT_PER_MINUTE` (60 por defecto), y `POST /auth/login`
+tiene 10 por minuto.
+
+**Si hay un proxy inverso delante del core** (nginx, Caddy, HAProxy, Traefik) que
+agrega `X-Forwarded-For`, en v0.2 cada cliente tenía su propio contador. En v0.3,
+uvicorn solo toma la IP de ese header si la conexión viene de una dirección que
+figura en `FORWARDED_ALLOW_IPS` (por defecto `127.0.0.1`). Un proxy en el mismo
+host llega al contenedor desde el gateway de la red de Docker, no desde
+`127.0.0.1`. Sin configurarlo, todos los clientes comparten el contador del proxy:
+el login queda en 10 intentos por minuto para todo el mundo, y cualquier ruta
+común, como `/ixf/member-export`, se reparte entre todos. Los agents no se ven
+afectados, porque cada uno usa rutas propias con el id de su route server.
+
+Para corregirlo, agregar en `docker/.env` la IP con la que el proxy llega al core.
+Con `deploy.sh`, agregarla en `/opt/ixforge/.env.core`, porque el script
+sobrescribe `docker/.env` con ese archivo en cada despliegue:
+
+```bash
+# un proxy en el mismo host llega desde el gateway de la red del compose
+docker network ls | grep ixforge
+docker network inspect <red> -f '{{range .IPAM.Config}}{{.Gateway}} {{end}}'
+
+# en el archivo de entorno
+FORWARDED_ALLOW_IPS=<gateway o IP del proxy>
+```
+
+No usar `*` salvo que el puerto 8000 sea alcanzable **solo** desde el proxy:
+cualquier otro cliente podría volver a elegir su IP. **Si los agents, el
+collector y los usuarios llegan directo al puerto 8000, sin proxy, no hay nada
+que hacer.**
+
+**Aparte del proxy, revisar si ya hay rechazos.** El agent reporta los prefijos
+con una request por sesión BGP, todas seguidas, cada 10 ciclos. Un route server
+con más sesiones que el límite por minuto recibe 429 en las últimas, siempre las
+mismas. Esto también ocurre en v0.2:
+
+```bash
+journalctl -u ixforge-agent --since "-1 day" | grep -c "429"
+```
+
+Si da más que cero, subir `IXFORGE_RATE_LIMIT_PER_MINUTE` en el mismo archivo de
+entorno a por lo menos la cantidad de sesiones del route server más grande más
+20.
+
+### 3. Actualizar el core
+
+**Con git en el servidor:**
+
+```bash
+cd <directorio del core>
+git fetch --tags
+git checkout v0.3
+cd docker
+docker compose build
+docker compose up -d
+docker compose logs -f core worker
+```
+
+**Con `deploy.sh`** desde un checkout del tag (`git checkout v0.3` y
+`./deploy.sh prod`): hace el backup, sube el commit, reconstruye, migra y
+verifica el hash. Requiere la estructura de servidor que describe
+[staging.md](staging.md).
+
+En el log tiene que aparecer, en `core` o en `worker` (migra el primero que toma
+el lock y el otro no encuentra nada que aplicar):
+
+```
+entrypoint: aplicando migraciones (IXFORGE_AUTO_MIGRATE=true)
+Procrastinate schema already present.
+INFO  [alembic.runtime.migration] Running upgrade f3c81a4d267e -> 8c2e5d1a9f47, ASN columns hold the full unsigned 32-bit range
+INFO  [alembic.runtime.migration] Running upgrade 8c2e5d1a9f47 -> b7d3f2a9c615, RPKI tags only where the IXP ASN fits a standard community
+```
+
+**Si además aparece una línea `aviso:`**, por ejemplo
+`aviso: 1 de 1 plantillas protocols/bgp_peer.j2 estaban editadas y quedaron como estaban`,
+alguien había editado ese template y la migración no lo tocó. Con un ASN de IXP
+de 2 bytes no tiene ningún efecto. Con un ASN de 4 bytes y RPKI encendido, hay
+que portar a mano el cambio en `protocols/bgp_peer.j2` y `protocols/rs_peer.j2`:
+la condición `{% if route_server.rpki_enabled %}` del bloque que etiqueta con
+`rpki_communities` pasa a ser
+`{% if route_server.rpki_enabled and route_server.asn <= 65535 %}`, y se agrega
+una rama
+`{% elif route_server.rpki_enabled %}` que solo agrega
+`IXP_LC_FILTERED_RPKI_INVALID` cuando `roa_check(...) = ROA_INVALID`. El texto
+exacto está en `services/default_templates.py`.
+
+**Verificar:**
+
+```bash
+curl -s http://localhost:8000/api/v1/health
+# {"status":"healthy","version":"0.3.0",...}
+
+docker compose exec core uv run alembic current
+# b7d3f2a9c615 (head)
+```
+
+Después, entrar al portal y abrir un route server. Para confirmar que la
+generación funciona igual, generar una versión y revisar el diff contra la
+anterior ("Ver Diff" en el portal, o `GET /route-servers/{id}/config/diff`). Con
+un ASN de 2 bytes, solo cambian las dos líneas de la cabecera (`Generated by` y
+`Config hash`). El agent la aplica en su próximo poll, y como el contenido es el
+mismo, BIRD no reinicia ninguna sesión.
+
+### 4. Actualizar los agents, de a un route server
+
+Compilar el binario de v0.3 en una máquina con Docker:
+
+```bash
+cd <checkout del repo agent>
+git fetch --tags
+git checkout v0.3
+docker run --rm -v "$PWD":/src -w /src rust:1-bookworm cargo build --release --locked
+sha256sum target/release/ixforge-agent
+```
+
+Copiarlo al **primer** route server y reemplazarlo:
+
+```bash
+scp target/release/ixforge-agent <rs1>:/tmp/ixforge-agent-v0.3
+
+# en el route server
+sudo systemctl stop ixforge-agent
+sudo install -m 755 /tmp/ixforge-agent-v0.3 /usr/local/bin/ixforge-agent
+sudo systemctl start ixforge-agent
+```
+
+Detener el agent no toca BIRD, que sigue con el config cargado. Al arrancar, el
+agent vuelve a pedir el config y lo aplica aunque sea el mismo; con el contenido
+igual, BIRD no reinicia sesiones.
+
+Verificar en ese route server antes de seguir con el otro:
+
+```bash
+curl -s http://127.0.0.1:9100/health
+# "version":"0.3.0" y "core_connected":true
+
+journalctl -u ixforge-agent -n 30 --no-pager
+birdc show protocols | diff protocolos-antes.txt -
+```
+
+En el portal, el route server muestra `agent_version` `0.3.0` después del
+siguiente heartbeat (30 s con el `poll_interval_secs` del ejemplo). Recién
+entonces repetir con el segundo route server.
+
+`deploy.sh` instala en los dos route servers del entorno en la misma corrida. Como
+no toca BIRD, el riesgo es bajo, pero el procedimiento manual permite parar
+después del primero si algo no cuadra.
+
+### 5. Actualizar el collector
+
+```bash
+cd <directorio del collector>
+git fetch --tags
+git checkout v0.3
+docker compose up -d --build
+curl -s http://127.0.0.1:9200/health
+```
+
+Con `deploy.sh`: `git checkout v0.3` y `./deploy.sh prod` desde un checkout del
+repo collector. Si `configs/ixforge-collector.yaml` tiene
+`polling.icmp.max_concurrency`, se puede borrar; si queda, se ignora.
+
+### 6. Verificación final
+
+- [ ] `GET /api/v1/health` del core responde `healthy` con `version` `0.3.0`
+- [ ] `alembic current` muestra `b7d3f2a9c615 (head)`
+- [ ] Las líneas `aviso:` del log, si las hubo, están revisadas
+- [ ] El portal abre y el login funciona
+- [ ] Los dos route servers muestran `agent_version` `0.3.0` y un heartbeat reciente
+- [ ] `birdc show protocols` coincide con la foto previa en los dos route servers
+- [ ] El health del collector muestra `ok` o un `degraded` explicado
+- [ ] Dashboards y alertas usan `ixforge_agent_poll_errors_total`
+- [ ] Con proxy inverso: `FORWARDED_ALLOW_IPS` configurado
+
+### Volver a v0.2
+
+**No basta con volver al código de v0.2.** Contra una base ya migrada, el core
+v0.2 entra en un loop de reinicios con
+`Can't locate revision identified by 'b7d3f2a9c615'`. Además, el downgrade de
+`8c2e5d1a9f47` falla si ya se guardó algún ASN mayor que 2147483647. La vuelta
+atrás es restaurar el respaldo del paso 1:
+
+```bash
+cd <directorio del core>/docker
+docker compose stop core worker portal
+docker compose exec -T postgres pg_restore -U ixforge -d ixforge --clean --if-exists \
+  < ixforge-v0.2-<fecha>.dump
+
+cd ..
+git checkout v0.2
+cd docker
+docker compose build
+docker compose up -d
+docker compose exec core uv run alembic current
+# f3c81a4d267e (head)
+```
+
+Se pierde todo lo que se cargó en la base después del respaldo. Los agents y el
+collector de v0.3 funcionan con un core v0.2, así que no hace falta bajarlos. Si
+se quiere igual, en cada route server:
+
+```bash
+sudo systemctl stop ixforge-agent
+sudo install -m 755 /usr/local/bin/ixforge-agent.v0.2 /usr/local/bin/ixforge-agent
+sudo systemctl start ixforge-agent
+```
+
+### Cambios en la API
+
+Para quien integra contra la API:
+
+| Antes (v0.2) | Ahora (v0.3) |
+|---|---|
+| Un ASN mayor que 2147483647 en miembros, peers o AS paths reportados daba `500` | Se acepta hasta 4294967295 |
+| Un usuario `member` sin miembro asignado que pedía `GET /connections` recibía las conexiones de todos | `403 FORBIDDEN` |
+| `POST /trunks/{id}/connections` guardaba `extra_data` sin validar | Lo valida contra los custom fields de `connection` y responde `422 VALIDATION_ERROR` si no cumple |
+| `DELETE /ip-assignments/{id}` liberaba una IP aunque tuviera una sesión BGP de su familia | `409 CONFLICT` hasta borrar la sesión |
+| La segunda página de un listado ordenado por fecha o por número, como `/members` o `/custom-fields`, podía responder `500` | Pagina bien |
+| Un cursor manipulado podía responder `500` | `422 VALIDATION_ERROR` con `Invalid pagination cursor` |
+| El preview de templates no renderizaba `bird.conf.j2` como la generación | Lo renderiza igual que la generación |
+| Activar o desactivar un trunk no regeneraba configs | Regenera el config de los route servers de sus sesiones |
+
+## Desde los templates anteriores a v0.2
 
 Procedimiento para IXPs que venían con los templates anteriores (el par
 `bird_v4.conf.j2` / `bird_v6.conf.j2`). Ejecutarlo **una vez por IXP**, con una
 persona mirando cada paso.
 
-## Qué cambia, y por qué no es opcional
+### Qué cambia, y por qué no es opcional
 
 El generador solo soporta `bird.conf.j2`. Un IXP que quede con el set anterior
 falla con `TemplateNotFound: bird.conf.j2` al generar config. **La migración de
@@ -55,13 +416,13 @@ Para un IXP que venía con los templates viejos esto es un cambio de
   community de blackhole `(65535, 666)` no tenía ningún efecto. El borrado es
   intencional, no un descuido. El blackholing RFC 7999 queda fuera de alcance
 
-## Procedimiento
+### Procedimiento
 
 Con Docker, el entrypoint de los contenedores aplica las migraciones al arrancar
 (salvo con `IXFORGE_AUTO_MIGRATE=false`). Desplegar el commit nuevo **es**
 migrar, así que los pasos 1 a 3 van antes del despliegue.
 
-### 1. Exportar los templates actuales
+#### 1. Exportar los templates actuales
 
 ```bash
 curl -sH "Authorization: Bearer $TOKEN" \
@@ -78,7 +439,7 @@ los templates con los que se generó cada config, así que el estado anterior qu
 recuperable aunque alguien se saltee este paso. La limpieza semanal de versiones
 conserva siempre las aplicadas.
 
-### 2. Foto previa de cada route server
+#### 2. Foto previa de cada route server
 
 ```bash
 birdc show protocols
@@ -92,7 +453,7 @@ Sin esta foto no hay con qué comparar después, y sin comparación no se sabe s
 corte salió bien. Anotar también cualquier sesión que **ya estuviera caída**, para
 que nadie se la atribuya a la migración.
 
-### 3. Confirmar contra qué base se va a ejecutar
+#### 3. Confirmar contra qué base se va a ejecutar
 
 ```bash
 # en el servidor: deploy.sh copia este archivo a docker/.env
@@ -109,7 +470,7 @@ base equivocada borra los templates de otro IXP.
 
 Si el comando imprime cualquier cosa que no sea la base esperada, **parar**.
 
-### 4. Aplicar la migración
+#### 4. Aplicar la migración
 
 Con Docker, la aplica el despliegue del commit nuevo (`./deploy.sh <dev|prod>`,
 ver [staging.md](staging.md)). Fuera de Docker:
@@ -123,7 +484,7 @@ uv run ixforge upgrade
 quedan en el log del contenedor que aplicó la migración
 (`docker compose logs core worker | grep aviso`).
 
-### 5. Cargar los datos nuevos
+#### 5. Cargar los datos nuevos
 
 Nada de esto es obligatorio para generar, pero sin ello el config puede no
 comportarse como se quiere: sale más permisivo en los filtros, o con sesiones
@@ -141,7 +502,7 @@ pasivas que los peers no inician:
   con `rpki_enabled`. Encenderlo primero en un route server, medir el impacto y
   solo después encenderlo en el otro
 
-### 6. Regenerar y revisar el diff antes de aplicar
+#### 6. Regenerar y revisar el diff antes de aplicar
 
 La config generada pasa a ser la vigente en el acto: el agent la toma en su
 próximo poll (`poll_interval_secs`, 30 s en `config.toml.example`), la valida con
@@ -167,7 +528,7 @@ curl -sH "Authorization: Bearer $TOKEN" \
   https://<core>/api/v1/route-servers/<rs_id>/config/current | jq -r .content
 ```
 
-### 7. Aplicar y comparar
+#### 7. Aplicar y comparar
 
 Arrancar el agent (`systemctl start ixforge-agent`) en un route server a la vez,
 esperar a que las sesiones vuelvan a Established y comparar los conteos de
