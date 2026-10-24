@@ -29,9 +29,9 @@ v0.3 son estos commits de `main`:
 
 | Repositorio | Commit |
 |---|---|
-| `core` | `deccdadfee0c41ebc7673dce33a8e4052abd0d9a` |
-| `agent` | `d1ba664583d257e9a6a1b0ef0b832b28117d36ec` |
-| `collector` | `9297ba05b1f87241d4432f569d9f89838309abc1` |
+| `core` | `10327cb31cf70c0aa41fb38b8fd6c29cd421ba69` |
+| `agent` | `f3caf8c2f6fe3f6c4102f79304fe12c522ba7160` |
+| `collector` | `770c0820ffbbb53ed266ee49fcf8557d13bb11c9` |
 
 ### Qué cambia
 
@@ -61,6 +61,13 @@ v0.3 son estos commits de `main`:
   [Cambios en la API](#cambios-en-la-api)). Activar o desactivar un trunk ahora
   regenera el config de sus route servers, como ya pasaba con las conexiones
 
+- **Dependencias al día.** Al publicarse v0.3, ni `pip-audit` ni `cargo audit`
+  reportaban vulnerabilidades conocidas en los tres componentes. En el core los
+  saltos grandes son starlette 1.9, FastAPI 0.162, SQLAlchemy 2.1 y uvicorn 0.54, y
+  PyJWT reemplaza a python-jose, que tiene un advisory sin corrección. El formato
+  del token no cambia, así que las sesiones abiertas siguen valiendo. La imagen fija
+  uv en 0.13.5 en vez de `latest`
+
 **Agent**
 
 - Si BIRD aplica el config pero falla la confirmación al core, el agent la
@@ -70,6 +77,8 @@ v0.3 son estos commits de `main`:
   En v0.2 salía como `ixforge_agent_poll_errors_total_total`: hay que actualizar
   cualquier dashboard o alerta que la use
 - `config.toml` y la unit de systemd no cambian
+- Dependencias al día. El cliente HTTP sigue en reqwest 0.12: no cambia cómo se
+  valida el certificado del core
 
 **Collector**
 
@@ -78,6 +87,8 @@ v0.3 son estos commits de `main`:
   respondiendo 503 solo con `error`
 - Se retira `polling.icmp.max_concurrency`, que no tenía efecto. Un config que
   lo tenga sigue cargando
+- Dependencias al día. VictoriaMetrics sigue en v1.106.1: actualizarlo cambia el
+  formato del índice y va en una versión aparte
 
 **Compatibilidad entre componentes.** El contrato entre agent y core no cambia:
 un agent v0.2 funciona con un core v0.3 y al revés. Por eso se actualiza primero
@@ -125,6 +136,57 @@ hace falta espacio libre en disco al menos igual a la tabla más grande
 la migración puede superar el minuto que `deploy.sh` espera al health check: en
 ese caso el script falla en la verificación, pero la migración sigue. Esperar a
 que termine (`docker compose logs -f core worker`) antes de concluir nada.
+
+**Revisar dos problemas de IPAM conocidos.** Existen en v0.2 y en v0.3, y su
+corrección viene en una versión siguiente. No bloquean la actualización, pero
+conviene saber si el IXP los tiene:
+
+```bash
+docker compose exec -T postgres psql -U ixforge -d ixforge <<'EOF'
+-- IPs de route servers sin reserva en el pool, o que también tiene un miembro
+SELECT rs.name AS route_server, ip.address,
+       r.id IS NOT NULL AS reservada,
+       m.name AS miembro_con_la_misma_ip
+FROM route_servers rs
+CROSS JOIN LATERAL (VALUES (rs.ip_v4), (rs.ip_v6)) AS ip(address)
+LEFT JOIN rs_ip_assignments r ON r.route_server_id = rs.id AND r.address = ip.address
+LEFT JOIN ip_assignments a ON a.address = ip.address
+LEFT JOIN trunk_vlans tv ON tv.id = a.trunk_vlan_id
+LEFT JOIN trunks t ON t.id = tv.trunk_id
+LEFT JOIN members m ON m.id = t.member_id
+WHERE ip.address IS NOT NULL AND (r.id IS NULL OR a.id IS NOT NULL);
+
+-- Trunks con más de una IP de la misma familia en la misma VLAN
+SELECT m.name AS miembro, t.name AS trunk, p.af,
+       array_agg(a.address ORDER BY a.address) AS ips
+FROM ip_assignments a
+JOIN ip_pools p ON p.id = a.pool_id
+JOIN trunk_vlans tv ON tv.id = a.trunk_vlan_id
+JOIN trunks t ON t.id = tv.trunk_id
+JOIN members m ON m.id = t.member_id
+GROUP BY m.name, t.name, a.trunk_vlan_id, p.af
+HAVING count(*) > 1;
+EOF
+```
+
+- **Una IP de route server sin reservar** (`reservada` en `f`): el IPAM se la
+  puede dar a un miembro, porque solo `POST /route-servers/{id}/ips` la reserva.
+  Reservarla con ese endpoint, con el pool de la LAN de peering y la misma IP
+  (`{"pool_id": ..., "address": "<la misma IP>"}`). La IP del route server no
+  cambia, así que no hace falta regenerar. Si responde `422` porque la IP no está
+  en ese pool, y ningún otro pool de la familia la contiene, no hay riesgo: el
+  IPAM solo asigna IPs de los pools
+- **Un miembro con la IP del route server** (`miembro_con_la_misma_ip` con un
+  nombre): esa sesión no puede levantar nunca, y si el miembro configura esa IP
+  hay un conflicto ARP con el route server. Coordinar con el miembro: borrar sus
+  sesiones BGP de esa familia, liberar la IP, asignarle otra y volver a crear las
+  sesiones. Recién después reservar la IP del route server, como en el punto
+  anterior
+- **Dos IPs de la misma familia en un trunk:** el config usa la menor, pero la
+  lista de sesiones de la API y del portal puede mostrar la otra, y agregar una IP
+  no regenera el config. Confirmar con el miembro cuál usa (`neighbor` en
+  `/etc/bird/bird.conf` del route server), borrar la sesión de esa familia,
+  liberar la otra IP y volver a crear la sesión
 
 **Respaldar el binario del agent en cada route server:**
 
@@ -196,7 +258,7 @@ entorno a por lo menos la cantidad de sesiones del route server más grande más
 ```bash
 cd <directorio del core>
 git fetch origin
-git checkout deccdadfee0c41ebc7673dce33a8e4052abd0d9a
+git checkout 10327cb31cf70c0aa41fb38b8fd6c29cd421ba69
 cd docker
 docker compose build
 docker compose up -d
@@ -208,14 +270,15 @@ de `core` y `./deploy.sh prod`): hace el backup, sube el commit, reconstruye, mi
 verifica el hash. Requiere la estructura de servidor que describe
 [staging.md](staging.md).
 
-En el log tiene que aparecer, en `core` o en `worker` (migra el primero que toma
-el lock y el otro no encuentra nada que aplicar):
+En el log de `core` o de `worker` tiene que aparecer lo siguiente. Migra el primero
+que toma el lock, y el otro no encuentra nada que aplicar. Las líneas pueden salir
+en otro orden, porque Alembic escribe en stderr y el resto en stdout:
 
 ```
 entrypoint: aplicando migraciones (IXFORGE_AUTO_MIGRATE=true)
-Procrastinate schema already present.
 INFO  [alembic.runtime.migration] Running upgrade f3c81a4d267e -> 8c2e5d1a9f47, ASN columns hold the full unsigned 32-bit range
 INFO  [alembic.runtime.migration] Running upgrade 8c2e5d1a9f47 -> b7d3f2a9c615, RPKI tags only where the IXP ASN fits a standard community
+Procrastinate schema already present.
 ```
 
 **Si además aparece una línea `aviso:`**, por ejemplo
@@ -255,7 +318,7 @@ Compilar el binario de v0.3 en una máquina con Docker:
 ```bash
 cd <checkout del repo agent>
 git fetch origin
-git checkout d1ba664583d257e9a6a1b0ef0b832b28117d36ec
+git checkout f3caf8c2f6fe3f6c4102f79304fe12c522ba7160
 docker run --rm -v "$PWD":/src -w /src rust:1-bookworm cargo build --release --locked
 sha256sum target/release/ixforge-agent
 ```
@@ -298,7 +361,7 @@ después del primero si algo no cuadra.
 ```bash
 cd <directorio del collector>
 git fetch origin
-git checkout 9297ba05b1f87241d4432f569d9f89838309abc1
+git checkout 770c0820ffbbb53ed266ee49fcf8557d13bb11c9
 docker compose up -d --build
 curl -s http://127.0.0.1:9200/health
 ```

@@ -300,7 +300,7 @@ Asignar una VLAN `private` a un trunk exige que el miembro esté autorizado en e
 | DELETE | `/ip-pools/{id}` | Admin | Borrar pool. `409` si tiene asignaciones de miembros o de route servers |
 | GET | `/ip-pools/{id}/assignments` | Admin | Asignaciones del pool |
 | POST | `/ip-pools/{id}/assign` | Admin | Asignar una IP a un trunk VLAN (`{"trunk_vlan_id"}`; con `"address"` es manual, sin ella secuencial). `409` si la IP ya está asignada o el pool está lleno |
-| DELETE | `/ip-assignments/{id}` | Admin | Liberar la asignación. A diferencia de `DELETE /trunks/{id}/vlans/{tv_id}/ips/{assignment_id}`, no verifica si una sesión BGP usa la IP |
+| DELETE | `/ip-assignments/{id}` | Admin | Liberar la asignación. `409` si una sesión BGP de su familia la usa, igual que `DELETE /trunks/{id}/vlans/{tv_id}/ips/{assignment_id}` |
 
 ### Trunks
 
