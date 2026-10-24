@@ -43,9 +43,12 @@ async def _borrar_eventos_de_prefijos(session: AsyncSession, retention_days: int
 @app.task(name="cleanup_old_prefix_events", queue="maintenance")
 async def cleanup_old_prefix_events(
     retention_days: int = DEFAULT_PREFIX_EVENT_RETENTION_DAYS,
+    *,
+    timestamp: int | None = None,
 ) -> dict[str, int]:
     """Delete prefix announce/withdraw events older than the retention period."""
-    log = logger.bind(retention_days=retention_days)
+    # procrastinate passes the scheduled run time of every periodic job
+    log = logger.bind(retention_days=retention_days, scheduled_for=timestamp)
     log.info("cleanup_old_prefix_events.started")
 
     session_factory = get_session_factory()
@@ -63,7 +66,11 @@ async def cleanup_old_prefix_events(
 
 @app.periodic(cron="0 3 * * *")
 @app.task(name="cleanup_old_events", queue="maintenance")
-async def cleanup_old_events(retention_days: int = DEFAULT_EVENT_RETENTION_DAYS) -> dict[str, int]:
+async def cleanup_old_events(
+    retention_days: int = DEFAULT_EVENT_RETENTION_DAYS,
+    *,
+    timestamp: int | None = None,
+) -> dict[str, int]:
     """Delete events older than the configured retention period.
 
     Parameters
@@ -76,7 +83,7 @@ async def cleanup_old_events(retention_days: int = DEFAULT_EVENT_RETENTION_DAYS)
     -------
     dict with ``deleted_count``.
     """
-    log = logger.bind(retention_days=retention_days)
+    log = logger.bind(retention_days=retention_days, scheduled_for=timestamp)
     log.info("cleanup_old_events.started")
 
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
@@ -100,6 +107,8 @@ async def cleanup_old_events(retention_days: int = DEFAULT_EVENT_RETENTION_DAYS)
 @app.task(name="cleanup_config_versions", queue="maintenance")
 async def cleanup_config_versions(
     keep_last: int = DEFAULT_CONFIG_VERSIONS_KEEP,
+    *,
+    timestamp: int | None = None,
 ) -> dict[str, int]:
     """Remove old config versions, keeping the last N per route server.
 
@@ -117,7 +126,7 @@ async def cleanup_config_versions(
     -------
     dict with ``deleted_count``.
     """
-    log = logger.bind(keep_last=keep_last)
+    log = logger.bind(keep_last=keep_last, scheduled_for=timestamp)
     log.info("cleanup_config_versions.started")
 
     session_factory = get_session_factory()
