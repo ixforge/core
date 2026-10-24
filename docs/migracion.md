@@ -52,7 +52,7 @@ v0.3 son estos commits de `main`:
 - **El rate limit usa la IP de la conexión**, no la que declara el cliente en
   `X-Forwarded-For`, que cualquiera podía falsificar para saltarse el límite.
   **Requiere acción si hay un proxy inverso delante del core** (ver
-  [Antes de empezar](#2-proxy-inverso-y-rate-limit))
+  [Proxy inverso y rate limit](#2-proxy-inverso-y-rate-limit))
 - **`ixforge upgrade` ya no intenta reaplicar el schema de procrastinate** si ya
   existe. En v0.2, cada arranque sobre una base instalada imprimía
   `Warning: could not apply procrastinate schema: Database error`, que no
