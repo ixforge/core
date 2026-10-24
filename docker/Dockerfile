@@ -40,7 +40,7 @@ RUN groupadd --gid 1000 ixforge && \
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock README.md ./
 RUN mkdir -p src/ixforge && touch src/ixforge/__init__.py
