@@ -12,6 +12,7 @@ from typing import Any
 import structlog
 from jinja2 import Template
 from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.enums import BGPAdminState, MemberState, TrunkState
@@ -223,7 +224,7 @@ async def build_peers(
             IPPool.af,
         )
         .join(IPPool, IPAssignment.pool_id == IPPool.id)
-        .distinct(IPAssignment.trunk_vlan_id, IPPool.af)
+        .ext(distinct_on(IPAssignment.trunk_vlan_id, IPPool.af))
         .order_by(IPAssignment.trunk_vlan_id, IPPool.af, IPAssignment.address)
         .subquery()
     )

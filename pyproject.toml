@@ -40,6 +40,7 @@ dev = [
     "factory-boy>=3.3",
     "ruff>=0.9",
     "mypy>=1.14",
+    "httpx2>=2.16.0",
 ]
 
 [project.scripts]
@@ -51,14 +52,13 @@ build-backend = "uv_build"
 
 [tool.mypy]
 strict = true
-plugins = ["sqlalchemy.ext.mypy.plugin"]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["procrastinate.*", "slowapi.*", "jose.*", "passlib.*"]
+module = ["procrastinate.*", "slowapi.*", "jose.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

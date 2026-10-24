@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 async def paginate[T: BaseModel](
     session: AsyncSession,
-    stmt: Select[tuple[Any]],
+    stmt: Select[Any],
     params: CursorParams,
     sort_column: Any,
     id_column: Any,
@@ -56,8 +56,8 @@ async def paginate[T: BaseModel](
 
 
 def order_after_cursor(
-    stmt: Select[tuple[Any]], params: CursorParams, sort_column: Any, id_column: Any
-) -> Select[tuple[Any]]:
+    stmt: Select[Any], params: CursorParams, sort_column: Any, id_column: Any
+) -> Select[Any]:
     """Order by (sort_column, id_column) and keep only the rows after the cursor"""
     stmt = stmt.order_by(nulls_last(asc(sort_column)), asc(id_column))
     if params.cursor is None:

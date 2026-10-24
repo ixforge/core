@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import Select, desc, func, or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.models.bgp_prefix import BGPPrefixEvent, BGPSessionPrefix
@@ -19,7 +20,7 @@ from ixforge.models.route_server_peer import RouteServerPeer
 from ixforge.models.trunk import Trunk, TrunkVLAN
 
 
-def _sesiones_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[tuple[uuid.UUID]]:
+def _sesiones_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[uuid.UUID]:
     return (
         select(BGPSession.id)
         .join(TrunkVLAN, TrunkVLAN.id == BGPSession.trunk_vlan_id)
@@ -28,7 +29,7 @@ def _sesiones_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[tup
     )
 
 
-def _peers_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[tuple[uuid.UUID]]:
+def _peers_del_miembro(ixp_id: uuid.UUID, member_id: uuid.UUID) -> Select[uuid.UUID]:
     """Los peers del route server que usan una IP asignada a este miembro
 
     El upstream del IXP no tiene sesion de miembro: su BGP lo maneja un peer.
@@ -91,7 +92,7 @@ async def prefijos(
             .label("last_seen_at"),
         )
         .where(fuente)
-        .distinct(BGPSessionPrefix.prefix)
+        .ext(distinct_on(BGPSessionPrefix.prefix))
         .order_by(BGPSessionPrefix.prefix, desc(BGPSessionPrefix.last_seen_at))
         .limit(limit)
     )

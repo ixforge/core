@@ -7,6 +7,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Response
 from sqlalchemy import delete, insert, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ixforge.api.deps import DBSession
@@ -156,7 +157,7 @@ async def _sesiones_por_peer(
             IPPool.af,
         )
         .join(IPPool, IPAssignment.pool_id == IPPool.id)
-        .distinct(IPAssignment.trunk_vlan_id, IPPool.af)
+        .ext(distinct_on(IPAssignment.trunk_vlan_id, IPPool.af))
         .order_by(IPAssignment.trunk_vlan_id, IPPool.af, IPAssignment.address)
         .subquery()
     )

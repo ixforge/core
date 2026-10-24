@@ -80,7 +80,7 @@ async def to_read(session: AsyncSession, bgp: BGPSession) -> dict[str, Any]:
 
 async def _paginate_with_peers(
     session: AsyncSession,
-    stmt: Select[tuple[Any]],
+    stmt: Select[Any],
     params: CursorParams,
 ) -> CursorPage[BGPSessionRead]:
     """Paginate BGP sessions and enrich with computed peer_ip/peer_asn"""
