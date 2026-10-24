@@ -680,7 +680,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7" },
     { name = "pillow", specifier = ">=12.1.1" },
-    { name = "procrastinate", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "procrastinate", specifier = ">=3.7" },
     { name = "prometheus-client", specifier = ">=0.21" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
