@@ -29,7 +29,7 @@ v0.3 son estos commits de `main`:
 
 | Repositorio | Commit |
 |---|---|
-| `core` | `10327cb31cf70c0aa41fb38b8fd6c29cd421ba69` |
+| `core` | `9ae5fa15c83378fcce52e6162ae9c4cc44d6e49a` |
 | `agent` | `f3caf8c2f6fe3f6c4102f79304fe12c522ba7160` |
 | `collector` | `770c0820ffbbb53ed266ee49fcf8557d13bb11c9` |
 
@@ -259,7 +259,7 @@ entorno a por lo menos la cantidad de sesiones del route server más grande más
 ```bash
 cd <directorio del core>
 git fetch origin
-git checkout 10327cb31cf70c0aa41fb38b8fd6c29cd421ba69
+git checkout 9ae5fa15c83378fcce52e6162ae9c4cc44d6e49a
 cd docker
 docker compose build
 docker compose up -d
@@ -430,6 +430,7 @@ Para quien integra contra la API:
 | Un cursor manipulado podía responder `500` | `422 VALIDATION_ERROR` con `Invalid pagination cursor` |
 | El preview de templates no renderizaba `bird.conf.j2` como la generación | Lo renderiza igual que la generación |
 | Activar o desactivar un trunk no regeneraba configs | Regenera el config de los route servers de sus sesiones |
+| Un `429` respondía `{"error": "Rate limit exceeded: ..."}`, con `error` como string | Usa el formato de error de la API, con el código `RATE_LIMITED` |
 
 ## Desde los templates anteriores a v0.2
 

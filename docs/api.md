@@ -101,12 +101,12 @@ los errores de validación de Pydantic es la lista de errores por campo.
 | `NOT_FOUND` | 404 | El recurso no existe en el IXP, o todavía no hay IXP configurado |
 | `CONFLICT` | 409 | Duplicados y borrados bloqueados por dependencias |
 | `VALIDATION_ERROR` | 422 | Body o query inválido (Pydantic) y reglas de negocio: transiciones de estado, precondiciones |
+| `RATE_LIMITED` | 429 | Se superó el límite de requests por minuto |
 | `INTERNAL_ERROR` | 500 | Error no manejado, o el commit falló después de procesar el request |
 
-Dos respuestas no usan este formato: una ruta o método inexistente devuelve el
-`{"detail": "Not Found"}` / `{"detail": "Method Not Allowed"}` de Starlette, y el
-`429` de rate limiting devuelve `{"error": "Rate limit exceeded: ..."}`, con
-`error` como string.
+Una respuesta no usa este formato: una ruta o método inexistente devuelve el
+`{"detail": "Not Found"}` / `{"detail": "Method Not Allowed"}` de Starlette.
+El `429` de rate limiting sí lo usa, con el código `RATE_LIMITED`.
 
 ## Rate limiting
 
