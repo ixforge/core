@@ -61,8 +61,9 @@ v0.3 son estos commits de `main`:
   [Cambios en la API](#cambios-en-la-api)). Activar o desactivar un trunk ahora
   regenera el config de sus route servers, como ya pasaba con las conexiones
 
-- **Dependencias al día.** Al publicarse v0.3, ni `pip-audit` ni `cargo audit`
-  reportaban vulnerabilidades conocidas en los tres componentes. En el core los
+- **Dependencias al día.** Con los commits de v0.3, al 24 de octubre de 2026, ni
+  `pip-audit` ni `cargo audit` reportan vulnerabilidades conocidas en los tres
+  componentes. En el core los
   saltos grandes son starlette 1.9, FastAPI 0.162, SQLAlchemy 2.1 y uvicorn 0.54, y
   PyJWT reemplaza a python-jose, que tiene un advisory sin corrección. El formato
   del token no cambia, así que las sesiones abiertas siguen valiendo. La imagen fija
