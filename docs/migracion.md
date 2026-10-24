@@ -1,8 +1,8 @@
 # Actualizar un IXP ya desplegado
 
 Cada sección cubre un salto de versión. Ejecutarla **una vez por IXP**, con una
-persona mirando cada paso. Una versión de IXForge son los tres componentes en el
-mismo tag: `core`, `agent` y `collector` en `v0.3`.
+persona mirando cada paso. Una versión de IXForge son los tres componentes juntos:
+`core`, `agent` y `collector` en los commits que indica cada sección.
 
 ## Qué versión corre hoy
 
@@ -24,6 +24,14 @@ Desde v0.3, la versión real aparece en `GET /api/v1/health` del core, en
 `GET /health` del agent y en el `agent_version` de cada route server.
 
 ## De v0.2 a v0.3
+
+v0.3 son estos commits de `main`:
+
+| Repositorio | Commit |
+|---|---|
+| `core` | `deccdadfee0c41ebc7673dce33a8e4052abd0d9a` |
+| `agent` | `d1ba664583d257e9a6a1b0ef0b832b28117d36ec` |
+| `collector` | `9297ba05b1f87241d4432f569d9f89838309abc1` |
 
 ### Qué cambia
 
@@ -187,16 +195,16 @@ entorno a por lo menos la cantidad de sesiones del route server más grande más
 
 ```bash
 cd <directorio del core>
-git fetch --tags
-git checkout v0.3
+git fetch origin
+git checkout deccdadfee0c41ebc7673dce33a8e4052abd0d9a
 cd docker
 docker compose build
 docker compose up -d
 docker compose logs -f core worker
 ```
 
-**Con `deploy.sh`** desde un checkout del tag (`git checkout v0.3` y
-`./deploy.sh prod`): hace el backup, sube el commit, reconstruye, migra y
+**Con `deploy.sh`** desde un checkout de ese commit (`git checkout` del commit
+de `core` y `./deploy.sh prod`): hace el backup, sube el commit, reconstruye, migra y
 verifica el hash. Requiere la estructura de servidor que describe
 [staging.md](staging.md).
 
@@ -246,8 +254,8 @@ Compilar el binario de v0.3 en una máquina con Docker:
 
 ```bash
 cd <checkout del repo agent>
-git fetch --tags
-git checkout v0.3
+git fetch origin
+git checkout d1ba664583d257e9a6a1b0ef0b832b28117d36ec
 docker run --rm -v "$PWD":/src -w /src rust:1-bookworm cargo build --release --locked
 sha256sum target/release/ixforge-agent
 ```
@@ -289,14 +297,14 @@ después del primero si algo no cuadra.
 
 ```bash
 cd <directorio del collector>
-git fetch --tags
-git checkout v0.3
+git fetch origin
+git checkout 9297ba05b1f87241d4432f569d9f89838309abc1
 docker compose up -d --build
 curl -s http://127.0.0.1:9200/health
 ```
 
-Con `deploy.sh`: `git checkout v0.3` y `./deploy.sh prod` desde un checkout del
-repo collector. Si `configs/ixforge-collector.yaml` tiene
+Con `deploy.sh`: `git checkout` del commit de `collector` y `./deploy.sh prod`
+desde un checkout del repo collector. Si `configs/ixforge-collector.yaml` tiene
 `polling.icmp.max_concurrency`, se puede borrar; si queda, se ignora.
 
 ### 6. Verificación final
